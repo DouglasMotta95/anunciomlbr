@@ -122,3 +122,24 @@ export const getMlConnection = createServerFn({ method: "GET" })
     const configured = !!process.env["ML_CLIENT_ID"] && !!process.env["ML_REDIRECT_URI"];
     return { configured, connection: data ?? null };
   });
+
+/** Dispara a sincronização dos anúncios da conta ML conectada. */
+export const syncMlListings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { syncUserListings } = await import("@/lib/ml.server");
+    return syncUserListings(context.userId);
+  });
+
+/** Desconecta a conta do Mercado Livre e apaga os tokens guardados. */
+export const disconnectMercadoLivre = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("ml_tokens").delete().eq("user_id", context.userId);
+    await supabaseAdmin
+      .from("ml_connections")
+      .update({ connected: false, updated_at: new Date().toISOString() })
+      .eq("user_id", context.userId);
+    return { ok: true as const };
+  });
