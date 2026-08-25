@@ -142,7 +142,7 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
         let processError: string | null = null;
         try {
           const lookup = await fetch(`https://api.mercadolibre.com${resource}`, {
-            headers: { Authorization: `Bearer ${tokenRow.access_token}`, Accept: "application/json" },
+            headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
           });
 
           if (!lookup.ok) {
