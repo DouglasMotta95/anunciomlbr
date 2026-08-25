@@ -126,8 +126,10 @@ function AccountPage() {
               variant="ghost"
               className="w-full justify-start"
               onClick={async () => {
+                await queryClient.cancelQueries();
+                queryClient.clear();
                 await supabase.auth.signOut();
-                navigate({ to: "/" });
+                navigate({ to: "/auth", replace: true });
               }}
             >
               <LogOut className="mr-2 h-4 w-4" /> Sair da conta
