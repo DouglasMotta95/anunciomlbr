@@ -344,9 +344,7 @@ function ListingsPage() {
               </Button>
               <Button
                 disabled={draft.title.trim().length < 3 || save.isPending}
-                onClick={() =>
-                  save.mutate({ ...draft, ai_score: ai ? ai.score_after : undefined })
-                }
+                onClick={() => save.mutate(ai ? { ...draft, ai_score: ai.score_after } : draft)}
               >
                 {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar anúncio

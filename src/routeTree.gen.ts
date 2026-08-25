@@ -12,10 +12,16 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAnunciosRouteImport } from './routes/_authenticated/anuncios'
 import { Route as AuthenticatedBuscarRouteImport } from './routes/_authenticated/buscar'
+import { Route as AuthenticatedContaRouteImport } from './routes/_authenticated/conta'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedLicencaRouteImport } from './routes/_authenticated/licenca'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as ApiPublicMlCallbackRouteImport } from './routes/api/public/ml/callback'
+import { Route as ApiPublicWebhooksMercadopagoRouteImport } from './routes/api/public/webhooks/mercadopago'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -31,6 +37,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAnunciosRoute = AuthenticatedAnunciosRouteImport.update({
   id: '/anuncios',
   path: '/anuncios',
@@ -41,9 +52,19 @@ const AuthenticatedBuscarRoute = AuthenticatedBuscarRouteImport.update({
   path: '/buscar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedContaRoute = AuthenticatedContaRouteImport.update({
+  id: '/conta',
+  path: '/conta',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLicencaRoute = AuthenticatedLicencaRouteImport.update({
+  id: '/licenca',
+  path: '/licenca',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
@@ -51,54 +72,120 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicMlCallbackRoute = ApiPublicMlCallbackRouteImport.update({
+  id: '/api/public/ml/callback',
+  path: '/api/public/ml/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicWebhooksMercadopagoRoute =
+  ApiPublicWebhooksMercadopagoRouteImport.update({
+    id: '/api/public/webhooks/mercadopago',
+    path: '/api/public/webhooks/mercadopago',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
   '/buscar': typeof AuthenticatedBuscarRoute
+  '/conta': typeof AuthenticatedContaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
   '/buscar': typeof AuthenticatedBuscarRoute
+  '/conta': typeof AuthenticatedContaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/anuncios': typeof AuthenticatedAnunciosRoute
   '/_authenticated/buscar': typeof AuthenticatedBuscarRoute
+  '/_authenticated/conta': typeof AuthenticatedContaRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/licenca': typeof AuthenticatedLicencaRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/admin/login': typeof AdminLoginRoute
+  '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/anuncios' | '/buscar' | '/dashboard' | '/onboarding'
+    | '/'
+    | '/auth'
+    | '/admin'
+    | '/anuncios'
+    | '/buscar'
+    | '/conta'
+    | '/dashboard'
+    | '/licenca'
+    | '/onboarding'
+    | '/admin/login'
+    | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadopago'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/anuncios' | '/buscar' | '/dashboard' | '/onboarding'
+  to:
+    | '/'
+    | '/auth'
+    | '/admin'
+    | '/anuncios'
+    | '/buscar'
+    | '/conta'
+    | '/dashboard'
+    | '/licenca'
+    | '/onboarding'
+    | '/admin/login'
+    | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadopago'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/admin'
     | '/_authenticated/anuncios'
     | '/_authenticated/buscar'
+    | '/_authenticated/conta'
     | '/_authenticated/dashboard'
+    | '/_authenticated/licenca'
     | '/_authenticated/onboarding'
+    | '/admin/login'
+    | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadopago'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  AdminLoginRoute: typeof AdminLoginRoute
+  ApiPublicMlCallbackRoute: typeof ApiPublicMlCallbackRoute
+  ApiPublicWebhooksMercadopagoRoute: typeof ApiPublicWebhooksMercadopagoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -124,6 +211,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/anuncios': {
       id: '/_authenticated/anuncios'
       path: '/anuncios'
@@ -138,11 +232,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuscarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/conta': {
+      id: '/_authenticated/conta'
+      path: '/conta'
+      fullPath: '/conta'
+      preLoaderRoute: typeof AuthenticatedContaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/licenca': {
+      id: '/_authenticated/licenca'
+      path: '/licenca'
+      fullPath: '/licenca'
+      preLoaderRoute: typeof AuthenticatedLicencaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/onboarding': {
@@ -152,20 +260,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/ml/callback': {
+      id: '/api/public/ml/callback'
+      path: '/api/public/ml/callback'
+      fullPath: '/api/public/ml/callback'
+      preLoaderRoute: typeof ApiPublicMlCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webhooks/mercadopago': {
+      id: '/api/public/webhooks/mercadopago'
+      path: '/api/public/webhooks/mercadopago'
+      fullPath: '/api/public/webhooks/mercadopago'
+      preLoaderRoute: typeof ApiPublicWebhooksMercadopagoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAnunciosRoute: typeof AuthenticatedAnunciosRoute
   AuthenticatedBuscarRoute: typeof AuthenticatedBuscarRoute
+  AuthenticatedContaRoute: typeof AuthenticatedContaRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedLicencaRoute: typeof AuthenticatedLicencaRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAnunciosRoute: AuthenticatedAnunciosRoute,
   AuthenticatedBuscarRoute: AuthenticatedBuscarRoute,
+  AuthenticatedContaRoute: AuthenticatedContaRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedLicencaRoute: AuthenticatedLicencaRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
 }
 
@@ -176,6 +311,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  AdminLoginRoute: AdminLoginRoute,
+  ApiPublicMlCallbackRoute: ApiPublicMlCallbackRoute,
+  ApiPublicWebhooksMercadopagoRoute: ApiPublicWebhooksMercadopagoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
