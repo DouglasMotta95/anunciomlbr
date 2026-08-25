@@ -126,19 +126,18 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
           return json({ ok: true, ignored: "seller_not_connected" });
         }
 
-        const { data: tokenRow } = await supabaseAdmin
-          .from("ml_tokens")
-          .select("access_token")
-          .eq("user_id", userId)
-          .maybeSingle();
+        // Token válido (renova via refresh_token quando necessário).
+        const { getValidMlAccessToken } = await import("@/lib/ml.server");
+        const tokenState = await getValidMlAccessToken(userId);
 
-        if (!tokenRow?.access_token) {
+        if (!tokenState.ok) {
           await supabaseAdmin
             .from("ml_notifications")
-            .update({ processed: false, error: "missing_token" })
+            .update({ processed: false, error: tokenState.reason })
             .eq("id", logged!.id);
-          return json({ ok: true, pending: "missing_token" });
+          return json({ ok: true, pending: tokenState.reason });
         }
+        const accessToken = tokenState.accessToken;
 
         let processError: string | null = null;
         try {
