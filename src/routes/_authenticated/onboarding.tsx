@@ -9,7 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProfile } from "@/hooks/useAuth";
-import { getMlAuthorizationUrl, getMlConnection } from "@/lib/ml.functions";
+import {
+  disconnectMercadoLivre,
+  getMlAuthorizationUrl,
+  getMlConnection,
+  syncMlListings,
+} from "@/lib/ml.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateTime } from "@/lib/format";
 
