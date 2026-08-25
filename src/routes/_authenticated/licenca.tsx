@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { BadgeCheck, Check, Copy, Loader2 } from "lucide-react"; 
+import { BadgeCheck, Check, Copy, KeyRound, Loader2, ShoppingCart } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
