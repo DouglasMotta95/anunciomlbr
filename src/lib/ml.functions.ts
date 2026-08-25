@@ -143,3 +143,75 @@ export const disconnectMercadoLivre = createServerFn({ method: "POST" })
       .eq("user_id", context.userId);
     return { ok: true as const };
   });
+
+/** Busca um único anúncio pelo ID oficial (MLB...) usando a API pública do Mercado Livre. */
+export const getMercadoLivreItem = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        id: z
+          .string()
+          .trim()
+          .regex(/^MLB-?\d+$/i, "ID inválido. Use o formato MLB1234567890."),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { getAppAccessToken } = await import("@/lib/ml.server");
+    const token = process.env["ML_ACCESS_TOKEN"] ?? (await getAppAccessToken());
+    const id = data.id.toUpperCase().replace("MLB-", "MLB");
+
+    try {
+      const response = await fetch(`https://api.mercadolibre.com/items/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        return {
+          ok: false as const,
+          configured: false,
+          reason: "Configuração pendente: a consulta por ID requer credenciais de aplicação.",
+          items: [] as MlItem[],
+        };
+      }
+      if (response.status === 404) {
+        return { ok: true as const, configured: true, items: [] as MlItem[], reason: null };
+      }
+      if (!response.ok) {
+        return {
+          ok: false as const,
+          configured: true,
+          reason: `A API do Mercado Livre respondeu ${response.status}.`,
+          items: [] as MlItem[],
+        };
+      }
+
+      const raw = (await response.json()) as Record<string, unknown>;
+      const seller = raw["seller_id"];
+      const price = typeof raw["price"] === "number" ? (raw["price"] as number) : null;
+      const pictures = Array.isArray(raw["pictures"])
+        ? (raw["pictures"] as Array<{ secure_url?: string; url?: string }>)
+        : [];
+      const item: MlItem = {
+        id: String(raw["id"] ?? id),
+        title: String(raw["title"] ?? ""),
+        price_cents: price === null ? null : Math.round(price * 100),
+        thumbnail: (raw["thumbnail"] as string) ?? pictures[0]?.secure_url ?? pictures[0]?.url ?? null,
+        permalink: (raw["permalink"] as string) ?? null,
+        category: (raw["category_id"] as string) ?? null,
+        seller: seller != null ? String(seller) : null,
+        condition: (raw["condition"] as string) ?? null,
+        available_quantity: (raw["available_quantity"] as number) ?? null,
+        sold_quantity: (raw["sold_quantity"] as number) ?? null,
+      };
+      return { ok: true as const, configured: true, items: [item], reason: null };
+    } catch (error) {
+      console.error("ML item lookup failed", error);
+      return {
+        ok: false as const,
+        configured: true,
+        reason: "Não foi possível consultar o Mercado Livre agora.",
+        items: [] as MlItem[],
+      };
+    }
+  });
