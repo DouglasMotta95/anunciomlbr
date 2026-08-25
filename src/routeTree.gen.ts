@@ -20,6 +20,8 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedLicencaRouteImport } from './routes/_authenticated/licenca'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as ApiPublicMlCallbackRouteImport } from './routes/api/public/ml/callback'
+import { Route as ApiPublicWebhooksMercadopagoRouteImport } from './routes/api/public/webhooks/mercadopago'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -75,6 +77,17 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicMlCallbackRoute = ApiPublicMlCallbackRouteImport.update({
+  id: '/api/public/ml/callback',
+  path: '/api/public/ml/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicWebhooksMercadopagoRoute =
+  ApiPublicWebhooksMercadopagoRouteImport.update({
+    id: '/api/public/webhooks/mercadopago',
+    path: '/api/public/webhooks/mercadopago',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -87,6 +100,8 @@ export interface FileRoutesByFullPath {
   '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,6 +114,8 @@ export interface FileRoutesByTo {
   '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,6 +130,8 @@ export interface FileRoutesById {
   '/_authenticated/licenca': typeof AuthenticatedLicencaRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/admin/login': typeof AdminLoginRoute
+  '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -127,6 +146,8 @@ export interface FileRouteTypes {
     | '/licenca'
     | '/onboarding'
     | '/admin/login'
+    | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadopago'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -139,6 +160,8 @@ export interface FileRouteTypes {
     | '/licenca'
     | '/onboarding'
     | '/admin/login'
+    | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadopago'
   id:
     | '__root__'
     | '/'
@@ -152,6 +175,8 @@ export interface FileRouteTypes {
     | '/_authenticated/licenca'
     | '/_authenticated/onboarding'
     | '/admin/login'
+    | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadopago'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -159,6 +184,8 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  ApiPublicMlCallbackRoute: typeof ApiPublicMlCallbackRoute
+  ApiPublicWebhooksMercadopagoRoute: typeof ApiPublicWebhooksMercadopagoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -240,6 +267,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/ml/callback': {
+      id: '/api/public/ml/callback'
+      path: '/api/public/ml/callback'
+      fullPath: '/api/public/ml/callback'
+      preLoaderRoute: typeof ApiPublicMlCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/webhooks/mercadopago': {
+      id: '/api/public/webhooks/mercadopago'
+      path: '/api/public/webhooks/mercadopago'
+      fullPath: '/api/public/webhooks/mercadopago'
+      preLoaderRoute: typeof ApiPublicWebhooksMercadopagoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -271,6 +312,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   AdminLoginRoute: AdminLoginRoute,
+  ApiPublicMlCallbackRoute: ApiPublicMlCallbackRoute,
+  ApiPublicWebhooksMercadopagoRoute: ApiPublicWebhooksMercadopagoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
