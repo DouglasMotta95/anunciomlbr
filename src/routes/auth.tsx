@@ -47,6 +47,7 @@ function AuthPage() {
   const [confirm, setConfirm] = useState("");
   const [terms, setTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (user) navigate({ to: "/onboarding" });
@@ -222,7 +223,13 @@ function AuthPage() {
             <span className="h-px flex-1 bg-border" /> ou <span className="h-px flex-1 bg-border" />
           </div>
 
-          <Button variant="outline" className="w-full" onClick={handleGoogle}>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={handleGoogle}
+            disabled={googleLoading}
+          >
+            {googleLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Continuar com Google
           </Button>
 

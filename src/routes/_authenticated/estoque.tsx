@@ -270,7 +270,7 @@ function MetricCard({
   label: string;
   value: string;
   icon: typeof Boxes;
-  tone?: "warning" | "destructive";
+  tone?: "warning" | "destructive" | undefined;
 }) {
   return (
     <Card>

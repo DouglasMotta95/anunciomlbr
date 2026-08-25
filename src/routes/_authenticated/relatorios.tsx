@@ -73,7 +73,9 @@ const PIE_COLORS = ["hsl(var(--primary))", "hsl(var(--accent))", "#f59e0b", "#ef
 
 function downloadCsv(filename: string, rows: Array<Record<string, string | number>>) {
   if (rows.length === 0) return;
-  const headers = Object.keys(rows[0]);
+  const first = rows[0];
+  if (!first) return;
+  const headers = Object.keys(first);
   const csv = [
     headers.join(";"),
     ...rows.map((row) => headers.map((h) => String(row[h] ?? "").replace(/;/g, ",")).join(";")),

@@ -20,6 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedEstoqueRouteImport } from './routes/_authenticated/estoque'
 import { Route as AuthenticatedLicencaRouteImport } from './routes/_authenticated/licenca'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as ApiPublicMlCallbackRouteImport } from './routes/api/public/ml/callback'
@@ -80,6 +81,11 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedVendasRoute = AuthenticatedVendasRouteImport.update({
   id: '/vendas',
   path: '/vendas',
@@ -119,6 +125,7 @@ export interface FileRoutesByFullPath {
   '/estoque': typeof AuthenticatedEstoqueRoute
   '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
@@ -136,6 +143,7 @@ export interface FileRoutesByTo {
   '/estoque': typeof AuthenticatedEstoqueRoute
   '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
@@ -155,6 +163,7 @@ export interface FileRoutesById {
   '/_authenticated/estoque': typeof AuthenticatedEstoqueRoute
   '/_authenticated/licenca': typeof AuthenticatedLicencaRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
@@ -174,6 +183,7 @@ export interface FileRouteTypes {
     | '/estoque'
     | '/licenca'
     | '/onboarding'
+    | '/relatorios'
     | '/vendas'
     | '/admin/login'
     | '/api/public/ml/callback'
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
     | '/estoque'
     | '/licenca'
     | '/onboarding'
+    | '/relatorios'
     | '/vendas'
     | '/admin/login'
     | '/api/public/ml/callback'
@@ -209,6 +220,7 @@ export interface FileRouteTypes {
     | '/_authenticated/estoque'
     | '/_authenticated/licenca'
     | '/_authenticated/onboarding'
+    | '/_authenticated/relatorios'
     | '/_authenticated/vendas'
     | '/admin/login'
     | '/api/public/ml/callback'
@@ -305,6 +317,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/relatorios': {
+      id: '/_authenticated/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/vendas': {
       id: '/_authenticated/vendas'
       path: '/vendas'
@@ -352,6 +371,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedEstoqueRoute: typeof AuthenticatedEstoqueRoute
   AuthenticatedLicencaRoute: typeof AuthenticatedLicencaRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedVendasRoute: typeof AuthenticatedVendasRoute
 }
 
@@ -364,6 +384,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEstoqueRoute: AuthenticatedEstoqueRoute,
   AuthenticatedLicencaRoute: AuthenticatedLicencaRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedVendasRoute: AuthenticatedVendasRoute,
 }
 
