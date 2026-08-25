@@ -190,3 +190,34 @@ export async function syncUserListings(userId: string, limit = 50): Promise<MlSy
 
   return { ok: true, imported, updated, total: ids.length };
 }
+
+let appToken: { value: string; expiresAt: number } | null = null;
+
+/** Token de aplicação (client_credentials) para leituras públicas de busca. */
+export async function getAppAccessToken(): Promise<string | null> {
+  if (appToken && appToken.expiresAt - Date.now() > 60_000) return appToken.value;
+
+  const clientId = process.env["ML_CLIENT_ID"];
+  const clientSecret = process.env["ML_CLIENT_SECRET"];
+  if (!clientId || !clientSecret) return null;
+
+  const response = await fetch(`${ML_API}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+  });
+  if (!response.ok) {
+    console.error("ML app token failed with status", response.status);
+    return null;
+  }
+  const token = (await response.json()) as { access_token: string; expires_in?: number };
+  appToken = {
+    value: token.access_token,
+    expiresAt: Date.now() + (token.expires_in ?? 21600) * 1000,
+  };
+  return appToken.value;
+}
