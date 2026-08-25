@@ -24,6 +24,7 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AuthenticatedEditorIdRouteImport } from './routes/_authenticated/editor.$id'
 import { Route as ApiPublicMlCallbackRouteImport } from './routes/api/public/ml/callback'
 import { Route as ApiPublicWebhooksMercadolivreRouteImport } from './routes/api/public/webhooks/mercadolivre'
 import { Route as ApiPublicWebhooksMercadopagoRouteImport } from './routes/api/public/webhooks/mercadopago'
@@ -103,6 +104,11 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedEditorIdRoute = AuthenticatedEditorIdRouteImport.update({
+  id: '/editor/$id',
+  path: '/editor/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const ApiPublicMlCallbackRoute = ApiPublicMlCallbackRouteImport.update({
   id: '/api/public/ml/callback',
   path: '/api/public/ml/callback',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/editor/$id': typeof AuthenticatedEditorIdRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
   '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/editor/$id': typeof AuthenticatedEditorIdRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
   '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/_authenticated/editor/$id': typeof AuthenticatedEditorIdRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
   '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/vendas'
     | '/admin/login'
+    | '/editor/$id'
     | '/api/public/ml/callback'
     | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/vendas'
     | '/admin/login'
+    | '/editor/$id'
     | '/api/public/ml/callback'
     | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/vendas'
     | '/admin/login'
+    | '/_authenticated/editor/$id'
     | '/api/public/ml/callback'
     | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
@@ -358,6 +370,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/editor/$id': {
+      id: '/_authenticated/editor/$id'
+      path: '/editor/$id'
+      fullPath: '/editor/$id'
+      preLoaderRoute: typeof AuthenticatedEditorIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/ml/callback': {
       id: '/api/public/ml/callback'
       path: '/api/public/ml/callback'
@@ -394,6 +413,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedVendasRoute: typeof AuthenticatedVendasRoute
+  AuthenticatedEditorIdRoute: typeof AuthenticatedEditorIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -408,6 +428,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedVendasRoute: AuthenticatedVendasRoute,
+  AuthenticatedEditorIdRoute: AuthenticatedEditorIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

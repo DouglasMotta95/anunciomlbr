@@ -137,7 +137,7 @@ function EditorPage() {
   const set = (key: keyof Form) => (value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <AppShell title={isNew ? "Novo anúncio" : "Editar anúncio"} subtitle="Edite, otimize com IA e salve como rascunho.">
+    <AppShell title={isNew ? "Novo anúncio" : "Editar anúncio"} description="Edite, otimize com IA e salve como rascunho.">
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/anuncios" })}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
