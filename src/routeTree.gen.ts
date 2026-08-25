@@ -14,7 +14,9 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAnunciosRouteImport } from './routes/_authenticated/anuncios'
 import { Route as AuthenticatedBuscarRouteImport } from './routes/_authenticated/buscar'
+import { Route as AuthenticatedContaRouteImport } from './routes/_authenticated/conta'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedLicencaRouteImport } from './routes/_authenticated/licenca'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,9 +43,19 @@ const AuthenticatedBuscarRoute = AuthenticatedBuscarRouteImport.update({
   path: '/buscar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedContaRoute = AuthenticatedContaRouteImport.update({
+  id: '/conta',
+  path: '/conta',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedLicencaRoute = AuthenticatedLicencaRouteImport.update({
+  id: '/licenca',
+  path: '/licenca',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
@@ -57,7 +69,9 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
   '/buscar': typeof AuthenticatedBuscarRoute
+  '/conta': typeof AuthenticatedContaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
 }
 export interface FileRoutesByTo {
@@ -65,7 +79,9 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
   '/buscar': typeof AuthenticatedBuscarRoute
+  '/conta': typeof AuthenticatedContaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
 }
 export interface FileRoutesById {
@@ -75,15 +91,32 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/anuncios': typeof AuthenticatedAnunciosRoute
   '/_authenticated/buscar': typeof AuthenticatedBuscarRoute
+  '/_authenticated/conta': typeof AuthenticatedContaRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/licenca': typeof AuthenticatedLicencaRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/anuncios' | '/buscar' | '/dashboard' | '/onboarding'
+    | '/'
+    | '/auth'
+    | '/anuncios'
+    | '/buscar'
+    | '/conta'
+    | '/dashboard'
+    | '/licenca'
+    | '/onboarding'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/anuncios' | '/buscar' | '/dashboard' | '/onboarding'
+  to:
+    | '/'
+    | '/auth'
+    | '/anuncios'
+    | '/buscar'
+    | '/conta'
+    | '/dashboard'
+    | '/licenca'
+    | '/onboarding'
   id:
     | '__root__'
     | '/'
@@ -91,7 +124,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/anuncios'
     | '/_authenticated/buscar'
+    | '/_authenticated/conta'
     | '/_authenticated/dashboard'
+    | '/_authenticated/licenca'
     | '/_authenticated/onboarding'
   fileRoutesById: FileRoutesById
 }
@@ -138,11 +173,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuscarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/conta': {
+      id: '/_authenticated/conta'
+      path: '/conta'
+      fullPath: '/conta'
+      preLoaderRoute: typeof AuthenticatedContaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/licenca': {
+      id: '/_authenticated/licenca'
+      path: '/licenca'
+      fullPath: '/licenca'
+      preLoaderRoute: typeof AuthenticatedLicencaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/onboarding': {
@@ -158,14 +207,18 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAnunciosRoute: typeof AuthenticatedAnunciosRoute
   AuthenticatedBuscarRoute: typeof AuthenticatedBuscarRoute
+  AuthenticatedContaRoute: typeof AuthenticatedContaRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedLicencaRoute: typeof AuthenticatedLicencaRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAnunciosRoute: AuthenticatedAnunciosRoute,
   AuthenticatedBuscarRoute: AuthenticatedBuscarRoute,
+  AuthenticatedContaRoute: AuthenticatedContaRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedLicencaRoute: AuthenticatedLicencaRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
 }
 
