@@ -1,11 +1,16 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BadgeCheck,
+  BarChart3,
+  Boxes,
   LayoutDashboard,
   LogOut,
+  Plug,
   Search,
   Settings,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
   Tag,
   Menu,
@@ -22,12 +27,39 @@ import { supabase } from "@/integrations/supabase/client";
 import { daysUntil } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/buscar", label: "Buscar e copiar", icon: Search },
-  { to: "/anuncios", label: "Meus anúncios", icon: Tag },
-  { to: "/licenca", label: "Plano e licença", icon: BadgeCheck },
-  { to: "/conta", label: "Conta", icon: Settings },
+const NAV_GROUPS = [
+  {
+    label: "Operação",
+    items: [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/buscar", label: "Buscar e copiar", icon: Search },
+      { to: "/anuncios", label: "Meus anúncios", icon: Tag },
+    ],
+  },
+  {
+    label: "Gestão",
+    items: [
+      { to: "/vendas", label: "Vendas", icon: ShoppingBag },
+      { to: "/estoque", label: "Estoque e margem", icon: Boxes },
+      { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Configurações",
+    items: [
+      { to: "/integracoes", label: "Integrações", icon: Plug },
+      { to: "/licenca", label: "Plano e licença", icon: BadgeCheck },
+      { to: "/conta", label: "Conta", icon: Settings },
+    ],
+  },
+] as const;
+
+/** Atalhos fixos na base em telas pequenas. */
+const MOBILE_NAV = [
+  { to: "/dashboard", label: "Início", icon: LayoutDashboard },
+  { to: "/buscar", label: "Buscar", icon: Search },
+  { to: "/anuncios", label: "Anúncios", icon: Tag },
+  { to: "/vendas", label: "Vendas", icon: ShoppingBag },
 ] as const;
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
@@ -35,25 +67,32 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const { data: isAdmin } = useIsAdmin();
 
   return (
-    <nav className="flex flex-col gap-1">
-      {NAV.map((item) => {
-        const Icon = item.icon;
-        const active = pathname === item.to;
-        return (
-          <Link
-            key={item.to}
-            to={item.to}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-              active && "bg-primary/10 text-foreground ring-1 ring-primary/30",
-            )}
-          >
-            <Icon className={cn("h-4 w-4", active && "text-primary")} />
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav className="flex flex-col gap-4">
+      {NAV_GROUPS.map((group) => (
+        <div key={group.label} className="space-y-1">
+          <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+            {group.label}
+          </p>
+          {group.items.map((item) => {
+            const Icon = item.icon;
+            const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={onNavigate}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                  active && "bg-primary/10 text-foreground ring-1 ring-primary/30",
+                )}
+              >
+                <Icon className={cn("h-4 w-4", active && "text-primary")} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
       {isAdmin && (
         <Link
           to="/admin"
@@ -123,10 +162,15 @@ export function AppShell({
   const { user } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  const queryClient = useQueryClient();
 
   const signOut = async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
     await supabase.auth.signOut();
-    navigate({ to: "/" });
+    navigate({ to: "/auth", replace: true });
   };
 
   return (
@@ -173,9 +217,30 @@ export function AppShell({
             </div>
             {actions && <div className="flex items-center gap-2">{actions}</div>}
           </header>
-          <div className="p-5">{children}</div>
+          <div className="p-4 pb-24 sm:p-5 lg:pb-5">{children}</div>
         </main>
       </div>
+
+      {/* Navegação inferior em mobile */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-background/95 backdrop-blur-xl lg:hidden">
+        {MOBILE_NAV.map((item) => {
+          const Icon = item.icon;
+          const active = pathname === item.to;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={cn(
+                "flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium text-muted-foreground",
+                active && "text-primary",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { BadgeCheck, Check, KeyRound, Loader2, ShoppingCart } from "lucide-react";
+import { BadgeCheck, Check, 
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -13,10 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLicense } from "@/hooks/useLicense";
+import { useProfile } from "@/hooks/useAuth";
+import { Progress } from "@/components/ui/progress";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import { createMercadoPagoCheckout } from "@/lib/checkout.functions";
 import { activateLicense } from "@/lib/licenses.functions";
-import { formatBRL, formatDate } from "@/lib/format";
+import { formatBRL, formatDate, daysUntil } from "@/lib/format";
 import {
   periodMonthlyCents,
   periodSavingsCents,
@@ -45,6 +47,7 @@ export const Route = createFileRoute("/_authenticated/licenca")({
 function LicensePage() {
   const queryClient = useQueryClient();
   const { data: license } = useLicense();
+  const { data: profile } = useProfile();
   const { data: plans = [] } = usePlans();
   const { data: periods = [] } = usePeriods();
   const activate = useServerFn(activateLicense);
@@ -131,7 +134,7 @@ function LicensePage() {
           <CardHeader>
             <CardTitle className="text-base">Status atual</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
+          <CardContent className="space-y-3 text-sm">
             {license?.plan ? (
               <>
                 <div className="flex items-center gap-2">
@@ -139,13 +142,51 @@ function LicensePage() {
                   <span className="font-display text-lg font-bold">{license.plan.name}</span>
                   <Badge>ativa</Badge>
                 </div>
-                <p className="text-muted-foreground">Chave {license.code}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-mono text-xs text-muted-foreground">Chave {license.code}</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(license.code);
+                      toast.success("Código copiado");
+                    }}
+                  >
+                    <Copy className="h-3 w-3" /> COPIAR CÓDIGO
+                  </Button>
+                </div>
                 <p className="text-muted-foreground">Válida até {formatDate(license.expires_at)}</p>
+                <p className="text-muted-foreground">
+                  {(() => {
+                    const days = daysUntil(license.expires_at);
+                    return days === null ? "" : days >= 0 ? `${days} dia(s) restante(s)` : "Licença expirada";
+                  })()}
+                </p>
               </>
             ) : (
-              <p className="text-muted-foreground">
-                Nenhuma licença ativa. Você está no teste gratuito.
-              </p>
+              <>
+                <p className="text-muted-foreground">Nenhuma licença ativa. Você está no teste gratuito.</p>
+                {profile && (
+                  <div className="space-y-1">
+                    <Progress
+                      value={
+                        profile.free_listings_limit > 0
+                          ? Math.min(100, (profile.free_listings_used / profile.free_listings_limit) * 100)
+                          : 0
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {profile.free_listings_used}/{profile.free_listings_limit} anúncios do teste gratuito usados
+                    </p>
+                  </div>
+                )}
+                {profile && profile.free_listings_used >= profile.free_listings_limit && (
+                  <p className="text-sm font-medium text-destructive">
+                    Seu teste gratuito terminou. Escolha um plano para continuar.
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

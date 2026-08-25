@@ -1,21 +1,39 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Copy, Loader2, Search, SearchX } from "lucide-react";
+import {
+  Copy,
+  Edit,
+  Loader2,
+  Search,
+  SearchX,
+  Sparkles,
+  Files,
+  Download,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app/AppShell";
+import { BulkJobDialog } from "@/components/app/BulkJobDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { startBulkJob } from "@/lib/bulk.functions";
 import { formatBRL, formatNumber } from "@/lib/format";
-import { searchMercadoLivre, type MlItem } from "@/lib/ml.functions";
+import { getMercadoLivreItem, searchMercadoLivre, type MlItem } from "@/lib/ml.functions";
 
 const title = "Buscar e copiar anúncios — ANÚNCIO ML";
 const description =
@@ -34,89 +52,173 @@ export const Route = createFileRoute("/_authenticated/buscar")({
   component: SearchPage,
 });
 
+type Mode = "keyword" | "id" | "link" | "produto" | "vendedor";
+
+const MODE_OPTIONS: { value: Mode; label: string; placeholder: string }[] = [
+  { value: "keyword", label: "Palavra-chave", placeholder: "Ex.: fone bluetooth, air fryer" },
+  { value: "produto", label: "Produto", placeholder: "Ex.: iPhone 15 128GB" },
+  { value: "id", label: "ID do anúncio", placeholder: "Ex.: MLB1234567890" },
+  { value: "link", label: "Link do anúncio", placeholder: "Cole o link do anúncio no Mercado Livre" },
+  { value: "vendedor", label: "Vendedor", placeholder: "Nickname do vendedor" },
+];
+
+function extractMlbId(input: string): string | null {
+  const match = input.toUpperCase().match(/MLB-?\d+/);
+  return match ? match[0].replace("-", "") : null;
+}
+
+function statusLabel(status: string | null) {
+  if (!status) return null;
+  const map: Record<string, string> = { active: "ativo", paused: "pausado", closed: "encerrado" };
+  return map[status] ?? status;
+}
+
 function SearchPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const search = useServerFn(searchMercadoLivre);
+  const lookupById = useServerFn(getMercadoLivreItem);
+  const startJob = useServerFn(startBulkJob);
 
+  const [mode, setMode] = useState<Mode>("keyword");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<MlItem[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
 
   const runSearch = useMutation({
-    mutationFn: (term: string) => search({ data: { query: term, limit: 24 } }),
+    mutationFn: async (term: string) => {
+      if (mode === "id" || mode === "link") {
+        const id = mode === "id" ? term.toUpperCase() : extractMlbId(term);
+        if (!id) return { ok: false as const, configured: true, reason: "Não foi possível identificar o ID (MLB...) informado.", items: [] as MlItem[] };
+        return lookupById({ data: { id } });
+      }
+      return search({ data: { query: term, limit: 24 } });
+    },
     onSuccess: (result) => {
       setSearched(true);
       setItems(result.items);
       setSelected({});
       setNotice(result.ok ? null : result.reason);
+      if (mode === "vendedor" && result.ok && result.items.length > 0) {
+        toast.info("Busca por vendedor", {
+          description: "A API pública filtra por texto — refine com o nickname exato se necessário.",
+        });
+      }
     },
     onError: () => toast.error("Não foi possível buscar agora."),
   });
 
   const selectedIds = Object.keys(selected).filter((id) => selected[id]);
+  const selectedItems = items.filter((item) => selected[item.id]);
 
-  const copySelected = useMutation({
-    mutationFn: async () => {
-      const rows = items
-        .filter((item) => selected[item.id])
-        .map((item) => ({
-          user_id: user!.id,
-          title: item.title,
-          price_cents: item.price_cents,
-          category: item.category,
-          condition: item.condition,
-          status: "draft" as const,
-          source_ml_id: item.id,
-          source_permalink: item.permalink,
-          images: item.thumbnail ? [item.thumbnail] : [],
-          stock: item.available_quantity ?? 1,
-        }));
-      if (!rows.length) return 0;
+  const copyToClipboard = async (code: string) => {
+    await navigator.clipboard.writeText(code);
+    toast.success("✓ Código copiado");
+  };
 
-      const { error } = await supabase.from("listings").insert(rows);
-      if (error) throw error;
-
-      await supabase.from("activity_events").insert({
+  const copyOne = useMutation({
+    mutationFn: async (item: MlItem) => {
+      const { error } = await supabase.from("listings").insert({
         user_id: user!.id,
-        kind: "listings_copied",
-        message: `${rows.length} anúncio(s) copiado(s) para rascunho`,
-        meta: { query },
+        title: item.title,
+        price_cents: item.price_cents,
+        category: item.category,
+        condition: item.condition,
+        status: "draft",
+        source_ml_id: item.id,
+        source_permalink: item.permalink,
+        images: item.thumbnail ? [item.thumbnail] : [],
+        stock: item.available_quantity ?? 1,
       });
-      return rows.length;
+      if (error) throw error;
     },
-    onSuccess: (count) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
-      queryClient.invalidateQueries({ queryKey: ["activity"] });
-      toast.success(`${count} anúncio(s) copiado(s) como rascunho`, {
-        description: "Revise, otimize com a IA e publique quando quiser.",
-      });
-      navigate({ to: "/anuncios" });
+      toast.success("Anúncio copiado como rascunho");
     },
-    onError: () => toast.error("Falha ao copiar os anúncios selecionados."),
+    onError: () => toast.error("Falha ao copiar anúncio."),
   });
+
+  const duplicateOne = useMutation({
+    mutationFn: async (item: MlItem) => {
+      const { error } = await supabase.from("listings").insert({
+        user_id: user!.id,
+        title: `${item.title} (cópia)`,
+        price_cents: item.price_cents,
+        category: item.category,
+        condition: item.condition,
+        status: "draft",
+        images: item.thumbnail ? [item.thumbnail] : [],
+        stock: item.available_quantity ?? 1,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      toast.success("Anúncio duplicado como rascunho");
+    },
+    onError: () => toast.error("Falha ao duplicar anúncio."),
+  });
+
+  const startBulk = async (kind: "copy" | "optimize", scope: MlItem[]) => {
+    if (!scope.length) return;
+    const result = await startJob({
+      data: {
+        kind,
+        items: scope.map((item) => ({
+          id: item.id,
+          label: item.title,
+          source: {
+            title: item.title,
+            price_cents: item.price_cents,
+            category: item.category,
+            condition: item.condition,
+            permalink: item.permalink,
+            thumbnail: item.thumbnail,
+            available_quantity: item.available_quantity,
+          },
+        })),
+      },
+    });
+    if (!result.ok) {
+      toast.error(result.reason);
+      return;
+    }
+    setJobId(result.jobId);
+  };
+
+  const copyCodes = async () => {
+    await navigator.clipboard.writeText(selectedIds.join("\n"));
+    toast.success(`✓ ${selectedIds.length} códigos copiados`);
+  };
+
+  const exportCsv = () => {
+    const header = "id,titulo,preco,categoria,vendedor,condicao\n";
+    const rows = selectedItems
+      .map((item) =>
+        [item.id, item.title.replace(/,/g, " "), item.price_cents ?? "", item.category ?? "", item.seller ?? "", item.condition ?? ""].join(","),
+      )
+      .join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "anuncios-selecionados.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV exportado");
+  };
+
+  const activeModeOption = MODE_OPTIONS.find((m) => m.value === mode)!;
 
   return (
     <AppShell
       title="Buscar e copiar"
-      description="Pesquise no Mercado Livre e traga a estrutura dos anúncios para o seu rascunho."
-      actions={
-        <Button
-          size="sm"
-          disabled={!selectedIds.length || copySelected.isPending}
-          onClick={() => copySelected.mutate()}
-        >
-          {copySelected.isPending ? (
-            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Copy className="mr-1.5 h-3.5 w-3.5" />
-          )}
-          Copiar {selectedIds.length || ""} selecionado(s)
-        </Button>
-      }
+      description="Pesquise no Mercado Livre por palavra-chave, ID, link ou vendedor e traga a estrutura dos anúncios."
     >
       <Card>
         <CardContent className="pt-6">
@@ -127,10 +229,22 @@ function SearchPage() {
               if (query.trim().length > 1) runSearch.mutate(query.trim());
             }}
           >
+            <Select value={mode} onValueChange={(value) => setMode(value as Mode)}>
+              <SelectTrigger className="w-[190px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MODE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Ex.: fone bluetooth, air fryer, capinha iPhone 15"
+              placeholder={activeModeOption.placeholder}
               className="min-w-[240px] flex-1"
             />
             <Button type="submit" disabled={runSearch.isPending || query.trim().length < 2}>
@@ -158,7 +272,7 @@ function SearchPage() {
       {runSearch.isPending && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, index) => (
-            <Skeleton key={index} className="h-40 rounded-2xl" />
+            <Skeleton key={index} className="h-44 rounded-2xl" />
           ))}
         </div>
       )}
@@ -187,7 +301,7 @@ function SearchPage() {
             </label>
           </div>
 
-          <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-3 grid gap-4 pb-24 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((item) => (
               <Card key={item.id} className="overflow-hidden">
                 <CardContent className="flex gap-3 pt-6">
@@ -206,15 +320,20 @@ function SearchPage() {
                       className="h-16 w-16 shrink-0 rounded-lg object-cover"
                     />
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-sm font-medium">{item.title}</p>
                     <p className="mt-1 font-display text-base font-bold">
                       {formatBRL(item.price_cents)}
                     </p>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {item.sold_quantity !== null && (
+                      {item.category && (
                         <Badge variant="outline" className="text-[10px]">
-                          {formatNumber(item.sold_quantity)} vendidos
+                          {item.category}
+                        </Badge>
+                      )}
+                      {item.seller && (
+                        <Badge variant="outline" className="text-[10px]">
+                          {item.seller}
                         </Badge>
                       )}
                       {item.condition && (
@@ -222,6 +341,34 @@ function SearchPage() {
                           {item.condition === "new" ? "novo" : item.condition}
                         </Badge>
                       )}
+                      {statusLabel(item.status) && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {statusLabel(item.status)}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[10px] text-muted-foreground">{item.id}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => copyOne.mutate(item)}>
+                        <Copy className="mr-1 h-3 w-3" /> Copiar
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => duplicateOne.mutate(item)}>
+                        <Files className="mr-1 h-3 w-3" /> Duplicar
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => startBulk("optimize", [item])}>
+                        <Sparkles className="mr-1 h-3 w-3" /> IA
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => copyToClipboard(item.id)}>
+                        Copiar código
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => navigate({ to: "/anuncios" })}
+                      >
+                        <Edit className="mr-1 h-3 w-3" /> Editar
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -230,6 +377,36 @@ function SearchPage() {
           </div>
         </>
       )}
+
+      {selectedIds.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <p className="text-sm font-semibold">{selectedIds.length} anúncios selecionados</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => startBulk("copy", selectedItems)}>
+                <Copy className="mr-1.5 h-3.5 w-3.5" /> COPIAR SELECIONADOS
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => startBulk("optimize", selectedItems)}>
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" /> OTIMIZAR COM IA
+              </Button>
+              <Button size="sm" variant="outline" onClick={copyCodes}>
+                Copiar códigos
+              </Button>
+              <Button size="sm" variant="outline" onClick={exportCsv}>
+                <Download className="mr-1.5 h-3.5 w-3.5" /> EXPORTAR
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <BulkJobDialog
+        jobId={jobId}
+        onOpenChange={(open) => !open && setJobId(null)}
+        onFinished={() => {
+          queryClient.invalidateQueries({ queryKey: ["listings"] });
+        }}
+      />
     </AppShell>
   );
 }
