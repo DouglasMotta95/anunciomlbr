@@ -53,6 +53,12 @@ export const adminGetMetrics = createServerFn({ method: "GET" })
         .lte("free_listings_used", 0),
     ]);
 
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const newUsers7d = await supabaseAdmin
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", sevenDaysAgo);
+
     const revenueTotalCents = (approvedPayments.data ?? []).reduce(
       (sum, row) => sum + (row.amount_cents ?? 0),
       0,
@@ -114,6 +120,9 @@ export const adminGetMetrics = createServerFn({ method: "GET" })
       failedPayments,
       listingsTotal: listingsTotal.count ?? 0,
       revenueByMonth,
+      newUsers7d: newUsers7d.count ?? 0,
+      activeClients: payingUsers,
+      inactiveClients: Math.max((usersTotal.count ?? 0) - payingUsers, 0),
     };
   });
 
@@ -325,5 +334,298 @@ export const adminUpdatePeriodDiscount = createServerFn({ method: "POST" })
     } as never;
     const { error } = await supabaseAdmin.from("period_discounts").update(patch).eq("period", data.period);
     if (error) throw new Error("Falha ao atualizar período.");
+    return { ok: true as const };
+  });
+
+// ===================== PAGAMENTOS =====================
+
+const listPaymentsSchema = z.object({
+  page: z.number().int().min(0).default(0),
+  pageSize: z.number().int().min(1).max(100).default(20),
+  status: z.enum(["all", "approved", "pending", "rejected", "cancelled"]).default("all"),
+});
+
+/** Lista pagamentos com dados do cliente e plano (somente admin). */
+export const adminListPayments = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => listPaymentsSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let query = supabaseAdmin
+      .from("payments")
+      .select("id,created_at,amount_cents,status,period,provider,provider_ref,profiles(email),plans(name)", {
+        count: "exact",
+      })
+      .order("created_at", { ascending: false });
+
+    if (data.status !== "all") {
+      query = query.eq("status", data.status);
+    }
+
+    const { data: rows, error, count } = await query.range(
+      data.page * data.pageSize,
+      data.page * data.pageSize + data.pageSize - 1,
+    );
+    if (error) throw new Error("Falha ao listar pagamentos.");
+
+    const payments = (rows ?? []).map((row: any) => ({
+      id: row.id,
+      created_at: row.created_at,
+      amount_cents: row.amount_cents,
+      status: row.status,
+      period: row.period,
+      provider: row.provider,
+      provider_ref: row.provider_ref,
+      email: row.profiles?.email ?? null,
+      plan: row.plans?.name ?? null,
+    }));
+
+    return { payments, total: count ?? payments.length };
+  });
+
+// ===================== ASSINATURAS (LICENÇAS COM CLIENTE) =====================
+
+const listSubscriptionsSchema = z.object({
+  page: z.number().int().min(0).default(0),
+  pageSize: z.number().int().min(1).max(100).default(20),
+  status: z.enum(["all", "available", "active", "expired", "suspended", "cancelled"]).default("all"),
+});
+
+/** Lista licenças vinculadas a usuário com dados de cliente/plano. */
+export const adminListSubscriptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => listSubscriptionsSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let query = supabaseAdmin
+      .from("licenses")
+      .select("id,code,status,period,created_at,expires_at,user_id,profiles(email),plans(name)", {
+        count: "exact",
+      })
+      .not("user_id", "is", null)
+      .order("created_at", { ascending: false });
+
+    if (data.status !== "all") {
+      query = query.eq("status", data.status);
+    }
+
+    const { data: rows, error, count } = await query.range(
+      data.page * data.pageSize,
+      data.page * data.pageSize + data.pageSize - 1,
+    );
+    if (error) throw new Error("Falha ao listar assinaturas.");
+
+    const now = Date.now();
+    const subscriptions = (rows ?? []).map((row: any) => ({
+      id: row.id,
+      code: row.code,
+      status: row.status,
+      period: row.period,
+      created_at: row.created_at,
+      expires_at: row.expires_at,
+      email: row.profiles?.email ?? null,
+      plan: row.plans?.name ?? null,
+      daysRemaining: row.expires_at ? Math.ceil((new Date(row.expires_at).getTime() - now) / 86_400_000) : null,
+    }));
+
+    return { subscriptions, total: count ?? subscriptions.length };
+  });
+
+// ===================== ANÚNCIOS PROCESSADOS =====================
+
+/** Métricas de listings por status e jobs em lote recentes. */
+export const adminGetListingsMetrics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const [total, active, paused, closed, jobs] = await Promise.all([
+      supabaseAdmin.from("listings").select("id", { count: "exact", head: true }),
+      supabaseAdmin.from("listings").select("id", { count: "exact", head: true }).eq("status", "active"),
+      supabaseAdmin.from("listings").select("id", { count: "exact", head: true }).eq("status", "paused"),
+      supabaseAdmin.from("listings").select("id", { count: "exact", head: true }).eq("status", "error"),
+      supabaseAdmin
+        .from("bulk_jobs")
+        .select("id,kind,status,total,processed,failed,created_at,user_id,profiles(email)")
+        .order("created_at", { ascending: false })
+        .limit(30),
+    ]);
+
+    return {
+      total: total.count ?? 0,
+      active: active.count ?? 0,
+      paused: paused.count ?? 0,
+      closed: closed.count ?? 0,
+      jobs: (jobs.data ?? []).map((j: any) => ({
+        id: j.id,
+        kind: j.kind,
+        status: j.status,
+        total: j.total,
+        processed: j.processed,
+        failed: j.failed,
+        created_at: j.created_at,
+        email: j.profiles?.email ?? null,
+      })),
+    };
+  });
+
+// ===================== TESTES GRATUITOS =====================
+
+/** Lista uso do plano gratuito por usuário. */
+export const adminListFreeTrials = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: profiles, error } = await supabaseAdmin
+      .from("profiles")
+      .select("id,email,full_name,free_listings_used,free_listings_limit,created_at,last_seen_at")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw new Error("Falha ao listar testes gratuitos.");
+
+    const activeLicenseUserIds = new Set(
+      (await supabaseAdmin.from("licenses").select("user_id").eq("status", "active")).data?.map(
+        (r) => r.user_id,
+      ) ?? [],
+    );
+
+    const trials = (profiles ?? []).map((p) => ({
+      ...p,
+      converted: activeLicenseUserIds.has(p.id),
+      exhausted: (p.free_listings_used ?? 0) >= (p.free_listings_limit ?? 0),
+    }));
+
+    return { trials };
+  });
+
+// ===================== INTEGRAÇÕES (WEBHOOKS ML) =====================
+
+/** Contagem de notificações do ML processadas nas últimas 24h. */
+export const adminGetWebhooksStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const [processed, received] = await Promise.all([
+      supabaseAdmin
+        .from("ml_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("processed", true)
+        .gte("received_at", since),
+      supabaseAdmin
+        .from("ml_notifications")
+        .select("id", { count: "exact", head: true })
+        .gte("received_at", since),
+    ]);
+
+    return {
+      processedLast24h: processed.count ?? 0,
+      receivedLast24h: received.count ?? 0,
+    };
+  });
+
+// ===================== LOGS =====================
+
+const listActivitySchema = z.object({
+  kind: z.string().optional(),
+});
+
+/** Lista os últimos 100 eventos de atividade (logs) do sistema. */
+export const adminListActivity = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => listActivitySchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    let query = supabaseAdmin
+      .from("activity_events")
+      .select("id,kind,message,meta,created_at,user_id,profiles(email)")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (data.kind) {
+      query = query.eq("kind", data.kind);
+    }
+
+    const { data: rows, error } = await query;
+    if (error) throw new Error("Falha ao listar logs.");
+
+    return {
+      events: (rows ?? []).map((r: any) => ({
+        id: r.id,
+        kind: r.kind,
+        message: r.message,
+        created_at: r.created_at,
+        email: r.profiles?.email ?? null,
+      })),
+    };
+  });
+
+// ===================== CUPONS =====================
+
+/** Lista cupons cadastrados. */
+export const adminListCoupons = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("coupons")
+      .select("*")
+      .order("code", { ascending: true });
+    if (error) throw new Error("Falha ao listar cupons.");
+    return { coupons: data ?? [] };
+  });
+
+const createCouponSchema = z.object({
+  code: z.string().min(3).max(40),
+  discount_percent: z.number().min(1).max(90),
+  max_uses: z.number().int().min(1).nullish(),
+  expires_at: z.string().nullish(),
+});
+
+/** Cria um novo cupom de desconto. */
+export const adminCreateCoupon = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => createCouponSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("coupons").insert({
+      code: data.code.toUpperCase().trim(),
+      discount_percent: data.discount_percent,
+      max_uses: data.max_uses ?? null,
+      expires_at: data.expires_at ?? null,
+      active: true,
+      uses: 0,
+    });
+    if (error) throw new Error("Falha ao criar cupom. Verifique se o código já existe.");
+    return { ok: true as const };
+  });
+
+const toggleCouponSchema = z.object({
+  code: z.string().min(1),
+  active: z.boolean(),
+});
+
+/** Ativa ou desativa um cupom. */
+export const adminToggleCoupon = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => toggleCouponSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("coupons").update({ active: data.active }).eq("code", data.code);
+    if (error) throw new Error("Falha ao atualizar cupom.");
     return { ok: true as const };
   });

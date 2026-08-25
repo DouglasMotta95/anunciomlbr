@@ -3,13 +3,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Ban,
+  CheckCircle2,
   Copy,
   KeyRound,
+  ListChecks,
   Loader2,
+  Percent,
   RefreshCcw,
+  ScrollText,
   ShieldAlert,
   ShieldCheck,
+  Ticket,
   Users,
+  Webhook,
+  XCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -29,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -43,13 +51,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { useIsAdmin } from "@/hooks/useAuth";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import {
+  adminCreateCoupon,
+  adminGetListingsMetrics,
   adminGetMetrics,
+  adminGetWebhooksStatus,
   adminLicenseAction,
+  adminListActivity,
   adminListClients,
+  adminListCoupons,
+  adminListFreeTrials,
   adminListInactiveClients,
+  adminListPayments,
+  adminListSubscriptions,
+  adminToggleCoupon,
   adminUpdatePeriodDiscount,
   adminUpdatePlan,
 } from "@/lib/admin.functions";
+import { getIntegrationsStatus } from "@/lib/integrations.functions";
 import { formatBRL, formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { generateLicenses } from "@/lib/licenses.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -108,7 +126,14 @@ function AdminPage() {
           <TabsTrigger value="clientes">Clientes</TabsTrigger>
           <TabsTrigger value="inativos">Clientes inativos</TabsTrigger>
           <TabsTrigger value="licencas">Licenças</TabsTrigger>
+          <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
+          <TabsTrigger value="assinaturas">Assinaturas</TabsTrigger>
+          <TabsTrigger value="anuncios">Anúncios processados</TabsTrigger>
+          <TabsTrigger value="testes">Testes gratuitos</TabsTrigger>
+          <TabsTrigger value="integracoes">Integrações</TabsTrigger>
+          <TabsTrigger value="logs">Logs</TabsTrigger>
           <TabsTrigger value="planos">Planos e preços</TabsTrigger>
+          <TabsTrigger value="configuracoes">Configurações</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="mt-4">
@@ -123,8 +148,29 @@ function AdminPage() {
         <TabsContent value="licencas" className="mt-4">
           <LicensesTab />
         </TabsContent>
+        <TabsContent value="pagamentos" className="mt-4">
+          <PaymentsTab />
+        </TabsContent>
+        <TabsContent value="assinaturas" className="mt-4">
+          <SubscriptionsTab />
+        </TabsContent>
+        <TabsContent value="anuncios" className="mt-4">
+          <ListingsTab />
+        </TabsContent>
+        <TabsContent value="testes" className="mt-4">
+          <FreeTrialsTab />
+        </TabsContent>
+        <TabsContent value="integracoes" className="mt-4">
+          <IntegrationsTab />
+        </TabsContent>
+        <TabsContent value="logs" className="mt-4">
+          <LogsTab />
+        </TabsContent>
         <TabsContent value="planos" className="mt-4">
           <PlansTab />
+        </TabsContent>
+        <TabsContent value="configuracoes" className="mt-4">
+          <SettingsTab />
         </TabsContent>
       </Tabs>
     </AppShell>
@@ -172,6 +218,9 @@ function DashboardTab() {
         <StatCard label="MRR (mês atual)" value={formatBRL(metrics?.mrrCents)} />
         <StatCard label="Anúncios processados" value={formatNumber(metrics?.listingsTotal)} />
         <StatCard label="Pagamentos recusados" value={formatNumber(metrics?.failedPayments)} />
+        <StatCard label="Novos usuários (7d)" value={formatNumber(metrics?.newUsers7d)} />
+        <StatCard label="Clientes ativos" value={formatNumber(metrics?.activeClients)} />
+        <StatCard label="Clientes inativos" value={formatNumber(metrics?.inactiveClients)} />
       </div>
 
       <Card>
@@ -664,6 +713,644 @@ function PlansTab() {
           ))}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+const PAYMENT_STATUS_FILTERS = [
+  { value: "all", label: "Todos" },
+  { value: "approved", label: "Aprovado" },
+  { value: "pending", label: "Pendente" },
+  { value: "rejected", label: "Recusado" },
+  { value: "cancelled", label: "Cancelado" },
+] as const;
+
+function paymentStatusVariant(status: string): "default" | "secondary" | "outline" | "destructive" {
+  if (status === "approved") return "default";
+  if (status === "pending") return "secondary";
+  if (status === "rejected") return "destructive";
+  return "outline";
+}
+
+function PaymentsTab() {
+  const listPayments = useServerFn(adminListPayments);
+  const [status, setStatus] = useState<(typeof PAYMENT_STATUS_FILTERS)[number]["value"]>("all");
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-payments", status, page],
+    queryFn: () => listPayments({ data: { status, page, pageSize } }),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle className="text-base">Pagamentos</CardTitle>
+        <Select value={status} onValueChange={(v) => { setStatus(v as typeof status); setPage(0); }}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PAYMENT_STATUS_FILTERS.map((f) => (
+              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        {isLoading ? (
+          <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : (data?.payments ?? []).length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Nenhum pagamento encontrado.</p>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Referência</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.payments.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="text-xs">{formatDateTime(p.created_at)}</TableCell>
+                    <TableCell className="text-xs">{p.email ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{p.plan ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{p.period ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{formatBRL(p.amount_cents)}</TableCell>
+                    <TableCell>
+                      <Badge variant={paymentStatusVariant(p.status)}>{p.status}</Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{p.provider_ref ?? "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span>{formatNumber(data?.total)} pagamento(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
+                <Button size="sm" variant="outline" disabled={(data?.payments.length ?? 0) < pageSize} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const SUBSCRIPTION_STATUS_FILTERS = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Ativa" },
+  { value: "available", label: "Disponível" },
+  { value: "expired", label: "Expirada" },
+  { value: "suspended", label: "Suspensa" },
+  { value: "cancelled", label: "Cancelada" },
+] as const;
+
+function SubscriptionsTab() {
+  const listSubscriptions = useServerFn(adminListSubscriptions);
+  const [status, setStatus] = useState<(typeof SUBSCRIPTION_STATUS_FILTERS)[number]["value"]>("all");
+  const [page, setPage] = useState(0);
+  const pageSize = 20;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-subscriptions", status, page],
+    queryFn: () => listSubscriptions({ data: { status, page, pageSize } }),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle className="text-base">Assinaturas</CardTitle>
+        <Select value={status} onValueChange={(v) => { setStatus(v as typeof status); setPage(0); }}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SUBSCRIPTION_STATUS_FILTERS.map((f) => (
+              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        {isLoading ? (
+          <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : (data?.subscriptions ?? []).length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma assinatura encontrada.</p>
+        ) : (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Plano</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ativação</TableHead>
+                  <TableHead>Validade</TableHead>
+                  <TableHead>Dias restantes</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.subscriptions.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell className="text-xs">{s.email ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{s.plan ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{s.period}</TableCell>
+                    <TableCell><Badge variant={s.status === "active" ? "default" : "outline"}>{s.status}</Badge></TableCell>
+                    <TableCell className="text-xs">{formatDate(s.created_at)}</TableCell>
+                    <TableCell className="text-xs">{formatDate(s.expires_at)}</TableCell>
+                    <TableCell className="text-xs">
+                      {s.daysRemaining === null ? "—" : s.daysRemaining < 0 ? "Vencida" : `${s.daysRemaining} dia(s)`}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+              <span>{formatNumber(data?.total)} assinatura(s)</span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
+                <Button size="sm" variant="outline" disabled={(data?.subscriptions.length ?? 0) < pageSize} onClick={() => setPage((p) => p + 1)}>Próxima</Button>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ListingsTab() {
+  const getListingsMetrics = useServerFn(adminGetListingsMetrics);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-listings-metrics"],
+    queryFn: () => getListingsMetrics(),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
+        </div>
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Total de anúncios" value={formatNumber(data?.total)} />
+        <StatCard label="Ativos" value={formatNumber(data?.active)} />
+        <StatCard label="Pausados" value={formatNumber(data?.paused)} />
+        <StatCard label="Encerrados" value={formatNumber(data?.closed)} />
+      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ListChecks className="h-4 w-4 text-primary" /> Jobs em lote recentes
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {(data?.jobs ?? []).length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhum job registrado.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Progresso</TableHead>
+                  <TableHead>Falhas</TableHead>
+                  <TableHead>Data</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.jobs.map((j) => (
+                  <TableRow key={j.id}>
+                    <TableCell className="text-xs">{j.kind}</TableCell>
+                    <TableCell className="text-xs">{j.email ?? "—"}</TableCell>
+                    <TableCell><Badge variant="outline">{j.status}</Badge></TableCell>
+                    <TableCell className="w-44">
+                      <div className="flex items-center gap-2">
+                        <Progress value={j.total ? (j.processed / j.total) * 100 : 0} className="h-2" />
+                        <span className="text-xs text-muted-foreground">{j.processed}/{j.total}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">{formatNumber(j.failed)}</TableCell>
+                    <TableCell className="text-xs">{formatDateTime(j.created_at)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function FreeTrialsTab() {
+  const listFreeTrials = useServerFn(adminListFreeTrials);
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-free-trials"],
+    queryFn: () => listFreeTrials(),
+  });
+
+  if (isLoading) {
+    return <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
+  }
+
+  const trials = data?.trials ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Testes gratuitos</CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        {trials.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Nenhum usuário em teste.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Uso</TableHead>
+                <TableHead>Cadastro</TableHead>
+                <TableHead>Último acesso</TableHead>
+                <TableHead>Situação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {trials.map((t) => (
+                <TableRow key={t.id} className={t.exhausted && !t.converted ? "bg-destructive/5" : undefined}>
+                  <TableCell className="text-xs">
+                    <div>{t.full_name ?? "—"}</div>
+                    <div className="text-muted-foreground">{t.email}</div>
+                  </TableCell>
+                  <TableCell className="w-48">
+                    <div className="flex items-center gap-2">
+                      <Progress
+                        value={t.free_listings_limit ? Math.min((t.free_listings_used / t.free_listings_limit) * 100, 100) : 0}
+                        className="h-2"
+                      />
+                      <span className="text-xs text-muted-foreground">
+                        {t.free_listings_used}/{t.free_listings_limit}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs">{formatDate(t.created_at)}</TableCell>
+                  <TableCell className="text-xs">{formatDateTime(t.last_seen_at)}</TableCell>
+                  <TableCell>
+                    {t.converted ? (
+                      <Badge variant="default">Convertido</Badge>
+                    ) : t.exhausted ? (
+                      <Badge variant="destructive">Esgotado sem conversão</Badge>
+                    ) : (
+                      <Badge variant="secondary">Em teste</Badge>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function IntegrationCard({
+  title,
+  connected,
+  pendingLabel,
+  detail,
+}: {
+  title: string;
+  connected: boolean;
+  pendingLabel: string;
+  detail?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between text-base">
+          {title}
+          {connected ? (
+            <CheckCircle2 className="h-4 w-4 text-primary" />
+          ) : (
+            <XCircle className="h-4 w-4 text-destructive" />
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <Badge variant={connected ? "default" : "outline"}>{connected ? "Conectado" : pendingLabel}</Badge>
+        {detail && <p className="text-xs text-muted-foreground">{detail}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function IntegrationsTab() {
+  const getIntegrations = useServerFn(getIntegrationsStatus);
+  const getWebhooks = useServerFn(adminGetWebhooksStatus);
+
+  const { data: integrations, isLoading: loadingIntegrations } = useQuery({
+    queryKey: ["admin-integrations"],
+    queryFn: () => getIntegrations(),
+  });
+  const { data: webhooks, isLoading: loadingWebhooks } = useQuery({
+    queryKey: ["admin-webhooks"],
+    queryFn: () => getWebhooks(),
+  });
+
+  if (loadingIntegrations || loadingWebhooks) {
+    return <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 w-full" />)}</div>;
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <IntegrationCard
+        title="Mercado Livre"
+        connected={!!integrations?.mercadoLivre.connected}
+        pendingLabel="Configuração pendente"
+        detail={integrations?.mercadoLivre.nickname ? `Conta: ${integrations.mercadoLivre.nickname}` : "Nenhuma conta conectada"}
+      />
+      <IntegrationCard
+        title="Mercado Pago"
+        connected={!!integrations?.mercadoPago.hasMercadoPagoToken}
+        pendingLabel="Configuração pendente"
+        detail={integrations?.mercadoPago.hasMercadoPagoToken ? "Token configurado" : "Token de acesso não configurado"}
+      />
+      <IntegrationCard
+        title="ANÚNCIO AI"
+        connected={!!integrations?.anuncioAi.aiConfigured}
+        pendingLabel="Configuração pendente"
+        detail={integrations?.anuncioAi.aiConfigured ? "Chave de IA configurada" : "Chave de IA não configurada"}
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Webhook className="h-4 w-4 text-primary" /> Webhooks ML (24h)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <p className="text-2xl font-extrabold">{formatNumber(webhooks?.processedLast24h)}</p>
+          <p className="text-xs text-muted-foreground">
+            processadas de {formatNumber(webhooks?.receivedLast24h)} recebidas nas últimas 24h
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function LogsTab() {
+  const listActivity = useServerFn(adminListActivity);
+  const [kind, setKind] = useState("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-logs", kind],
+    queryFn: () => listActivity({ data: { kind: kind || undefined } }),
+  });
+
+  const kinds = Array.from(new Set((data?.events ?? []).map((e) => e.kind)));
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ScrollText className="h-4 w-4 text-primary" /> Logs de atividade
+        </CardTitle>
+        <Select value={kind || "all"} onValueChange={(v) => setKind(v === "all" ? "" : v)}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Todos os tipos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os tipos</SelectItem>
+            {kinds.map((k) => (
+              <SelectItem key={k} value={k}>{k}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        {isLoading ? (
+          <div className="space-y-2">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+        ) : (data?.events ?? []).length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">Nenhum evento registrado.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Mensagem</TableHead>
+                <TableHead>Usuário</TableHead>
+                <TableHead>Data</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data?.events.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell><Badge variant="outline">{e.kind}</Badge></TableCell>
+                  <TableCell className="text-xs">{e.message}</TableCell>
+                  <TableCell className="text-xs">{e.email ?? "—"}</TableCell>
+                  <TableCell className="text-xs">{formatDateTime(e.created_at)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CouponsCard() {
+  const queryClient = useQueryClient();
+  const listCoupons = useServerFn(adminListCoupons);
+  const createCoupon = useServerFn(adminCreateCoupon);
+  const toggleCoupon = useServerFn(adminToggleCoupon);
+
+  const [code, setCode] = useState("");
+  const [discount, setDiscount] = useState("10");
+  const [maxUses, setMaxUses] = useState("");
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin-coupons"],
+    queryFn: () => listCoupons(),
+  });
+
+  const create = useMutation({
+    mutationFn: () =>
+      createCoupon({
+        data: {
+          code,
+          discount_percent: Number(discount) || 0,
+          max_uses: maxUses ? Number(maxUses) : null,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-coupons"] });
+      setCode("");
+      setMaxUses("");
+      toast.success("Cupom criado");
+    },
+    onError: () => toast.error("Falha ao criar cupom. Verifique o código."),
+  });
+
+  const toggle = useMutation({
+    mutationFn: (vars: { code: string; active: boolean }) => toggleCoupon({ data: vars }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-coupons"] });
+      toast.success("Cupom atualizado");
+    },
+    onError: () => toast.error("Falha ao atualizar cupom."),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Ticket className="h-4 w-4 text-primary" /> Cupons de desconto
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div className="space-y-2">
+            <Label>Código</Label>
+            <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="PROMO10" />
+          </div>
+          <div className="space-y-2">
+            <Label>Desconto (%)</Label>
+            <Input value={discount} onChange={(e) => setDiscount(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Máx. usos (opcional)</Label>
+            <Input value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="Ilimitado" />
+          </div>
+          <div className="flex items-end">
+            <Button className="w-full" disabled={!code || create.isPending} onClick={() => create.mutate()}>
+              {create.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Criar cupom
+            </Button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          {isLoading ? (
+            <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          ) : (data?.coupons ?? []).length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Nenhum cupom cadastrado.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Desconto</TableHead>
+                  <TableHead>Usos</TableHead>
+                  <TableHead>Expira em</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data?.coupons.map((c: any) => (
+                  <TableRow key={c.code}>
+                    <TableCell className="font-mono text-xs">{c.code}</TableCell>
+                    <TableCell className="text-xs">{c.discount_percent}%</TableCell>
+                    <TableCell className="text-xs">{c.uses}{c.max_uses ? ` / ${c.max_uses}` : ""}</TableCell>
+                    <TableCell className="text-xs">{c.expires_at ? formatDate(c.expires_at) : "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={c.active ? "default" : "outline"}>{c.active ? "Ativo" : "Inativo"}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={toggle.isPending}
+                        onClick={() => toggle.mutate({ code: c.code, active: !c.active })}
+                      >
+                        {c.active ? "Desativar" : "Ativar"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SettingsTab() {
+  const { data: periods = [], isLoading } = usePeriods();
+  const queryClient = useQueryClient();
+  const updateDiscount = useServerFn(adminUpdatePeriodDiscount);
+  const [discountEdits, setDiscountEdits] = useState<Record<string, string>>({});
+
+  const saveDiscount = useMutation({
+    mutationFn: (period: BillingPeriod) =>
+      updateDiscount({ data: { period, discount_percent: Number(discountEdits[period] ?? "0") } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["period-discounts"] });
+      toast.success("Desconto atualizado");
+    },
+    onError: () => toast.error("Falha ao atualizar desconto."),
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Percent className="h-4 w-4 text-primary" /> Descontos por período
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
+          ) : (
+            periods.map((p) => (
+              <div key={p.period} className="space-y-2 rounded-xl border border-border p-3">
+                <p className="text-sm font-medium">{p.label}</p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    className="w-20"
+                    defaultValue={String(p.discount_percent)}
+                    onChange={(e) => setDiscountEdits((prev) => ({ ...prev, [p.period]: e.target.value }))}
+                  />
+                  <span className="text-xs text-muted-foreground">%</span>
+                  <Button size="sm" variant="outline" onClick={() => saveDiscount.mutate(p.period)}>
+                    Salvar
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+          <p className="text-xs text-muted-foreground md:col-span-2 xl:col-span-4">
+            Esta configuração também pode ser editada na aba "Planos e preços".
+          </p>
+        </CardContent>
+      </Card>
+
+      <CouponsCard />
     </div>
   );
 }
