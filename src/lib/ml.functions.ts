@@ -31,7 +31,8 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const token = process.env["ML_ACCESS_TOKEN"];
+    const { getAppAccessToken } = await import("@/lib/ml.server");
+    const token = process.env["ML_ACCESS_TOKEN"] ?? (await getAppAccessToken());
     const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(
       data.query,
     )}&limit=${data.limit ?? 20}`;
@@ -120,4 +121,25 @@ export const getMlConnection = createServerFn({ method: "GET" })
       .maybeSingle();
     const configured = !!process.env["ML_CLIENT_ID"] && !!process.env["ML_REDIRECT_URI"];
     return { configured, connection: data ?? null };
+  });
+
+/** Dispara a sincronização dos anúncios da conta ML conectada. */
+export const syncMlListings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { syncUserListings } = await import("@/lib/ml.server");
+    return syncUserListings(context.userId);
+  });
+
+/** Desconecta a conta do Mercado Livre e apaga os tokens guardados. */
+export const disconnectMercadoLivre = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("ml_tokens").delete().eq("user_id", context.userId);
+    await supabaseAdmin
+      .from("ml_connections")
+      .update({ connected: false, updated_at: new Date().toISOString() })
+      .eq("user_id", context.userId);
+    return { ok: true as const };
   });

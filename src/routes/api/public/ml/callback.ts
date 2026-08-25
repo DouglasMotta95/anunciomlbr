@@ -88,7 +88,21 @@ export const Route = createFileRoute("/api/public/ml/callback")({
           meta: { nickname },
         });
 
-        return Response.redirect(`${appOrigin}/onboarding?ml=connected`, 302);
+        // Sincronização inicial dos anúncios do vendedor.
+        let sync = "skipped";
+        try {
+          const { syncUserListings } = await import("@/lib/ml.server");
+          const result = await syncUserListings(userId);
+          sync = result.ok ? "ok" : result.reason;
+        } catch (error) {
+          console.error("ML initial sync failed", error);
+          sync = "error";
+        }
+
+        return Response.redirect(
+          `${appOrigin}/onboarding?ml=connected&sync=${encodeURIComponent(sync)}`,
+          302,
+        );
       },
     },
   },

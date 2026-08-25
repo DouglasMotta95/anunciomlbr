@@ -9,7 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProfile } from "@/hooks/useAuth";
-import { getMlAuthorizationUrl, getMlConnection } from "@/lib/ml.functions";
+import {
+  disconnectMercadoLivre,
+  getMlAuthorizationUrl,
+  getMlConnection,
+  syncMlListings,
+} from "@/lib/ml.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateTime } from "@/lib/format";
 
@@ -57,6 +62,33 @@ function OnboardingPage() {
     onError: () => toast.error("Não foi possível iniciar a conexão."),
   });
 
+  const runSync = useServerFn(syncMlListings);
+  const runDisconnect = useServerFn(disconnectMercadoLivre);
+
+  const sync = useMutation({
+    mutationFn: () => runSync(),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast.success(
+          `Sincronizado: ${result.imported} novos, ${result.updated} atualizados (${result.total} anúncios).`,
+        );
+      } else {
+        toast.error("Não foi possível sincronizar", { description: result.reason });
+      }
+      queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
+    },
+    onError: () => toast.error("Falha na sincronização."),
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () => runDisconnect(),
+    onSuccess: () => {
+      toast.success("Conta desconectada.");
+      queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
+    },
+    onError: () => toast.error("Falha ao desconectar."),
+  });
+
   const finish = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
@@ -98,8 +130,23 @@ function OnboardingPage() {
                   {data?.connection?.nickname ?? "Conta conectada"}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Última sincronização: {formatDateTime(data?.connection?.last_sync_at)}
+                  Última sincronização: {formatDateTime(data?.connection?.last_sync_at)} ·{" "}
+                  {data?.connection?.listings_count ?? 0} anúncios
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
+                    {sync.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Sincronizar anúncios
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => disconnect.mutate()}
+                    disabled={disconnect.isPending}
+                  >
+                    Desconectar
+                  </Button>
+                </div>
               </div>
             ) : (
               <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
