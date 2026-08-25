@@ -21,6 +21,7 @@ import { Route as AuthenticatedLicencaRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as ApiPublicMlCallbackRouteImport } from './routes/api/public/ml/callback'
+import { Route as ApiPublicWebhooksMercadolivreRouteImport } from './routes/api/public/webhooks/mercadolivre'
 import { Route as ApiPublicWebhooksMercadopagoRouteImport } from './routes/api/public/webhooks/mercadopago'
 
 const IndexRoute = IndexRouteImport.update({
@@ -82,6 +83,12 @@ const ApiPublicMlCallbackRoute = ApiPublicMlCallbackRouteImport.update({
   path: '/api/public/ml/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicWebhooksMercadolivreRoute =
+  ApiPublicWebhooksMercadolivreRouteImport.update({
+    id: '/api/public/webhooks/mercadolivre',
+    path: '/api/public/webhooks/mercadolivre',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicWebhooksMercadopagoRoute =
   ApiPublicWebhooksMercadopagoRouteImport.update({
     id: '/api/public/webhooks/mercadopago',
@@ -101,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/admin/login': typeof AdminLoginRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRoutesByTo {
@@ -115,6 +123,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/admin/login': typeof AdminLoginRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRoutesById {
@@ -131,6 +140,7 @@ export interface FileRoutesById {
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/admin/login': typeof AdminLoginRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
+  '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
 }
 export interface FileRouteTypes {
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/admin/login'
     | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/admin/login'
     | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
   id:
     | '__root__'
@@ -176,6 +188,7 @@ export interface FileRouteTypes {
     | '/_authenticated/onboarding'
     | '/admin/login'
     | '/api/public/ml/callback'
+    | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
   fileRoutesById: FileRoutesById
 }
@@ -185,6 +198,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   AdminLoginRoute: typeof AdminLoginRoute
   ApiPublicMlCallbackRoute: typeof ApiPublicMlCallbackRoute
+  ApiPublicWebhooksMercadolivreRoute: typeof ApiPublicWebhooksMercadolivreRoute
   ApiPublicWebhooksMercadopagoRoute: typeof ApiPublicWebhooksMercadopagoRoute
 }
 
@@ -274,6 +288,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMlCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/webhooks/mercadolivre': {
+      id: '/api/public/webhooks/mercadolivre'
+      path: '/api/public/webhooks/mercadolivre'
+      fullPath: '/api/public/webhooks/mercadolivre'
+      preLoaderRoute: typeof ApiPublicWebhooksMercadolivreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/webhooks/mercadopago': {
       id: '/api/public/webhooks/mercadopago'
       path: '/api/public/webhooks/mercadopago'
@@ -313,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   AdminLoginRoute: AdminLoginRoute,
   ApiPublicMlCallbackRoute: ApiPublicMlCallbackRoute,
+  ApiPublicWebhooksMercadolivreRoute: ApiPublicWebhooksMercadolivreRoute,
   ApiPublicWebhooksMercadopagoRoute: ApiPublicWebhooksMercadopagoRoute,
 }
 export const routeTree = rootRouteImport

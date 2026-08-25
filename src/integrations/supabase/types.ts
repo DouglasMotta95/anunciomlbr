@@ -277,6 +277,60 @@ export type Database = {
         }
         Relationships: []
       }
+      ml_notifications: {
+        Row: {
+          application_id: string | null
+          attempts: number
+          created_at: string
+          error: string | null
+          id: string
+          ml_user_id: string | null
+          notification_id: string | null
+          payload: Json | null
+          processed: boolean
+          processed_at: string | null
+          received_at: string
+          resource: string
+          sent_at: string | null
+          topic: string
+          user_id: string | null
+        }
+        Insert: {
+          application_id?: string | null
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          ml_user_id?: string | null
+          notification_id?: string | null
+          payload?: Json | null
+          processed?: boolean
+          processed_at?: string | null
+          received_at?: string
+          resource: string
+          sent_at?: string | null
+          topic: string
+          user_id?: string | null
+        }
+        Update: {
+          application_id?: string | null
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          ml_user_id?: string | null
+          notification_id?: string | null
+          payload?: Json | null
+          processed?: boolean
+          processed_at?: string | null
+          received_at?: string
+          resource?: string
+          sent_at?: string | null
+          topic?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       ml_tokens: {
         Row: {
           access_token: string
