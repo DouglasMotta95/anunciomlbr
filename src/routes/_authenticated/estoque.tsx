@@ -202,7 +202,7 @@ function EstoquePage() {
                               {stock === 0 ? (
                                 <Badge variant="destructive">Sem estoque</Badge>
                               ) : stock <= LOW_STOCK_THRESHOLD ? (
-                                <Badge className="bg-amber-500 text-white hover:bg-amber-500">{stock} un.</Badge>
+                                <Badge className="bg-warning text-warning-foreground hover:bg-warning">{stock} un.</Badge>
                               ) : (
                                 <span className="text-sm">{stock} un.</span>
                               )}

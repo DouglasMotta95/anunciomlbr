@@ -2,16 +2,26 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import {
   AiSection,
+  BenefitsSection,
+  ComparisonSection,
   CopySection,
+  DashboardSection,
   DemoSection,
+  EditorSection,
   FaqSection,
+  FeaturesGridSection,
   FinalCta,
   Hero,
   HowItWorks,
+  InventorySection,
   LandingFooter,
   LandingNav,
-  ModulesSection,
+  ManageSection,
   PricingSection,
+  ReportsSection,
+  SalesSection,
+  SearchSection,
+  TrustBar,
 } from "@/components/landing/sections";
 
 const title = "ANÚNCIO ML — Encontre, copie, otimize e publique anúncios";
@@ -36,11 +46,21 @@ function Landing() {
       <LandingNav />
       <main>
         <Hero />
+        <TrustBar />
         <DemoSection />
         <HowItWorks />
+        <SearchSection />
         <CopySection />
         <AiSection />
-        <ModulesSection />
+        <EditorSection />
+        <ManageSection />
+        <DashboardSection />
+        <ReportsSection />
+        <SalesSection />
+        <InventorySection />
+        <BenefitsSection />
+        <FeaturesGridSection />
+        <ComparisonSection />
         <PricingSection />
         <FaqSection />
         <FinalCta />

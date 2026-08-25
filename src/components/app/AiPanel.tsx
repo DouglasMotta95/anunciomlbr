@@ -4,6 +4,16 @@ import { CheckCircle2, Circle, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { optimizeListing, type AiOptimization } from "@/lib/ai.functions";
@@ -25,6 +35,7 @@ export function AiPanel({ title, description, category, priceCents, currentScore
   const optimize = useServerFn(optimizeListing);
   const [result, setResult] = useState<AiOptimization | null>(null);
   const [applied, setApplied] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const run = useMutation({
     mutationFn: () =>
@@ -104,12 +115,28 @@ export function AiPanel({ title, description, category, priceCents, currentScore
           </div>
 
           {result.keywords?.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {result.keywords.map((keyword) => (
-                <Badge key={keyword} variant="secondary" className="text-[10px]">
-                  {keyword}
-                </Badge>
-              ))}
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Palavras-chave</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {result.keywords.map((keyword) => (
+                  <Badge key={keyword} variant="secondary" className="text-[10px]">
+                    {keyword}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.attributes?.length > 0 && (
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Atributos sugeridos</p>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {result.attributes.map((attribute) => (
+                  <Badge key={attribute} variant="outline" className="text-[10px]">
+                    {attribute}
+                  </Badge>
+                ))}
+              </div>
             </div>
           )}
 
@@ -128,14 +155,35 @@ export function AiPanel({ title, description, category, priceCents, currentScore
             variant={applied ? "secondary" : "default"}
             disabled={applied}
             className={cn(applied && "opacity-70")}
-            onClick={() => {
-              onApply(result);
-              setApplied(true);
-              toast.success("Melhorias aplicadas ao formulário");
-            }}
+            onClick={() => setConfirmOpen(true)}
           >
             {applied ? "Melhorias aplicadas" : "Aplicar melhorias"}
           </Button>
+
+          <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Aplicar melhorias sugeridas?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  O título e a descrição atuais serão substituídos pelas sugestões da IA no
+                  formulário. Nada é salvo automaticamente — você ainda poderá revisar antes de
+                  salvar o anúncio.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    onApply(result);
+                    setApplied(true);
+                    toast.success("Melhorias aplicadas ao formulário");
+                  }}
+                >
+                  Aplicar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
     </div>

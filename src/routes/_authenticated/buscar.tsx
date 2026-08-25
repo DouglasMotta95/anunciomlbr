@@ -166,24 +166,53 @@ function SearchPage() {
 
   const startBulk = async (kind: "copy" | "optimize", scope: MlItem[]) => {
     if (!scope.length) return;
-    const result = await startJob({
-      data: {
-        kind,
-        items: scope.map((item) => ({
-          id: item.id,
-          label: item.title,
-          source: {
+
+    // A otimização por IA trabalha em cima de anúncios já salvos (tabela
+    // listings). Resultados de busca ainda não existem lá, então primeiro
+    // copiamos como rascunho e só então enfileiramos a otimização pelos IDs
+    // reais — evita que o job falhe 100% das vezes procurando o id do ML.
+    let jobItems: { id: string; label: string; source?: Record<string, unknown> }[];
+    if (kind === "optimize") {
+      const { data: inserted, error } = await supabase
+        .from("listings")
+        .insert(
+          scope.map((item) => ({
+            user_id: user!.id,
             title: item.title,
             price_cents: item.price_cents,
             category: item.category,
             condition: item.condition,
-            permalink: item.permalink,
-            thumbnail: item.thumbnail,
-            available_quantity: item.available_quantity,
-          },
-        })),
-      },
-    });
+            status: "draft",
+            source_ml_id: item.id,
+            source_permalink: item.permalink,
+            images: item.thumbnail ? [item.thumbnail] : [],
+            stock: item.available_quantity ?? 1,
+          })),
+        )
+        .select("id, title");
+      if (error || !inserted) {
+        toast.error("Não foi possível preparar os anúncios para otimização.");
+        return;
+      }
+      jobItems = inserted.map((row) => ({ id: row.id, label: row.title }));
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+    } else {
+      jobItems = scope.map((item) => ({
+        id: item.id,
+        label: item.title,
+        source: {
+          title: item.title,
+          price_cents: item.price_cents,
+          category: item.category,
+          condition: item.condition,
+          permalink: item.permalink,
+          thumbnail: item.thumbnail,
+          available_quantity: item.available_quantity,
+        },
+      }));
+    }
+
+    const result = await startJob({ data: { kind, items: jobItems } });
     if (!result.ok) {
       toast.error(result.reason);
       return;
