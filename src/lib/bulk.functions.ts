@@ -105,7 +105,7 @@ async function processBulkJob(
       .update({
         processed,
         failed,
-        payload: { items: state } as never,
+        payload: { items: state } as unknown as never,
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
@@ -113,6 +113,7 @@ async function processBulkJob(
 
   for (let i = 0; i < state.length; i++) {
     const item = state[i];
+    if (!item) continue;
     item.status = "processing";
     await persist();
 
@@ -161,7 +162,7 @@ async function runBulkItem(kind: BulkJobKind, userId: string, item: BulkJobItem)
       status: "draft",
       source_ml_id: item.id,
       source_permalink: (source["permalink"] as string) ?? null,
-      images: source["thumbnail"] ? [source["thumbnail"]] : [],
+      images: (source["thumbnail"] ? [String(source["thumbnail"])] : []) as unknown as never,
       stock: typeof source["available_quantity"] === "number" ? (source["available_quantity"] as number) : 1,
     });
     if (error) throw new Error(error.message);

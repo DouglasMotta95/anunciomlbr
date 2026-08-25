@@ -154,7 +154,7 @@ export const adminListClients = createServerFn({ method: "POST" })
 
     const now = Date.now();
     const clients = (rows ?? []).map((row) => {
-      const licenses = (row.licenses ?? []) as Array<{
+      const licenses = ((row as unknown as { licenses?: unknown }).licenses ?? []) as Array<{
         id: string;
         code: string;
         status: string;
@@ -298,7 +298,10 @@ export const adminUpdatePlan = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { id, ...patch } = data;
-    const { error } = await supabaseAdmin.from("plans").update(patch).eq("id", id);
+    const cleanPatch = Object.fromEntries(
+      Object.entries(patch).filter(([, value]) => value !== undefined),
+    ) as never;
+    const { error } = await supabaseAdmin.from("plans").update(cleanPatch).eq("id", id);
     if (error) throw new Error("Falha ao atualizar plano.");
     return { ok: true as const };
   });
@@ -316,8 +319,10 @@ export const adminUpdatePeriodDiscount = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const patch: Record<string, unknown> = { discount_percent: data.discount_percent };
-    if (data.label) patch.label = data.label;
+    const patch = {
+      discount_percent: data.discount_percent,
+      ...(data.label ? { label: data.label } : {}),
+    } as never;
     const { error } = await supabaseAdmin.from("period_discounts").update(patch).eq("period", data.period);
     if (error) throw new Error("Falha ao atualizar período.");
     return { ok: true as const };
