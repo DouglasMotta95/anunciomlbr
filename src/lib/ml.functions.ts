@@ -14,6 +14,7 @@ export type MlItem = {
   condition: string | null;
   available_quantity: number | null;
   sold_quantity: number | null;
+  status: string | null;
 };
 
 /**
@@ -78,6 +79,7 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
           condition: (raw["condition"] as string) ?? null,
           available_quantity: (raw["available_quantity"] as number) ?? null,
           sold_quantity: (raw["sold_quantity"] as number) ?? null,
+          status: (raw["status"] as string) ?? null,
         };
       });
 
@@ -203,6 +205,7 @@ export const getMercadoLivreItem = createServerFn({ method: "POST" })
         condition: (raw["condition"] as string) ?? null,
         available_quantity: (raw["available_quantity"] as number) ?? null,
         sold_quantity: (raw["sold_quantity"] as number) ?? null,
+        status: (raw["status"] as string) ?? null,
       };
       return { ok: true as const, configured: true, items: [item], reason: null };
     } catch (error) {
