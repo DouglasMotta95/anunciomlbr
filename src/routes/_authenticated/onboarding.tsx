@@ -98,8 +98,23 @@ function OnboardingPage() {
                   {data?.connection?.nickname ?? "Conta conectada"}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Última sincronização: {formatDateTime(data?.connection?.last_sync_at)}
+                  Última sincronização: {formatDateTime(data?.connection?.last_sync_at)} ·{" "}
+                  {data?.connection?.listings_count ?? 0} anúncios
                 </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
+                    {sync.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Sincronizar anúncios
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => disconnect.mutate()}
+                    disabled={disconnect.isPending}
+                  >
+                    Desconectar
+                  </Button>
+                </div>
               </div>
             ) : (
               <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
