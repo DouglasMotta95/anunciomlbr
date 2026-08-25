@@ -31,7 +31,8 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const token = process.env["ML_ACCESS_TOKEN"];
+    const { getAppAccessToken } = await import("@/lib/ml.server");
+    const token = process.env["ML_ACCESS_TOKEN"] ?? (await getAppAccessToken());
     const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(
       data.query,
     )}&limit=${data.limit ?? 20}`;
