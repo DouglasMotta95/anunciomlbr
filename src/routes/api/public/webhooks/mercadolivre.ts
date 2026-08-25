@@ -153,23 +153,21 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
 
             if (topic === "items" || topic === "items_prices") {
               const mlId = String((data["id"] as string | undefined) ?? resource.split("/").pop() ?? "");
-              const patch = {
-                title: (data["title"] as string | undefined) ?? undefined,
-                price: typeof data["price"] === "number" ? (data["price"] as number) : undefined,
-                available_quantity:
-                  typeof data["available_quantity"] === "number"
-                    ? (data["available_quantity"] as number)
-                    : undefined,
-                thumbnail: (data["thumbnail"] as string | undefined) ?? undefined,
-                permalink: (data["permalink"] as string | undefined) ?? undefined,
-                synced_at: new Date().toISOString(),
+              const patch: Record<string, unknown> = {
+                updated_at: new Date().toISOString(),
               };
+              if (typeof data["title"] === "string") patch["title"] = data["title"];
+              if (typeof data["price"] === "number") patch["price_cents"] = Math.round(data["price"] * 100);
+              if (typeof data["available_quantity"] === "number") patch["stock"] = data["available_quantity"];
+              if (typeof data["permalink"] === "string") patch["source_permalink"] = data["permalink"];
+
               const { data: listing } = await supabaseAdmin
                 .from("listings")
                 .select("id")
                 .eq("user_id", userId)
-                .eq("ml_item_id", mlId)
+                .eq("source_ml_id", mlId)
                 .maybeSingle();
+
 
               if (listing) {
                 await supabaseAdmin.from("listings").update(patch as never).eq("id", listing.id);
