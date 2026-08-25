@@ -66,8 +66,8 @@ function DashboardPage() {
 
   return (
     <AppShell
-      title={`Olá, ${profile?.full_name?.split(" ")[0] ?? "vendedor"}`}
-      description="Encontre. Copie. Otimize. Publique. Venda."
+      title={`Olá, ${profile?.full_name?.split(" ")[0] ?? "vendedor"} 👋`}
+      description="Como estão suas vendas hoje?"
       actions={
         <>
           <Button asChild variant="outline" size="sm">
@@ -89,6 +89,65 @@ function DashboardPage() {
         <StatCard label="Otimizados por IA" value={String(optimized)} icon={Sparkles} hint={avgScore ? `Score médio ${avgScore}` : "Nenhum ainda"} />
         <StatCard label="Valor em catálogo" value={formatBRL(potential)} icon={TrendingUp} hint="soma dos preços cadastrados" />
       </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Atalhos rápidos</CardTitle>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { to: "/buscar", label: "Buscar anúncios", icon: Search },
+              { to: "/anuncios", label: "Copiar em massa", icon: Tag },
+              { to: "/anuncios", label: "ANÚNCIO AI", icon: Sparkles },
+              { to: "/relatorios", label: "Relatórios", icon: TrendingUp },
+            ].map((shortcut, i) => {
+              const Icon = shortcut.icon;
+              return (
+                <Button
+                  key={`${shortcut.to}-${i}`}
+                  asChild
+                  variant="outline"
+                  className="h-auto flex-col gap-2 py-4 text-xs font-semibold"
+                >
+                  <Link to={shortcut.to}>
+                    <Icon className="h-4 w-4 text-primary" />
+                    {shortcut.label}
+                  </Link>
+                </Button>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Status das integrações</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Mercado Livre</span>
+              <Badge variant={connection?.connected ? "default" : "outline"}>
+                {connection?.connected ? "🟢 Conectado" : "🟡 Configuração pendente"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Anúncios sincronizados</span>
+              <span className="font-semibold">{connection?.listings_count ?? 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Última sincronização</span>
+              <span className="text-xs">
+                {connection?.last_sync_at ? relativeTime(connection.last_sync_at) : "—"}
+              </span>
+            </div>
+            <Button asChild variant="outline" size="sm" className="w-full">
+              <Link to="/integracoes">Central de integrações</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

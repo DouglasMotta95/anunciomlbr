@@ -222,6 +222,21 @@ export function HowItWorks() {
     <section id="como-funciona" className="border-b border-border/60 py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4">
         <SectionTitle eyebrow="Como funciona" title="Seis etapas, do achado à venda" />
+
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+          {["BUSCAR", "SELECIONAR", "COPIAR", "OTIMIZAR", "PUBLICAR", "ACOMPANHAR"].map(
+            (label, i, arr) => (
+              <div key={label} className="flex items-center gap-2">
+                <span className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-[11px] font-bold tracking-wider text-primary">
+                  {label}
+                </span>
+                {i < arr.length - 1 && (
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60" />
+                )}
+              </div>
+            ),
+          )}
+        </div>
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {steps.map((s) => (
             <Card

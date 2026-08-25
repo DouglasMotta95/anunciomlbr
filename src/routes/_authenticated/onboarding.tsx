@@ -200,6 +200,9 @@ function OnboardingPage() {
           <Button variant="outline" onClick={() => navigate({ to: "/buscar" })}>
             Buscar meu primeiro anúncio
           </Button>
+          <Button variant="ghost" onClick={() => navigate({ to: "/dashboard" })}>
+            Fazer depois
+          </Button>
         </CardContent>
       </Card>
     </AppShell>
