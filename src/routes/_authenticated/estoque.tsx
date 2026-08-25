@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Boxes,
   PackageX,
-  Percent,
   Save,
   Tag,
 } from "lucide-react";

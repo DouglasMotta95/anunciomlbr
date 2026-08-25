@@ -89,15 +89,49 @@ function AuthPage() {
   }
 
   async function handleGoogle() {
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
-      toast.error("Não foi possível entrar com o Google.");
-      return;
+    setGoogleLoading(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+
+      if (result.error) {
+        const message = String(result.error.message ?? "").toLowerCase();
+        // Cancelamento do usuário não é erro técnico: mensagem amigável.
+        if (
+          message.includes("cancel") ||
+          message.includes("closed") ||
+          message.includes("denied") ||
+          message.includes("access_denied") ||
+          message.includes("abort")
+        ) {
+          toast.info("Login cancelado", {
+            description: "Você pode tentar novamente quando quiser.",
+          });
+          return;
+        }
+        toast.error("Não foi possível entrar com o Google", {
+          description: "Tente novamente em instantes ou use e-mail e senha.",
+        });
+        return;
+      }
+
+      if (result.redirected) return;
+
+      // Só avançamos depois de confirmar a sessão de verdade.
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        toast.error("Não foi possível concluir o login com o Google.");
+        return;
+      }
+      navigate({ to: "/onboarding" });
+    } catch {
+      toast.error("Não foi possível entrar com o Google", {
+        description: "Verifique sua conexão e tente novamente.",
+      });
+    } finally {
+      setGoogleLoading(false);
     }
-    if (result.redirected) return;
-    navigate({ to: "/onboarding" });
   }
 
   async function handleReset() {
