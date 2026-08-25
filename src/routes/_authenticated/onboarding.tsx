@@ -57,6 +57,33 @@ function OnboardingPage() {
     onError: () => toast.error("Não foi possível iniciar a conexão."),
   });
 
+  const runSync = useServerFn(syncMlListings);
+  const runDisconnect = useServerFn(disconnectMercadoLivre);
+
+  const sync = useMutation({
+    mutationFn: () => runSync(),
+    onSuccess: (result) => {
+      if (result.ok) {
+        toast.success(
+          `Sincronizado: ${result.imported} novos, ${result.updated} atualizados (${result.total} anúncios).`,
+        );
+      } else {
+        toast.error("Não foi possível sincronizar", { description: result.reason });
+      }
+      queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
+    },
+    onError: () => toast.error("Falha na sincronização."),
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () => runDisconnect(),
+    onSuccess: () => {
+      toast.success("Conta desconectada.");
+      queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
+    },
+    onError: () => toast.error("Falha ao desconectar."),
+  });
+
   const finish = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
