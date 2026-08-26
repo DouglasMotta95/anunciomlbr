@@ -22,6 +22,7 @@ import {
   Package,
   PackageCheck,
   PenSquare,
+  Quote,
   Rocket,
   Search,
   Shield,
