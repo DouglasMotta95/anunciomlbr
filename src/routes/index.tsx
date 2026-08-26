@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
 import { Reveal } from "@/components/landing/Reveal";
+import { VideoDemoSection } from "@/components/landing/VideoDemoSection";
 import {
   MobileStickyCta,
   PlanPeriodComparisonSection,
@@ -76,6 +77,7 @@ function Landing() {
         <Hero />
         <TrustBar />
         <Reveal><HowItWorks /></Reveal>
+        <Reveal><VideoDemoSection /></Reveal>
         <RadarSection />
         <DuplicationFlowSection />
         <AiTitlesSection />

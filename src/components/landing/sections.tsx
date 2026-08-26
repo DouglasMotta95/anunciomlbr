@@ -61,7 +61,7 @@ import {
 import { trackEvent } from "@/lib/track";
 import { cn } from "@/lib/utils";
 
-function SectionTitle({
+export function SectionTitle({
   eyebrow,
   title,
   subtitle,
