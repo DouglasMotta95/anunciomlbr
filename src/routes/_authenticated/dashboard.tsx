@@ -85,7 +85,7 @@ function DashboardPage() {
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Anúncios criados" value={String(listings.length)} icon={Tag} hint={`${drafts} em rascunho`} />
-        <StatCard label="Publicados no ML" value={String(published)} icon={ArrowUpRight} hint="via integração oficial" />
+        <StatCard label="Anúncios ativos" value={String(published)} icon={ArrowUpRight} hint="status local sincronizado" />
         <StatCard label="Otimizados por IA" value={String(optimized)} icon={Sparkles} hint={avgScore ? `Score médio ${avgScore}` : "Nenhum ainda"} />
         <StatCard label="Valor em catálogo" value={formatBRL(potential)} icon={TrendingUp} hint="soma dos preços cadastrados" />
       </div>

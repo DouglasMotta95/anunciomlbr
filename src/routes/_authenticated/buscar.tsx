@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { startBulkJob } from "@/lib/bulk.functions";
 import { formatBRL, formatNumber } from "@/lib/format";
 import { getMercadoLivreItem, searchMercadoLivre, type MlItem } from "@/lib/ml.functions";
+import { getProductImage } from "@/lib/product-image";
 
 const title = "Buscar e copiar anúncios — ANÚNCIO ML";
 const description =
@@ -341,13 +342,17 @@ function SearchPage() {
                     }
                     className="mt-1"
                   />
-                  {item.thumbnail && (
+                  {getProductImage(item) ? (
                     <img
-                      src={item.thumbnail}
+                      src={getProductImage(item) ?? undefined}
                       alt={item.title}
                       loading="lazy"
                       className="h-16 w-16 shrink-0 rounded-lg object-cover"
                     />
+                  ) : (
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-muted text-[10px] text-muted-foreground">
+                      Sem imagem
+                    </div>
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-sm font-medium">{item.title}</p>

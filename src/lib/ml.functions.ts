@@ -154,7 +154,10 @@ export const getMlConnection = createServerFn({ method: "GET" })
       .select("*")
       .eq("user_id", context.userId)
       .maybeSingle();
-    const configured = !!process.env["ML_CLIENT_ID"] && !!process.env["ML_REDIRECT_URI"];
+    const configured =
+      !!process.env["ML_CLIENT_ID"] &&
+      !!process.env["ML_CLIENT_SECRET"] &&
+      !!process.env["ML_REDIRECT_URI"];
     return { configured, connection: data ?? null };
   });
 

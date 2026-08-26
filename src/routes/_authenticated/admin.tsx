@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { Navigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -103,19 +104,7 @@ function AdminPage() {
   }
 
   if (!isAdmin) {
-    return (
-      <AppShell title="Painel administrativo">
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <ShieldAlert className="h-8 w-8 text-destructive" />
-            <p className="font-display text-lg font-bold">Acesso restrito</p>
-            <p className="max-w-md text-sm text-muted-foreground">
-              Esta área é exclusiva para administradores da plataforma.
-            </p>
-          </CardContent>
-        </Card>
-      </AppShell>
-    );
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (

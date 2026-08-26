@@ -66,7 +66,8 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
         if (!topic || !resource) return json({ ok: false, reason: "missing_topic_or_resource" }, 400);
 
         // Origem: a notificação precisa ser da nossa aplicação.
-        if (clientId && applicationId && applicationId !== String(clientId)) {
+        if (!clientId) return json({ ok: false, reason: "not_configured" }, 503);
+        if (!applicationId || applicationId !== String(clientId)) {
           return json({ ok: false, reason: "unknown_application" }, 401);
         }
 
@@ -87,7 +88,9 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
         const { data: logged, error: logError } = await supabaseAdmin
           .from("ml_notifications")
           .insert({
-            notification_id: payload._id ?? null,
+            notification_id:
+              payload._id ??
+              `${applicationId}:${topic}:${resource}:${payload.sent ?? "unspecified"}`,
             topic,
             resource,
             ml_user_id: mlUserId,
