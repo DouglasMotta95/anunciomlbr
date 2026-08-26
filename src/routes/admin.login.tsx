@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
+import { checkIsAdmin } from "@/lib/roles.functions";
 
 const title = "Acesso administrativo — ANÚNCIO ML";
 const description = "Área restrita para administradores da plataforma ANÚNCIO ML.";
@@ -28,6 +30,7 @@ export const Route = createFileRoute("/admin/login")({
 
 function AdminLoginPage() {
   const navigate = useNavigate();
+  const checkAdmin = useServerFn(checkIsAdmin);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,20 +38,15 @@ function AdminLoginPage() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.user) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
       setLoading(false);
       toast.error("Credenciais inválidas");
       return;
     }
-    const { data: role } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.user.id)
-      .eq("role", "admin")
-      .maybeSingle();
+    const { isAdmin } = await checkAdmin();
     setLoading(false);
-    if (!role) {
+    if (!isAdmin) {
       toast.error("Esta conta não possui acesso administrativo");
       navigate({ to: "/dashboard" });
       return;
