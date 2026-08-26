@@ -144,12 +144,72 @@ export function AnalyticsTab() {
 
   return (
     <div className="space-y-5">
+      {data.alerts.length > 0 && (
+        <div className="space-y-3">
+          {data.alerts.map((alert, i) => (
+            <Card
+              key={i}
+              className={
+                alert.level === "warning"
+                  ? "border-primary/50 bg-primary/5"
+                  : "border-border bg-muted/30"
+              }
+            >
+              <CardContent className="flex items-start gap-3 py-4">
+                <span
+                  className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    alert.level === "warning" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+                  }`}
+                  aria-hidden
+                >
+                  !
+                </span>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">{alert.title}</p>
+                  <p className="text-sm text-muted-foreground">{alert.message}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Visitas hoje" value={formatNumber(data.today)} hint={`${formatNumber(data.uniqueToday)} visitantes únicos`} />
         <Stat label="Últimos 7 dias" value={formatNumber(data.last7)} hint={`${formatNumber(data.unique7)} visitantes únicos`} />
         <Stat label="Últimos 30 dias" value={formatNumber(data.last30)} hint={`${formatNumber(data.unique30)} visitantes únicos`} />
         <Stat label="Total de visitas" value={formatNumber(data.total)} hint={`${formatNumber(data.uniqueTotal)} visitantes únicos`} />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Tráfego suspeito descartado</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Stat label="Bots/spam (30 dias)" value={formatNumber(data.bots30)} hint="Não entram nas métricas acima" />
+            <Stat label="Bots/spam (total)" value={formatNumber(data.botsTotal)} hint="Histórico completo" />
+          </div>
+          {data.botReasons.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {data.botReasons.map((r) => (
+                <span
+                  key={r.reason}
+                  className="rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
+                >
+                  {r.reason} · {formatNumber(r.hits)}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Visitantes únicos são deduplicados por identificador do navegador (com sessão como reserva) e
+            acessos repetidos da mesma página em até 30 minutos contam uma única vez.
+          </p>
+        </CardContent>
+      </Card>
+
+
 
       <Card>
         <CardHeader>

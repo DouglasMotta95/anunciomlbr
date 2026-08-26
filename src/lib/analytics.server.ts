@@ -54,12 +54,59 @@ function trim(value: string | undefined | null, max = 300) {
   return v.slice(0, max);
 }
 
-/** Registra um acesso real (visitante logado ou não). */
+/**
+ * Registra um acesso real (visitante logado ou não).
+ * - Classifica bots/scanners pelo User-Agent real e pelo caminho pedido.
+ * - Bloqueia flood (muitos hits do mesmo visitante em poucos minutos).
+ * - Deduplica o mesmo visitante+página dentro da janela de 30 minutos.
+ */
 export async function recordVisit(data: TrackVisitInput, userAgent?: string | null) {
+  const {
+    classifyUserAgent,
+    classifyPath,
+    FLOOD_WINDOW_MINUTES,
+    FLOOD_MAX_VISITS,
+    DEDUPE_WINDOW_MINUTES,
+  } = await import("@/lib/bot-detection.server");
+
+  const visitorId = trim(data.visitor_id, 80) ?? "anon";
+  const sessionId = trim(data.session_id, 80);
+  const path = trim(data.path, 300) ?? "/";
+
+  const uaVerdict = classifyUserAgent(userAgent);
+  const pathVerdict = classifyPath(path);
+  let isBot = uaVerdict.isBot || pathVerdict.isBot;
+  let botReason = uaVerdict.reason ?? pathVerdict.reason;
+
+  // Deduplicação: mesma pessoa, mesma página, dentro da janela → não cria nova visita.
+  const dedupeSince = new Date(Date.now() - DEDUPE_WINDOW_MINUTES * 60_000).toISOString();
+  const { data: dupe } = await supabaseAdmin
+    .from("site_visits")
+    .select("id")
+    .eq("visitor_id", visitorId)
+    .eq("path", path)
+    .gte("created_at", dedupeSince)
+    .limit(1);
+  if (dupe && dupe.length > 0) return { ok: true, deduped: true, blocked: false };
+
+  // Flood: volume impossível para um humano → marca como bot.
+  if (!isBot) {
+    const floodSince = new Date(Date.now() - FLOOD_WINDOW_MINUTES * 60_000).toISOString();
+    const { count } = await supabaseAdmin
+      .from("site_visits")
+      .select("id", { count: "exact", head: true })
+      .eq("visitor_id", visitorId)
+      .gte("created_at", floodSince);
+    if ((count ?? 0) >= FLOOD_MAX_VISITS) {
+      isBot = true;
+      botReason = "flood_de_requisicoes";
+    }
+  }
+
   const { error } = await supabaseAdmin.from("site_visits").insert({
-    visitor_id: trim(data.visitor_id, 80) ?? "anon",
-    session_id: trim(data.session_id, 80),
-    path: trim(data.path, 300) ?? "/",
+    visitor_id: visitorId,
+    session_id: sessionId,
+    path,
     referrer: trim(data.referrer, 500),
     source: deriveSource(data.referrer, data.utm_source),
     utm_source: trim(data.utm_source, 120),
@@ -69,14 +116,108 @@ export async function recordVisit(data: TrackVisitInput, userAgent?: string | nu
     utm_content: trim(data.utm_content, 120),
     user_agent: trim(userAgent, 400),
     is_authenticated: data.is_authenticated === true,
+    is_bot: isBot,
+    bot_reason: botReason,
   });
-  if (error) return { ok: false };
-  return { ok: true };
+  if (error) return { ok: false, deduped: false, blocked: isBot };
+  return { ok: true, deduped: false, blocked: isBot };
 }
+
 
 function dayKey(value: string) {
   return new Date(value).toISOString().slice(0, 10);
 }
+
+/**
+ * Chave canônica de visitante único: cookie/localStorage do visitante e,
+ * quando ele não existe, o identificador de sessão. Assim o mesmo navegador
+ * nunca é contado duas vezes e sessões anônimas não se colapsam em "anon".
+ */
+function visitorKey(row: { visitor_id?: string | null; session_id?: string | null }) {
+  const id = row.visitor_id?.trim();
+  if (id && id !== "anon") return `v:${id}`;
+  const session = row.session_id?.trim();
+  if (session) return `s:${session}`;
+  return "v:anon";
+}
+
+export type VisitAlert = {
+  level: "info" | "warning";
+  title: string;
+  message: string;
+};
+
+/**
+ * Alertas automáticos: compara as visitas de hoje e de ontem com a média
+ * dos dias anteriores e avisa quando há pico (ou queda) fora do normal.
+ */
+function buildVisitAlerts(input: {
+  timeline: { date: string; visits: number; visitors: number }[];
+  today: number;
+  bots30: number;
+  visits30: number;
+}): VisitAlert[] {
+  const alerts: VisitAlert[] = [];
+  const { timeline } = input;
+  if (timeline.length < 8) return alerts;
+
+  const previous = timeline.slice(-8, -1); // 7 dias anteriores a hoje
+  const baseline = previous.reduce((sum, d) => sum + d.visits, 0) / previous.length;
+  const todayVisits = input.today;
+
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
+  if (baseline >= 3 && todayVisits >= Math.max(10, baseline * 2)) {
+    const factor = baseline > 0 ? todayVisits / baseline : 0;
+    alerts.push({
+      level: "warning",
+      title: `Pico de visitas hoje (${fmt(factor)}x a média)`,
+      message: `Hoje já são ${todayVisits} visitas contra uma média de ${fmt(baseline)}/dia nos últimos 7 dias. Acompanhe a campanha ativa e a conversão em tempo real.`,
+    });
+  } else if (baseline >= 3 && todayVisits >= Math.max(5, baseline * 1.5)) {
+    alerts.push({
+      level: "info",
+      title: "Alta de visitas acima da média",
+      message: `${todayVisits} visitas hoje contra média de ${fmt(baseline)}/dia nos últimos 7 dias.`,
+    });
+  }
+
+  const yesterday = timeline[timeline.length - 2];
+  if (yesterday) {
+    const beforeYesterday = timeline.slice(-9, -2);
+    const base2 =
+      beforeYesterday.length > 0
+        ? beforeYesterday.reduce((sum, d) => sum + d.visits, 0) / beforeYesterday.length
+        : 0;
+    if (base2 >= 3 && yesterday.visits >= Math.max(10, base2 * 2)) {
+      alerts.push({
+        level: "info",
+        title: "Ontem teve pico de visitas",
+        message: `${yesterday.visits} visitas em ${yesterday.date} contra média de ${fmt(base2)}/dia. Vale revisar a origem do tráfego.`,
+      });
+    }
+    if (baseline >= 10 && todayVisits > 0 && todayVisits <= baseline * 0.4) {
+      alerts.push({
+        level: "warning",
+        title: "Queda forte de visitas hoje",
+        message: `Apenas ${todayVisits} visitas hoje contra média de ${fmt(baseline)}/dia. Verifique campanhas pausadas ou problemas no site.`,
+      });
+    }
+  }
+
+  const totalWithBots = input.visits30 + input.bots30;
+  if (totalWithBots > 20 && input.bots30 / totalWithBots >= 0.4) {
+    alerts.push({
+      level: "warning",
+      title: "Muito tráfego suspeito bloqueado",
+      message: `${input.bots30} acessos de bots/spam foram descartados nos últimos 30 dias (${Math.round((input.bots30 / totalWithBots) * 100)}% do total). Os números do painel já excluem esses acessos.`,
+    });
+  }
+
+  return alerts;
+}
+
+
 
 /** Métricas reais de visitas para o painel administrativo. */
 export async function getVisitAnalytics(context: AdminContext) {
@@ -86,14 +227,29 @@ export async function getVisitAnalytics(context: AdminContext) {
   since.setUTCHours(0, 0, 0, 0);
   since.setUTCDate(since.getUTCDate() - 29);
 
-  const [recent, totals] = await Promise.all([
+  const [recent, totals, botTotals, botRecent] = await Promise.all([
     supabaseAdmin
       .from("site_visits")
-      .select("created_at, visitor_id, source, utm_campaign")
+      .select("created_at, visitor_id, session_id, source, utm_campaign")
+      .eq("is_bot", false)
       .gte("created_at", since.toISOString())
       .order("created_at", { ascending: true })
       .limit(50000),
-    supabaseAdmin.from("site_visits").select("visitor_id", { count: "exact" }).limit(50000),
+    supabaseAdmin
+      .from("site_visits")
+      .select("visitor_id, session_id", { count: "exact" })
+      .eq("is_bot", false)
+      .limit(50000),
+    supabaseAdmin
+      .from("site_visits")
+      .select("id", { count: "exact", head: true })
+      .eq("is_bot", true),
+    supabaseAdmin
+      .from("site_visits")
+      .select("bot_reason")
+      .eq("is_bot", true)
+      .gte("created_at", since.toISOString())
+      .limit(50000),
   ]);
 
   if (recent.error) throw new Error("Falha ao carregar analytics.");
@@ -124,19 +280,20 @@ export async function getVisitAnalytics(context: AdminContext) {
 
   for (const row of rows) {
     const key = dayKey(row.created_at as string);
+    const who = visitorKey(row as { visitor_id?: string | null; session_id?: string | null });
     const bucket = timelineMap.get(key);
     if (bucket) {
       bucket.visits += 1;
-      bucket.visitors.add(row.visitor_id as string);
+      bucket.visitors.add(who);
     }
-    uniq30.add(row.visitor_id as string);
+    uniq30.add(who);
     if (key >= key7) {
       last7 += 1;
-      uniq7.add(row.visitor_id as string);
+      uniq7.add(who);
     }
     if (key === todayKey) {
       today += 1;
-      uniqToday.add(row.visitor_id as string);
+      uniqToday.add(who);
     }
     const src = (row.source as string) || "direto";
     sources.set(src, (sources.get(src) ?? 0) + 1);
@@ -144,7 +301,25 @@ export async function getVisitAnalytics(context: AdminContext) {
     if (camp) campaigns.set(camp, (campaigns.get(camp) ?? 0) + 1);
   }
 
-  const allVisitors = new Set<string>((totals.data ?? []).map((r: any) => r.visitor_id as string));
+  const allVisitors = new Set<string>(
+    (totals.data ?? []).map((r: any) => visitorKey(r as { visitor_id?: string | null; session_id?: string | null })),
+  );
+
+  const timeline = [...timelineMap.values()].map((b) => ({
+    date: b.date,
+    visits: b.visits,
+    visitors: b.visitors.size,
+  }));
+
+  const botsTotal = botTotals.count ?? 0;
+  const botReasons = new Map<string, number>();
+  for (const row of botRecent.data ?? []) {
+    const reason = ((row as any).bot_reason as string | null) ?? "desconhecido";
+    botReasons.set(reason, (botReasons.get(reason) ?? 0) + 1);
+  }
+  const bots30 = (botRecent.data ?? []).length;
+
+  const alerts = buildVisitAlerts({ timeline, today, bots30, visits30: rows.length });
 
   return {
     today,
@@ -155,11 +330,14 @@ export async function getVisitAnalytics(context: AdminContext) {
     unique7: uniq7.size,
     unique30: uniq30.size,
     uniqueTotal: allVisitors.size,
-    timeline: [...timelineMap.values()].map((b) => ({
-      date: b.date,
-      visits: b.visits,
-      visitors: b.visitors.size,
-    })),
+    botsTotal,
+    bots30,
+    botReasons: [...botReasons.entries()]
+      .map(([reason, hits]) => ({ reason, hits }))
+      .sort((a, b) => b.hits - a.hits)
+      .slice(0, 8),
+    alerts,
+    timeline,
     sources: [...sources.entries()]
       .map(([source, visits]) => ({ source, visits }))
       .sort((a, b) => b.visits - a.visits)
@@ -185,8 +363,11 @@ export type FunnelEventInput = {
 };
 
 /** Grava um evento do funil de conversão. */
-export async function recordFunnelEvent(data: FunnelEventInput) {
+export async function recordFunnelEvent(data: FunnelEventInput, userAgent?: string | null) {
+  const { classifyUserAgent } = await import("@/lib/bot-detection.server");
+  const verdict = classifyUserAgent(userAgent);
   const { error } = await supabaseAdmin.from("analytics_events").insert({
+    is_bot: verdict.isBot,
     visitor_id: trim(data.visitor_id, 80) ?? "anon",
     session_id: trim(data.session_id, 80),
     event: data.event,
@@ -212,6 +393,7 @@ export async function getFunnelAnalytics(context: AdminContext) {
   const { data, error } = await supabaseAdmin
     .from("analytics_events")
     .select("created_at, event, plan_code, amount_cents, visitor_id, source")
+    .eq("is_bot", false)
     .gte("created_at", since.toISOString())
     .order("created_at", { ascending: true })
     .limit(50000);

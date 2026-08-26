@@ -48,6 +48,7 @@ export type Database = {
           created_at: string
           event: string
           id: string
+          is_bot: boolean
           meta: Json
           path: string | null
           period: string | null
@@ -63,6 +64,7 @@ export type Database = {
           created_at?: string
           event: string
           id?: string
+          is_bot?: boolean
           meta?: Json
           path?: string | null
           period?: string | null
@@ -78,6 +80,7 @@ export type Database = {
           created_at?: string
           event?: string
           id?: string
+          is_bot?: boolean
           meta?: Json
           path?: string | null
           period?: string | null
@@ -608,9 +611,11 @@ export type Database = {
       }
       site_visits: {
         Row: {
+          bot_reason: string | null
           created_at: string
           id: string
           is_authenticated: boolean
+          is_bot: boolean
           path: string
           referrer: string | null
           session_id: string | null
@@ -624,9 +629,11 @@ export type Database = {
           visitor_id: string
         }
         Insert: {
+          bot_reason?: string | null
           created_at?: string
           id?: string
           is_authenticated?: boolean
+          is_bot?: boolean
           path?: string
           referrer?: string | null
           session_id?: string | null
@@ -640,9 +647,11 @@ export type Database = {
           visitor_id: string
         }
         Update: {
+          bot_reason?: string | null
           created_at?: string
           id?: string
           is_authenticated?: boolean
+          is_bot?: boolean
           path?: string
           referrer?: string | null
           session_id?: string | null
