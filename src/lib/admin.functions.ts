@@ -368,7 +368,7 @@ export const adminListPayments = createServerFn({ method: "POST" })
 
     let query = supabaseAdmin
       .from("payments")
-      .select("id,created_at,amount_cents,status,period,provider,provider_ref,profiles(email),plans(name)", {
+      .select("id,created_at,amount_cents,status,period,provider,provider_ref,user_id,plan_id", {
         count: "exact",
       })
       .order("created_at", { ascending: false });
@@ -381,7 +381,9 @@ export const adminListPayments = createServerFn({ method: "POST" })
       data.page * data.pageSize,
       data.page * data.pageSize + data.pageSize - 1,
     );
-    if (error) throw new Error("Falha ao listar pagamentos.");
+    if (error) throw new Error(`Falha ao listar pagamentos: ${error.message}`);
+
+    const { emailMap, planMap } = await resolveRefs(supabaseAdmin, rows ?? []);
 
     const payments = (rows ?? []).map((row: any) => ({
       id: row.id,
@@ -391,8 +393,8 @@ export const adminListPayments = createServerFn({ method: "POST" })
       period: row.period,
       provider: row.provider,
       provider_ref: row.provider_ref,
-      email: row.profiles?.email ?? null,
-      plan: row.plans?.name ?? null,
+      email: row.user_id ? emailMap.get(row.user_id) ?? null : null,
+      plan: row.plan_id ? planMap.get(row.plan_id) ?? null : null,
     }));
 
     return { payments, total: count ?? payments.length };
