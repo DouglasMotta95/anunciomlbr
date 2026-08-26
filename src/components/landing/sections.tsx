@@ -1147,7 +1147,7 @@ export function ComparisonSection() {
 export function PricingSection() {
   const { data: plans, isLoading } = usePlans();
   const { data: periods } = usePeriods();
-  const [period, setPeriod] = useState<BillingPeriod>("annual");
+  const [period, setPeriod] = useState<BillingPeriod>("monthly");
   const discount = periods?.find((p) => p.period === period) ?? periods?.[0];
 
   return (
