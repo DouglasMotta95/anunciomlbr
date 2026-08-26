@@ -704,3 +704,149 @@ export async function toggleAdminCoupon(data: ToggleCouponInput, context: AdminC
   if (error) throw new Error(`Falha ao atualizar cupom: ${error.message}`);
   return { ok: true as const };
 }
+
+/**
+ * Logins ativos: clientes com atividade recente (heartbeat gravado em
+ * profiles.last_seen_at pelo app), com plano, licença e consumo reais.
+ */
+export async function listAdminActiveSessions(
+  data: { minutes: number },
+  context: AdminContext,
+) {
+  await assertAdmin(context);
+
+  const since = new Date(Date.now() - data.minutes * 60 * 1000).toISOString();
+  const { data: rows, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id,email,full_name,last_seen_at")
+    .gte("last_seen_at", since)
+    .order("last_seen_at", { ascending: false })
+    .limit(200);
+  if (error) throw new Error(`Falha ao listar sessões ativas: ${error.message}`);
+
+  const userIds = (rows ?? []).map((r: any) => r.id);
+  const { data: licRows } = userIds.length
+    ? await supabaseAdmin
+        .from("licenses")
+        .select("user_id,code,status,expires_at,ads_quota,ads_used,plan_id")
+        .in("user_id", userIds)
+        .eq("status", "active")
+    : { data: [] as any[] };
+
+  const { planMap } = await resolveRefs(supabaseAdmin, (licRows ?? []) as any[]);
+  const licByUser = new Map<string, any>();
+  for (const lic of (licRows ?? []) as any[]) {
+    if (!licByUser.has(lic.user_id)) licByUser.set(lic.user_id, lic);
+  }
+
+  const sessions = (rows ?? []).map((row: any) => {
+    const lic = licByUser.get(row.id) ?? null;
+    return {
+      user_id: row.id,
+      email: row.email,
+      full_name: row.full_name,
+      last_seen_at: row.last_seen_at,
+      license_code: lic?.code ?? null,
+      license_status: lic?.status ?? null,
+      expires_at: lic?.expires_at ?? null,
+      plan: lic?.plan_id ? planMap.get(lic.plan_id) ?? null : null,
+      ads_quota: lic?.ads_quota ?? null,
+      ads_used: lic?.ads_used ?? 0,
+    };
+  });
+
+  return { sessions, online: sessions.length, minutes: data.minutes };
+}
+
+/** Licenças ativas que vencem nos próximos N dias. */
+export async function listAdminExpiringLicenses(
+  data: { days: number },
+  context: AdminContext,
+) {
+  await assertAdmin(context);
+
+  const now = new Date();
+  const limit = new Date(now.getTime() + data.days * 24 * 60 * 60 * 1000);
+  const { data: rows, error } = await supabaseAdmin
+    .from("licenses")
+    .select("id,code,status,period,expires_at,user_id,plan_id,ads_quota,ads_used")
+    .eq("status", "active")
+    .not("user_id", "is", null)
+    .not("expires_at", "is", null)
+    .gte("expires_at", now.toISOString())
+    .lte("expires_at", limit.toISOString())
+    .order("expires_at", { ascending: true });
+  if (error) throw new Error(`Falha ao listar licenças a vencer: ${error.message}`);
+
+  const { emailMap, planMap } = await resolveRefs(supabaseAdmin, (rows ?? []) as any[]);
+
+  const licenses = (rows ?? []).map((row: any) => ({
+    id: row.id,
+    code: row.code,
+    period: row.period,
+    expires_at: row.expires_at,
+    user_id: row.user_id,
+    email: emailMap.get(row.user_id) ?? null,
+    plan: row.plan_id ? planMap.get(row.plan_id) ?? null : null,
+    ads_quota: row.ads_quota ?? null,
+    ads_used: row.ads_used ?? 0,
+    days_left: Math.max(
+      0,
+      Math.ceil((new Date(row.expires_at).getTime() - now.getTime()) / (24 * 60 * 60 * 1000)),
+    ),
+  }));
+
+  return { licenses, days: data.days };
+}
+
+/**
+ * Envia o alerta de vencimento para os clientes (aparece na atividade da conta
+ * do cliente). Idempotente por licença/dia — não duplica avisos.
+ */
+export async function notifyAdminExpiringLicenses(
+  data: { days: number },
+  context: AdminContext,
+) {
+  const { licenses } = await listAdminExpiringLicenses(data, context);
+  if (!licenses.length) return { ok: true as const, notified: 0, skipped: 0 };
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const { data: sentToday } = await supabaseAdmin
+    .from("activity_events")
+    .select("meta")
+    .eq("kind", "license_expiring")
+    .gte("created_at", todayStart.toISOString());
+
+  const alreadySent = new Set(
+    ((sentToday ?? []) as any[]).map((e) => e.meta?.license_id).filter(Boolean),
+  );
+
+  const pending = licenses.filter((lic) => !alreadySent.has(lic.id));
+  if (!pending.length) return { ok: true as const, notified: 0, skipped: licenses.length };
+
+  const { error } = await supabaseAdmin.from("activity_events").insert(
+    pending.map((lic) => ({
+      user_id: lic.user_id,
+      kind: "license_expiring",
+      message:
+        lic.days_left <= 1
+          ? "Sua licença vence hoje. Renove para não perder o acesso."
+          : `Sua licença vence em ${lic.days_left} dias. Renove para manter o acesso.`,
+      meta: {
+        license_id: lic.id,
+        license_code: lic.code,
+        expires_at: lic.expires_at,
+        days_left: lic.days_left,
+      },
+    })),
+  );
+  if (error) throw new Error(`Falha ao enviar alertas: ${error.message}`);
+
+  return {
+    ok: true as const,
+    notified: pending.length,
+    skipped: licenses.length - pending.length,
+  };
+}
