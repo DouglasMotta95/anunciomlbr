@@ -54,12 +54,59 @@ function trim(value: string | undefined | null, max = 300) {
   return v.slice(0, max);
 }
 
-/** Registra um acesso real (visitante logado ou não). */
+/**
+ * Registra um acesso real (visitante logado ou não).
+ * - Classifica bots/scanners pelo User-Agent real e pelo caminho pedido.
+ * - Bloqueia flood (muitos hits do mesmo visitante em poucos minutos).
+ * - Deduplica o mesmo visitante+página dentro da janela de 30 minutos.
+ */
 export async function recordVisit(data: TrackVisitInput, userAgent?: string | null) {
+  const {
+    classifyUserAgent,
+    classifyPath,
+    FLOOD_WINDOW_MINUTES,
+    FLOOD_MAX_VISITS,
+    DEDUPE_WINDOW_MINUTES,
+  } = await import("@/lib/bot-detection.server");
+
+  const visitorId = trim(data.visitor_id, 80) ?? "anon";
+  const sessionId = trim(data.session_id, 80);
+  const path = trim(data.path, 300) ?? "/";
+
+  const uaVerdict = classifyUserAgent(userAgent);
+  const pathVerdict = classifyPath(path);
+  let isBot = uaVerdict.isBot || pathVerdict.isBot;
+  let botReason = uaVerdict.reason ?? pathVerdict.reason;
+
+  // Deduplicação: mesma pessoa, mesma página, dentro da janela → não cria nova visita.
+  const dedupeSince = new Date(Date.now() - DEDUPE_WINDOW_MINUTES * 60_000).toISOString();
+  const { data: dupe } = await supabaseAdmin
+    .from("site_visits")
+    .select("id")
+    .eq("visitor_id", visitorId)
+    .eq("path", path)
+    .gte("created_at", dedupeSince)
+    .limit(1);
+  if (dupe && dupe.length > 0) return { ok: true, deduped: true, blocked: false };
+
+  // Flood: volume impossível para um humano → marca como bot.
+  if (!isBot) {
+    const floodSince = new Date(Date.now() - FLOOD_WINDOW_MINUTES * 60_000).toISOString();
+    const { count } = await supabaseAdmin
+      .from("site_visits")
+      .select("id", { count: "exact", head: true })
+      .eq("visitor_id", visitorId)
+      .gte("created_at", floodSince);
+    if ((count ?? 0) >= FLOOD_MAX_VISITS) {
+      isBot = true;
+      botReason = "flood_de_requisicoes";
+    }
+  }
+
   const { error } = await supabaseAdmin.from("site_visits").insert({
-    visitor_id: trim(data.visitor_id, 80) ?? "anon",
-    session_id: trim(data.session_id, 80),
-    path: trim(data.path, 300) ?? "/",
+    visitor_id: visitorId,
+    session_id: sessionId,
+    path,
     referrer: trim(data.referrer, 500),
     source: deriveSource(data.referrer, data.utm_source),
     utm_source: trim(data.utm_source, 120),
@@ -69,10 +116,13 @@ export async function recordVisit(data: TrackVisitInput, userAgent?: string | nu
     utm_content: trim(data.utm_content, 120),
     user_agent: trim(userAgent, 400),
     is_authenticated: data.is_authenticated === true,
+    is_bot: isBot,
+    bot_reason: botReason,
   });
-  if (error) return { ok: false };
-  return { ok: true };
+  if (error) return { ok: false, deduped: false, blocked: isBot };
+  return { ok: true, deduped: false, blocked: isBot };
 }
+
 
 function dayKey(value: string) {
   return new Date(value).toISOString().slice(0, 10);
