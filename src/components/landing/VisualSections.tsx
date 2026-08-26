@@ -251,7 +251,8 @@ export function AiTitlesSection() {
   }, []);
 
   return (
-    <section className="border-b border-border/60 py-16 sm:py-24">
+    <section id="ia" className="border-b border-border/60 py-16 sm:py-24">
+
       <div className="mx-auto max-w-6xl px-4">
         <Reveal className="mx-auto max-w-2xl text-center">
           <Eyebrow>ANÚNCIO AI</Eyebrow>
