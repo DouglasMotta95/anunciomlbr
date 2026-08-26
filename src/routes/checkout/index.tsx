@@ -32,7 +32,7 @@ const title = "Checkout rápido — ANÚNCIO ML";
 const description =
   "Confirme seu plano do ANÚNCIO ML em poucos passos: resumo do pedido, período e pagamento seguro pelo Mercado Pago.";
 
-export const Route = createFileRoute("/checkout")({
+export const Route = createFileRoute("/checkout/")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
