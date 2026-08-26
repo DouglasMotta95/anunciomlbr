@@ -1456,24 +1456,18 @@ export function FaqSection() {
           </Accordion>
         </Card>
 
-        <div className="mt-10 rounded-2xl border border-primary/20 bg-primary/5 p-6 text-center">
-          <p className="text-sm font-semibold text-foreground">Ainda tem dúvidas?</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Fale com nosso time no WhatsApp ou comece grátis com 10 anúncios.
-          </p>
-          <div className="mt-4 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button asChild size="sm" className="font-semibold">
-              <Link to="/auth" search={{ mode: "signup" }}>
-                Começar grátis <ArrowRight className="ml-1.5 h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline">
-              <a href="https://wa.me/" target="_blank" rel="noreferrer">
-                Falar no WhatsApp
-              </a>
-            </Button>
-          </div>
-        </div>
+        <p className="mt-8 text-center text-xs text-muted-foreground">
+          Ficou alguma dúvida? Fale com nosso time no WhatsApp:{" "}
+          <a
+            href="https://wa.me/"
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-primary hover:underline"
+          >
+            atendimento ANÚNCIO ML
+          </a>
+        </p>
+
       </div>
     </section>
   );

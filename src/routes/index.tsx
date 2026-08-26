@@ -10,7 +10,6 @@ import { Reveal } from "@/components/landing/Reveal";
 import {
   MobileStickyCta,
   PlanPeriodComparisonSection,
-  PurchaseFlowSection,
 } from "@/components/landing/ConversionSections";
 import {
   AiTitlesSection,
@@ -19,26 +18,16 @@ import {
   StudioSection,
 } from "@/components/landing/VisualSections";
 import {
-  AiSection,
-  BenefitsSection,
   ComparisonSection,
-  CopySection,
-  DashboardSection,
   DemoSection,
-  EditorSection,
   FaqSection,
   FeaturesGridSection,
   FinalCta,
   Hero,
   HowItWorks,
-  InventorySection,
   LandingFooter,
   LandingNav,
-  ManageSection,
   PricingSection,
-  ReportsSection,
-  SalesSection,
-  SearchSection,
   TestimonialsSection,
   TrustBar,
 } from "@/components/landing/sections";
@@ -86,28 +75,17 @@ function Landing() {
       <main>
         <Hero />
         <TrustBar />
-        <TestimonialsSection />
+        <Reveal><HowItWorks /></Reveal>
         <RadarSection />
         <DuplicationFlowSection />
-        <Reveal><HowItWorks /></Reveal>
         <AiTitlesSection />
         <StudioSection />
-        <Reveal><PricingSection /></Reveal>
-        <Reveal><PlanPeriodComparisonSection /></Reveal>
         <Reveal><DemoSection /></Reveal>
-        <Reveal><SearchSection /></Reveal>
-        <Reveal><CopySection /></Reveal>
-        <Reveal><AiSection /></Reveal>
-        <Reveal><EditorSection /></Reveal>
-        <Reveal><DashboardSection /></Reveal>
-        <Reveal><SalesSection /></Reveal>
-        <Reveal><InventorySection /></Reveal>
-        <Reveal><ReportsSection /></Reveal>
-        <Reveal><ManageSection /></Reveal>
-        <Reveal><BenefitsSection /></Reveal>
         <Reveal><FeaturesGridSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
-        <Reveal><PurchaseFlowSection /></Reveal>
+        <Reveal><TestimonialsSection /></Reveal>
+        <Reveal><PricingSection /></Reveal>
+        <Reveal><PlanPeriodComparisonSection /></Reveal>
         <Reveal><FaqSection /></Reveal>
         <Reveal><FinalCta /></Reveal>
       </main>
