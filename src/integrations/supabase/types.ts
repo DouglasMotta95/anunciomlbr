@@ -41,6 +41,45 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_audit_logs: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_id: string | null
+          created_at: string
+          details: Json
+          entity: string
+          entity_id: string | null
+          id: string
+          target_email: string | null
+          target_user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          entity?: string
+          entity_id?: string | null
+          id?: string
+          target_email?: string | null
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          entity?: string
+          entity_id?: string | null
+          id?: string
+          target_email?: string | null
+          target_user_id?: string | null
+        }
+        Relationships: []
+      }
       analytics_events: {
         Row: {
           amount_cents: number | null
@@ -167,6 +206,80 @@ export type Database = {
           max_uses?: number | null
           updated_at?: string
           uses?: number
+        }
+        Relationships: []
+      }
+      license_alert_log: {
+        Row: {
+          channel: string
+          created_at: string
+          day_bucket: number
+          error: string | null
+          id: string
+          license_id: string
+          recipient: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          day_bucket: number
+          error?: string | null
+          id?: string
+          license_id: string
+          recipient?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          day_bucket?: number
+          error?: string | null
+          id?: string
+          license_id?: string
+          recipient?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "license_alert_log_license_id_fkey"
+            columns: ["license_id"]
+            isOneToOne: false
+            referencedRelation: "licenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      license_alert_settings: {
+        Row: {
+          body_template: string
+          days: number[]
+          enabled: boolean
+          from_name: string
+          id: boolean
+          subject_template: string
+          updated_at: string
+        }
+        Insert: {
+          body_template?: string
+          days?: number[]
+          enabled?: boolean
+          from_name?: string
+          id?: boolean
+          subject_template?: string
+          updated_at?: string
+        }
+        Update: {
+          body_template?: string
+          days?: number[]
+          enabled?: boolean
+          from_name?: string
+          id?: boolean
+          subject_template?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -726,7 +839,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role: "admin" | "user" | "owner" | "support" | "viewer"
       billing_period: "monthly" | "quarterly" | "semiannual" | "annual"
       job_status: "queued" | "processing" | "done" | "error"
       license_origin:
@@ -871,7 +984,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: ["admin", "user", "owner", "support", "viewer"],
       billing_period: ["monthly", "quarterly", "semiannual", "annual"],
       job_status: ["queued", "processing", "done", "error"],
       license_origin: [
