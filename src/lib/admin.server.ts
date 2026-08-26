@@ -192,7 +192,7 @@ export async function getAdminMetrics(data: AdminPeriodInput, context: AdminCont
     activeSubscriptions,
     recentUsers,
     recentLicenses,
-    recentPayments,
+    periodPayments,
     recentListings,
     recentActivity,
   ] = await Promise.all([
@@ -261,7 +261,7 @@ export async function getAdminMetrics(data: AdminPeriodInput, context: AdminCont
     const bucket = key ? timelineMap.get(key) : undefined;
     if (bucket && (row as any).status === "active") bucket.subscriptions += 1;
   }
-  for (const row of recentPayments.data ?? []) {
+  for (const row of periodPayments.data ?? []) {
     const key = bucketKey((row as any).created_at, period);
     const bucket = key ? timelineMap.get(key) : undefined;
     if (bucket && (row as any).status === "approved") bucket.revenue_cents += (row as any).amount_cents ?? 0;
@@ -284,14 +284,14 @@ export async function getAdminMetrics(data: AdminPeriodInput, context: AdminCont
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   sixMonthsAgo.setDate(1);
-  const { data: recentPayments } = await supabaseAdmin
+  const { data: recentApprovedPayments } = await supabaseAdmin
     .from("payments")
     .select("amount_cents,created_at,status")
     .eq("status", "approved")
     .gte("created_at", sixMonthsAgo.toISOString());
 
   const monthly: Record<string, number> = {};
-  for (const p of recentPayments ?? []) {
+  for (const p of recentApprovedPayments ?? []) {
     const d = new Date(p.created_at);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     monthly[key] = (monthly[key] ?? 0) + (p.amount_cents ?? 0);
