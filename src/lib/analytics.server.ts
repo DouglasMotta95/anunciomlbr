@@ -128,6 +128,25 @@ function dayKey(value: string) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+/**
+ * Chave canônica de visitante único: cookie/localStorage do visitante e,
+ * quando ele não existe, o identificador de sessão. Assim o mesmo navegador
+ * nunca é contado duas vezes e sessões anônimas não se colapsam em "anon".
+ */
+function visitorKey(row: { visitor_id?: string | null; session_id?: string | null }) {
+  const id = row.visitor_id?.trim();
+  if (id && id !== "anon") return `v:${id}`;
+  const session = row.session_id?.trim();
+  if (session) return `s:${session}`;
+  return "v:anon";
+}
+
+export type VisitAlert = {
+  level: "info" | "warning";
+  title: string;
+  message: string;
+};
+
 /** Métricas reais de visitas para o painel administrativo. */
 export async function getVisitAnalytics(context: AdminContext) {
   await assertAdmin(context);
@@ -136,14 +155,29 @@ export async function getVisitAnalytics(context: AdminContext) {
   since.setUTCHours(0, 0, 0, 0);
   since.setUTCDate(since.getUTCDate() - 29);
 
-  const [recent, totals] = await Promise.all([
+  const [recent, totals, botTotals, botRecent] = await Promise.all([
     supabaseAdmin
       .from("site_visits")
-      .select("created_at, visitor_id, source, utm_campaign")
+      .select("created_at, visitor_id, session_id, source, utm_campaign")
+      .eq("is_bot", false)
       .gte("created_at", since.toISOString())
       .order("created_at", { ascending: true })
       .limit(50000),
-    supabaseAdmin.from("site_visits").select("visitor_id", { count: "exact" }).limit(50000),
+    supabaseAdmin
+      .from("site_visits")
+      .select("visitor_id, session_id", { count: "exact" })
+      .eq("is_bot", false)
+      .limit(50000),
+    supabaseAdmin
+      .from("site_visits")
+      .select("id", { count: "exact", head: true })
+      .eq("is_bot", true),
+    supabaseAdmin
+      .from("site_visits")
+      .select("bot_reason")
+      .eq("is_bot", true)
+      .gte("created_at", since.toISOString())
+      .limit(50000),
   ]);
 
   if (recent.error) throw new Error("Falha ao carregar analytics.");
@@ -174,19 +208,20 @@ export async function getVisitAnalytics(context: AdminContext) {
 
   for (const row of rows) {
     const key = dayKey(row.created_at as string);
+    const who = visitorKey(row as { visitor_id?: string | null; session_id?: string | null });
     const bucket = timelineMap.get(key);
     if (bucket) {
       bucket.visits += 1;
-      bucket.visitors.add(row.visitor_id as string);
+      bucket.visitors.add(who);
     }
-    uniq30.add(row.visitor_id as string);
+    uniq30.add(who);
     if (key >= key7) {
       last7 += 1;
-      uniq7.add(row.visitor_id as string);
+      uniq7.add(who);
     }
     if (key === todayKey) {
       today += 1;
-      uniqToday.add(row.visitor_id as string);
+      uniqToday.add(who);
     }
     const src = (row.source as string) || "direto";
     sources.set(src, (sources.get(src) ?? 0) + 1);
@@ -194,22 +229,26 @@ export async function getVisitAnalytics(context: AdminContext) {
     if (camp) campaigns.set(camp, (campaigns.get(camp) ?? 0) + 1);
   }
 
-  const allVisitors = new Set<string>((totals.data ?? []).map((r: any) => r.visitor_id as string));
+  const allVisitors = new Set<string>(
+    (totals.data ?? []).map((r: any) => visitorKey(r as { visitor_id?: string | null; session_id?: string | null })),
+  );
 
-  return {
-    today,
-    last7,
-    last30: rows.length,
-    total: totals.count ?? rows.length,
-    uniqueToday: uniqToday.size,
-    unique7: uniq7.size,
-    unique30: uniq30.size,
-    uniqueTotal: allVisitors.size,
-    timeline: [...timelineMap.values()].map((b) => ({
-      date: b.date,
-      visits: b.visits,
-      visitors: b.visitors.size,
-    })),
+  const timeline = [...timelineMap.values()].map((b) => ({
+    date: b.date,
+    visits: b.visits,
+    visitors: b.visitors.size,
+  }));
+
+  const botsTotal = botTotals.count ?? 0;
+  const botReasons = new Map<string, number>();
+  for (const row of botRecent.data ?? []) {
+    const reason = ((row as any).bot_reason as string | null) ?? "desconhecido";
+    botReasons.set(reason, (botReasons.get(reason) ?? 0) + 1);
+  }
+  const bots30 = (botRecent.data ?? []).length;
+
+  const alerts = buildVisitAlerts({ timeline, today, bots30, visits30: rows.length });
+
     sources: [...sources.entries()]
       .map(([source, visits]) => ({ source, visits }))
       .sort((a, b) => b.visits - a.visits)
