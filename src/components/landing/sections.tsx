@@ -1377,45 +1377,93 @@ export function PricingSection() {
 const faq = [
   {
     q: "O ANÚNCIO ML é uma plataforma oficial do Mercado Livre?",
-    a: "Não. Somos uma plataforma independente que utiliza apenas as APIs e integrações oficiais disponibilizadas publicamente pelo Mercado Livre e Mercado Pago.",
+    a: "Não. Somos uma plataforma independente que utiliza apenas as APIs e integrações oficiais disponibilizadas publicamente pelo Mercado Livre e Mercado Pago. Você mantém o controle total da sua conta ML.",
+  },
+  {
+    q: "Preciso ter uma conta no Mercado Livre para usar?",
+    a: "Sim. A integração oficial exige uma conta ativa do Mercado Livre. Basta conectar sua conta com um clique e autorizar o acesso seguro. Se ainda não tiver, crie uma gratuitamente no site do ML.",
   },
   {
     q: "Como funciona o teste gratuito?",
-    a: "Toda nova conta elegível recebe 10 anúncios gratuitos para testar busca, cópia e otimização com IA. Ao atingir o limite, basta escolher um plano.",
+    a: "Toda nova conta elegível recebe 10 anúncios gratuitos para testar busca, cópia e otimização com IA. Você não precisa de cartão para começar. Ao atingir o limite, basta escolher um plano.",
   },
   {
     q: "Como copiar um anúncio funciona na prática?",
-    a: "A cópia gera um rascunho editável dentro da sua conta, com título, descrição, preço, estoque, categoria e imagens. Você revisa, otimiza e só então publica.",
+    a: "A cópia gera um rascunho editável dentro da sua conta, com título, descrição, preço, estoque, categoria e imagens. Você revisa, otimiza com IA e só então publica — nada vai ao ar sem sua aprovação.",
+  },
+  {
+    q: "A IA realmente melhora os resultados dos anúncios?",
+    a: "A IA analisa títulos, descrições e palavras-chave de alta conversão para sugerir textos mais claros e vendedores. Vendedores relatam economia de horas e melhora na visibilidade dos anúncios.",
   },
   {
     q: "Meu plano é ativado automaticamente após o pagamento?",
-    a: "Sim. A liberação acontece somente após a confirmação válida do pagamento pelo Mercado Pago, via webhook processado no nosso backend.",
+    a: "Sim. A liberação acontece somente após a confirmação válida do pagamento pelo Mercado Pago, processada via webhook no nosso backend. Geralmente leva poucos minutos.",
   },
   {
     q: "Posso pagar por Pix ou WhatsApp?",
-    a: "Sim. Nessa modalidade o administrador gera manualmente a sua licença e você a ativa na tela “Já tenho uma licença”.",
+    a: "Sim. Nessa modalidade o administrador gera manualmente a sua licença e você a ativa na tela “Já tenho uma licença”. É ideal para quem prefere não usar cartão.",
+  },
+  {
+    q: "Tem fidelidade ou multa por cancelar?",
+    a: "No plano mensal não há fidelidade: você cancela quando quiser sem multa. Planos de 3, 6 ou 12 meses oferecem desconto por compromisso, mas ainda podem ser cancelados sem cobranças extras.",
   },
   {
     q: "Meus dados são apagados se o plano expirar?",
-    a: "Não. Recursos premium ficam bloqueados, mas seus anúncios e dados permanecem salvos aguardando a renovação.",
+    a: "Não. Recursos premium ficam bloqueados, mas seus anúncios, rascunhos e dados permanecem salvos aguardando a renovação. Você nunca perde o que construiu.",
+  },
+  {
+    q: "É seguro conectar minha conta do Mercado Livre?",
+    a: "Sim. Usamos o OAuth oficial do Mercado Livre, com tokens criptografados e escopos limitados. Não armazenamos sua senha do ML e você pode revogar o acesso a qualquer momento.",
+  },
+  {
+    q: "Tem suporte se eu travar em alguma etapa?",
+    a: "Sim. Oferecemos suporte humano via WhatsApp e e-mail. Nosso time ajuda desde a conexão da conta até a publicação do primeiro anúncio.",
   },
 ];
 
 export function FaqSection() {
   return (
-    <section className="border-b border-border/60 py-16 sm:py-24">
+    <section id="faq" className="border-b border-border/60 py-16 sm:py-24">
       <div className="mx-auto max-w-3xl px-4">
-        <SectionTitle eyebrow="FAQ" title="Perguntas frequentes" />
-        <Accordion type="single" collapsible className="mt-8">
-          {faq.map((item) => (
-            <AccordionItem key={item.q} value={item.q} className="border-border/60">
-              <AccordionTrigger className="text-left text-sm font-semibold">
-                {item.q}
-              </AccordionTrigger>
-              <AccordionContent className="text-sm text-muted-foreground">{item.a}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        <SectionTitle
+          eyebrow="FAQ"
+          title="Tire suas dúvidas antes de começar"
+          subtitle="Respostas diretas para as principais objeções de quem quer vender mais no Mercado Livre."
+        />
+
+        <Card className="mt-10 border-border/60 bg-surface/40 p-1">
+          <Accordion type="single" collapsible className="divide-y divide-border/60">
+            {faq.map((item) => (
+              <AccordionItem key={item.q} value={item.q} className="border-0 px-4 py-1">
+                <AccordionTrigger className="py-4 text-left text-sm font-semibold hover:no-underline sm:text-base">
+                  {item.q}
+                </AccordionTrigger>
+                <AccordionContent className="pb-5 text-sm leading-relaxed text-muted-foreground">
+                  {item.a}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </Card>
+
+        <div className="mt-10 rounded-2xl border border-primary/20 bg-primary/5 p-6 text-center">
+          <p className="text-sm font-semibold text-foreground">Ainda tem dúvidas?</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Fale com nosso time no WhatsApp ou comece grátis com 10 anúncios.
+          </p>
+          <div className="mt-4 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button asChild size="sm" className="font-semibold">
+              <Link to="/auth" search={{ mode: "signup" }}>
+                Começar grátis <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <a href="https://wa.me/" target="_blank" rel="noreferrer">
+                Falar no WhatsApp
+              </a>
+            </Button>
+          </div>
+        </div>
       </div>
     </section>
   );
