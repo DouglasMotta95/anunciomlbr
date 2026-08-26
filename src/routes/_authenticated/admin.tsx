@@ -164,9 +164,10 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function DashboardTab() {
   const getMetrics = useServerFn(adminGetMetrics);
+  const [period, setPeriod] = useState<"7d" | "30d" | "90d" | "12m">("30d");
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ["admin-metrics"],
-    queryFn: () => getMetrics(),
+    queryKey: ["admin-metrics", period],
+    queryFn: () => getMetrics({ data: { period } }),
   });
 
   if (isLoading) {
@@ -181,9 +182,27 @@ function DashboardTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-extrabold tracking-tight">Visão geral SaaS</h2>
+          <p className="text-sm text-muted-foreground">Dados reais de clientes, receita, integrações e operação.</p>
+        </div>
+        <Select value={period} onValueChange={(value) => setPeriod(value as typeof period)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Período" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7d">Últimos 7 dias</SelectItem>
+            <SelectItem value="30d">Últimos 30 dias</SelectItem>
+            <SelectItem value="90d">Últimos 90 dias</SelectItem>
+            <SelectItem value="12m">Últimos 12 meses</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Usuários" value={formatNumber(metrics?.users)} />
         <StatCard label="Clientes pagantes" value={formatNumber(metrics?.payingUsers)} />
+        <StatCard label="Assinaturas ativas" value={formatNumber(metrics?.subscriptionsActive)} />
         <StatCard label="Licenças ativas" value={formatNumber(metrics?.licensesActive)} />
         <StatCard label="Licenças expiradas" value={formatNumber(metrics?.licensesExpired)} />
         <StatCard label="Testes gratuitos usados" value={formatNumber(metrics?.freeTrialUsers)} />
@@ -191,7 +210,11 @@ function DashboardTab() {
         <StatCard label="Receita aprovada" value={formatBRL(metrics?.revenueTotalCents)} />
         <StatCard label="MRR (mês atual)" value={formatBRL(metrics?.mrrCents)} />
         <StatCard label="Anúncios processados" value={formatNumber(metrics?.listingsTotal)} />
+        <StatCard label="Anúncios publicados" value={formatNumber(metrics?.listingsPublished)} />
+        <StatCard label="Uso de IA" value={formatNumber(metrics?.aiUsage)} />
+        <StatCard label="Contas Mercado Livre" value={formatNumber(metrics?.mlConnected)} />
         <StatCard label="Pagamentos recusados" value={formatNumber(metrics?.failedPayments)} />
+        <StatCard label="Novos usuários" value={formatNumber(metrics?.newUsers)} />
         <StatCard label="Novos usuários (7d)" value={formatNumber(metrics?.newUsers7d)} />
         <StatCard label="Clientes ativos" value={formatNumber(metrics?.activeClients)} />
         <StatCard label="Clientes inativos" value={formatNumber(metrics?.inactiveClients)} />
@@ -219,7 +242,46 @@ function DashboardTab() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Crescimento operacional</CardTitle>
+        </CardHeader>
+        <CardContent className="h-72">
+          {metrics?.growth && metrics.growth.some((m) => m.users + m.subscriptions + m.publications + m.ai_usage > 0) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={metrics.growth}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" fontSize={12} />
+                <YAxis fontSize={12} width={42} />
+                <RTooltip />
+                <Bar dataKey="users" name="Usuários" radius={[4, 4, 0, 0]} fill="hsl(var(--primary))" />
+                <Bar dataKey="subscriptions" name="Assinaturas" radius={[4, 4, 0, 0]} fill="hsl(var(--accent))" />
+                <Bar dataKey="publications" name="Publicações" radius={[4, 4, 0, 0]} fill="hsl(var(--secondary))" />
+                <Bar dataKey="ai_usage" name="IA" radius={[4, 4, 0, 0]} fill="hsl(var(--muted-foreground))" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Ainda não há atividade registrada neste período.
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+function SupportTab() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Suporte administrativo</CardTitle>
+      </CardHeader>
+      <CardContent className="text-sm text-muted-foreground">
+        Use as abas de clientes, pagamentos, licenças e logs para investigar solicitações de suporte com dados reais do sistema.
+      </CardContent>
+    </Card>
   );
 }
 
