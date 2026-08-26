@@ -36,7 +36,10 @@ import { cn } from "@/lib/utils";
  * Menu do painel administrativo — um item por seção real, agrupado por área.
  * Sem itens duplicados e sem seções inacessíveis.
  */
-const ADMIN_NAV_GROUPS = [
+type NavItem = { label: string; icon: typeof Users; section: string };
+type NavGroup = { title: string; items: NavItem[] };
+
+const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     title: "Operação",
     items: [
@@ -71,7 +74,7 @@ const ADMIN_NAV_GROUPS = [
       { label: "Configurações", icon: Settings, section: "configuracoes" },
     ],
   },
-] as const;
+];
 
 const ALL_ITEMS = ADMIN_NAV_GROUPS.flatMap((group) => group.items);
 
