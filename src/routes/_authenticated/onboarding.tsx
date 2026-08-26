@@ -11,10 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProfile } from "@/hooks/useAuth";
 import {
   disconnectMercadoLivre,
-  getMlAuthorizationUrl,
   getMlConnection,
   syncMlListings,
 } from "@/lib/ml.functions";
+import { openMercadoLivreOAuthStart } from "@/lib/ml-oauth-client";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateTime } from "@/lib/format";
 
@@ -48,7 +48,6 @@ function OnboardingPage() {
 
   const runSync = useServerFn(syncMlListings);
   const runDisconnect = useServerFn(disconnectMercadoLivre);
-  const startOAuth = useServerFn(getMlAuthorizationUrl);
 
   const sync = useMutation({
     mutationFn: () => runSync(),
@@ -72,24 +71,6 @@ function OnboardingPage() {
       queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
     },
     onError: () => toast.error("Falha ao desconectar."),
-  });
-
-  const connect = useMutation({
-    mutationFn: () => startOAuth(),
-    onSuccess: (result) => {
-      if (result.configured && result.url) {
-        window.location.assign(result.url);
-        return;
-      }
-
-      toast.error("Não foi possível iniciar a conexão com o Mercado Livre.", {
-        description:
-          result.reason === "state_error"
-            ? "Não foi possível criar a sessão segura de conexão. Tente novamente."
-            : "A configuração oficial do Mercado Livre está pendente.",
-      });
-    },
-    onError: () => toast.error("Não foi possível iniciar a conexão com o Mercado Livre."),
   });
 
   const finish = useMutation({
@@ -152,12 +133,8 @@ function OnboardingPage() {
                 </div>
               </div>
             ) : (
-              <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
-                {connect.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Link2 className="mr-2 h-4 w-4" />
-                )}
+              <Button onClick={openMercadoLivreOAuthStart}>
+                <Link2 className="mr-2 h-4 w-4" />
                 Conectar com Mercado Livre
               </Button>
             )}
