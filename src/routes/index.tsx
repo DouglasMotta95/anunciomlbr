@@ -7,6 +7,11 @@ import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
 import { Reveal } from "@/components/landing/Reveal";
 import {
+  MobileStickyCta,
+  PlanPeriodComparisonSection,
+  PurchaseFlowSection,
+} from "@/components/landing/ConversionSections";
+import {
   AiTitlesSection,
   DuplicationFlowSection,
   RadarSection,
@@ -74,7 +79,7 @@ function LandingGate() {
 
 function Landing() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
       <LandingNav />
       <main>
         <Hero />
@@ -86,6 +91,7 @@ function Landing() {
         <AiTitlesSection />
         <StudioSection />
         <Reveal><PricingSection /></Reveal>
+        <Reveal><PlanPeriodComparisonSection /></Reveal>
         <Reveal><DemoSection /></Reveal>
         <Reveal><SearchSection /></Reveal>
         <Reveal><CopySection /></Reveal>
@@ -99,11 +105,13 @@ function Landing() {
         <Reveal><BenefitsSection /></Reveal>
         <Reveal><FeaturesGridSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
+        <Reveal><PurchaseFlowSection /></Reveal>
         <Reveal><FaqSection /></Reveal>
         <Reveal><FinalCta /></Reveal>
       </main>
 
       <LandingFooter />
+      <MobileStickyCta />
     </div>
   );
 }
