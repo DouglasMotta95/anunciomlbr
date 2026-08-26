@@ -28,7 +28,7 @@ export async function listAdminTeam(context: Ctx) {
   const { data: rows, error } = await supabaseAdmin
     .from("user_roles")
     .select("id,user_id,role,created_at")
-    .in("role", ASSIGNABLE as string[])
+    .in("role", ASSIGNABLE as never)
     .order("created_at", { ascending: true });
   if (error) throw new Error(`Falha ao listar equipe: ${error.message}`);
 
@@ -86,7 +86,7 @@ export async function setTeamRole(data: SetRoleInput, context: Ctx) {
     .from("user_roles")
     .delete()
     .eq("user_id", targetId)
-    .in("role", [...ASSIGNABLE, "user"] as string[]);
+    .in("role", [...ASSIGNABLE, "user"] as never);
 
   const { error } = await supabaseAdmin
     .from("user_roles")
