@@ -363,8 +363,11 @@ export type FunnelEventInput = {
 };
 
 /** Grava um evento do funil de conversão. */
-export async function recordFunnelEvent(data: FunnelEventInput) {
+export async function recordFunnelEvent(data: FunnelEventInput, userAgent?: string | null) {
+  const { classifyUserAgent } = await import("@/lib/bot-detection.server");
+  const verdict = classifyUserAgent(userAgent);
   const { error } = await supabaseAdmin.from("analytics_events").insert({
+    is_bot: verdict.isBot,
     visitor_id: trim(data.visitor_id, 80) ?? "anon",
     session_id: trim(data.session_id, 80),
     event: data.event,
@@ -390,6 +393,7 @@ export async function getFunnelAnalytics(context: AdminContext) {
   const { data, error } = await supabaseAdmin
     .from("analytics_events")
     .select("created_at, event, plan_code, amount_cents, visitor_id, source")
+    .eq("is_bot", false)
     .gte("created_at", since.toISOString())
     .order("created_at", { ascending: true })
     .limit(50000);

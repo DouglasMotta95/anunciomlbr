@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -26,7 +27,9 @@ export const trackVisit = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { recordVisit } = await import("@/lib/analytics.server");
-    return recordVisit(data, data.user_agent ?? null);
+    // Sempre prefere o User-Agent real da requisição (o cliente pode mentir).
+    const realUserAgent = getRequestHeader("user-agent") ?? data.user_agent ?? null;
+    return recordVisit(data, realUserAgent);
   });
 
 /** Analytics reais de visitas (somente administradores). */
@@ -57,7 +60,7 @@ export const trackFunnelEvent = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { recordFunnelEvent } = await import("@/lib/analytics.server");
-    return recordFunnelEvent(data);
+    return recordFunnelEvent(data, getRequestHeader("user-agent") ?? null);
   });
 
 /** Funil de conversão real (somente administradores). */
