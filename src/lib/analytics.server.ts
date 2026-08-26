@@ -170,3 +170,105 @@ export async function getVisitAnalytics(context: AdminContext) {
       .slice(0, 10),
   };
 }
+
+export type FunnelEventInput = {
+  visitor_id: string;
+  session_id?: string | undefined;
+  event: "view_plan" | "start_checkout" | "purchase";
+  path?: string | undefined;
+  referrer?: string | undefined;
+  plan_code?: string | undefined;
+  period?: string | undefined;
+  amount_cents?: number | undefined;
+  coupon_code?: string | undefined;
+  meta?: Record<string, unknown> | undefined;
+};
+
+/** Grava um evento do funil de conversão. */
+export async function recordFunnelEvent(data: FunnelEventInput) {
+  const { error } = await supabaseAdmin.from("analytics_events").insert({
+    visitor_id: trim(data.visitor_id, 80) ?? "anon",
+    session_id: trim(data.session_id, 80),
+    event: data.event,
+    path: trim(data.path, 300),
+    source: deriveSource(data.referrer, null),
+    plan_code: trim(data.plan_code, 60),
+    period: trim(data.period, 30),
+    amount_cents: data.amount_cents ?? null,
+    coupon_code: trim(data.coupon_code, 40),
+    meta: (data.meta ?? {}) as never,
+  });
+  return { ok: !error };
+}
+
+/** Métricas do funil view_plan → start_checkout → purchase. */
+export async function getFunnelAnalytics(context: AdminContext) {
+  await assertAdmin(context);
+
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  since.setUTCDate(since.getUTCDate() - 29);
+
+  const { data, error } = await supabaseAdmin
+    .from("analytics_events")
+    .select("created_at, event, plan_code, amount_cents, visitor_id, source")
+    .gte("created_at", since.toISOString())
+    .order("created_at", { ascending: true })
+    .limit(50000);
+  if (error) throw new Error("Falha ao carregar funil.");
+
+  const rows = data ?? [];
+  const counts = { view_plan: 0, start_checkout: 0, purchase: 0 } as Record<string, number>;
+  const timelineMap = new Map<
+    string,
+    { date: string; view_plan: number; start_checkout: number; purchase: number }
+  >();
+  for (let i = 29; i >= 0; i -= 1) {
+    const d = new Date();
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() - i);
+    timelineMap.set(d.toISOString().slice(0, 10), {
+      date: d.toISOString().slice(0, 10),
+      view_plan: 0,
+      start_checkout: 0,
+      purchase: 0,
+    });
+  }
+  const plans = new Map<string, { plan: string; view_plan: number; start_checkout: number; purchase: number }>();
+  let revenueCents = 0;
+
+  for (const row of rows) {
+    const event = row.event as string;
+    counts[event] = (counts[event] ?? 0) + 1;
+    const bucket = timelineMap.get(dayKey(row.created_at as string)) as
+      | Record<string, number>
+      | undefined;
+    if (bucket && typeof bucket[event] === "number") {
+      bucket[event] = (bucket[event] ?? 0) + 1;
+    }
+    const planCode = (row.plan_code as string | null) ?? "—";
+    const planBucket = (plans.get(planCode) ?? {
+      plan: planCode,
+      view_plan: 0,
+      start_checkout: 0,
+      purchase: 0,
+    }) as unknown as Record<string, number> & { plan: string };
+    planBucket[event] = (planBucket[event] ?? 0) + 1;
+    plans.set(planCode, planBucket as unknown as { plan: string; view_plan: number; start_checkout: number; purchase: number });
+    if (event === "purchase") revenueCents += Number(row.amount_cents ?? 0);
+  }
+
+  const rate = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
+
+  return {
+    viewPlan: counts["view_plan"] ?? 0,
+    startCheckout: counts["start_checkout"] ?? 0,
+    purchase: counts["purchase"] ?? 0,
+    revenueCents,
+    viewToCheckoutRate: rate(counts["start_checkout"] ?? 0, counts["view_plan"] ?? 0),
+    checkoutToPurchaseRate: rate(counts["purchase"] ?? 0, counts["start_checkout"] ?? 0),
+    overallRate: rate(counts["purchase"] ?? 0, counts["view_plan"] ?? 0),
+    timeline: [...timelineMap.values()],
+    plans: [...plans.values()].sort((a, b) => b.purchase - a.purchase || b.view_plan - a.view_plan),
+  };
+}

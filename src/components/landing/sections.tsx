@@ -58,6 +58,7 @@ import {
   periodTotalCents,
   type BillingPeriod,
 } from "@/lib/pricing";
+import { trackEvent } from "@/lib/track";
 import { cn } from "@/lib/utils";
 
 function SectionTitle({
@@ -1360,7 +1361,13 @@ export function PricingSection() {
                     className="mt-5 font-semibold"
                     variant={plan.highlighted ? "default" : "outline"}
                   >
-                    <Link to="/checkout" search={{ plan: plan.code, period }}>
+                    <Link
+                      to="/checkout"
+                      search={{ plan: plan.code, period }}
+                      onClick={() =>
+                        trackEvent("view_plan", { plan_code: plan.code, period, amount_cents: total })
+                      }
+                    >
                       Assinar {plan.name}
                     </Link>
                   </Button>

@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, Check, Loader2, Lock, ShieldCheck, Zap } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Lock, ShieldCheck, Ticket, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -10,9 +10,12 @@ import { Logo } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import { createMercadoPagoCheckout } from "@/lib/checkout.functions";
+import { validateCoupon } from "@/lib/coupons.functions";
+import { trackEvent, trackEventOnce } from "@/lib/track";
 import { formatBRL, formatDate } from "@/lib/format";
 import {
   periodMonthlyCents,
@@ -32,7 +35,7 @@ const title = "Checkout rápido — ANÚNCIO ML";
 const description =
   "Confirme seu plano do ANÚNCIO ML em poucos passos: resumo do pedido, período e pagamento seguro pelo Mercado Pago.";
 
-export const Route = createFileRoute("/checkout")({
+export const Route = createFileRoute("/checkout/")({
   validateSearch: searchSchema,
   head: () => ({
     meta: [
@@ -58,6 +61,10 @@ function CheckoutPage() {
 
   const [planCode, setPlanCode] = useState<string | undefined>(search.plan);
   const [period, setPeriod] = useState<BillingPeriod>(search.period ?? "monthly");
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<{ code: string; discount_percent: number } | null>(null);
+  const [couponMessage, setCouponMessage] = useState<string | null>(null);
+  const checkCoupon = useServerFn(validateCoupon);
 
   useEffect(() => {
     if (planCode) return;
@@ -68,8 +75,42 @@ function CheckoutPage() {
   const plan = plans.find((p) => p.code === planCode);
   const discount = periods.find((p) => p.period === period) ?? periods[0];
 
+  useEffect(() => {
+    if (!plan) return;
+    trackEventOnce(`${plan.code}:${period}`, "view_plan", { plan_code: plan.code, period });
+  }, [plan, period]);
+
+  const couponMutation = useMutation({
+    mutationFn: (code: string) => checkCoupon({ data: { code } }),
+    onSuccess: (result) => {
+      if (result.valid) {
+        setCoupon({ code: result.code, discount_percent: result.discount_percent });
+        setCouponMessage(result.message);
+        toast.success(result.message);
+      } else {
+        setCoupon(null);
+        setCouponMessage(result.message);
+        toast.error(result.message);
+      }
+    },
+    onError: () => {
+      setCoupon(null);
+      setCouponMessage("Cupom inválido.");
+    },
+  });
+
   const purchase = useMutation({
-    mutationFn: () => startCheckout({ data: { plan_id: plan!.id, period } }),
+    mutationFn: () => {
+      trackEvent("start_checkout", {
+        plan_code: plan?.code,
+        period,
+        amount_cents: finalTotal,
+        coupon_code: coupon?.code,
+      });
+      return startCheckout({
+        data: { plan_id: plan!.id, period, ...(coupon ? { coupon_code: coupon.code } : {}) },
+      });
+    },
     onSuccess: (result) => {
       if (result.checkout_url) {
         window.location.href = result.checkout_url;
@@ -79,7 +120,7 @@ function CheckoutPage() {
         description:
           "O pagamento online ainda não está disponível nesta instalação. Nosso suporte envia sua chave de licença.",
       });
-      void navigate({ to: "/licenca" });
+      void navigate({ to: "/checkout/success", search: { payment_id: result.payment_id } });
     },
     onError: () => toast.error("Não foi possível iniciar o pagamento agora."),
   });
@@ -87,6 +128,8 @@ function CheckoutPage() {
   const total = plan && discount ? periodTotalCents(plan, discount) : 0;
   const monthly = plan && discount ? periodMonthlyCents(plan, discount) : 0;
   const savings = plan && discount ? periodSavingsCents(plan, discount) : 0;
+  const couponDiscount = coupon ? Math.round(total * (coupon.discount_percent / 100)) : 0;
+  const finalTotal = Math.max(total - couponDiscount, 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -220,9 +263,17 @@ function CheckoutPage() {
                     <span className="font-semibold text-success">-{formatBRL(savings)}</span>
                   </div>
                 )}
+                {coupon && (
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Cupom {coupon.code}</span>
+                    <span className="font-semibold text-success">-{formatBRL(couponDiscount)}</span>
+                  </div>
+                )}
                 <div className="mt-3 flex items-end justify-between gap-2 border-t border-border/60 pt-3">
                   <span className="text-sm text-muted-foreground">Total hoje</span>
-                  <span className="font-display text-2xl font-extrabold">{formatBRL(total)}</span>
+                  <span className="font-display text-2xl font-extrabold">
+                    {formatBRL(finalTotal)}
+                  </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   Renova em {formatDate(renewalDate(discount))}
@@ -231,6 +282,51 @@ function CheckoutPage() {
             ) : (
               <p className="mt-4 text-sm text-muted-foreground">Selecione um plano.</p>
             )}
+
+            <div className="mt-4 border-t border-border/60 pt-4">
+              <label
+                htmlFor="coupon"
+                className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground"
+              >
+                <Ticket className="h-3.5 w-3.5" /> Cupom de desconto
+              </label>
+              <div className="mt-2 flex gap-2">
+                <Input
+                  id="coupon"
+                  value={couponInput}
+                  maxLength={40}
+                  placeholder="Ex.: PROMO10"
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && couponInput.trim().length >= 3) {
+                      couponMutation.mutate(couponInput.trim());
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={couponInput.trim().length < 3 || couponMutation.isPending}
+                  onClick={() => couponMutation.mutate(couponInput.trim())}
+                >
+                  {couponMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Aplicar"
+                  )}
+                </Button>
+              </div>
+              {couponMessage && (
+                <p
+                  className={cn(
+                    "mt-2 text-[11px]",
+                    coupon ? "font-semibold text-success" : "text-destructive",
+                  )}
+                >
+                  {couponMessage}
+                </p>
+              )}
+            </div>
 
             {user ? (
               <Button

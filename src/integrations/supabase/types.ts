@@ -41,6 +41,54 @@ export type Database = {
         }
         Relationships: []
       }
+      analytics_events: {
+        Row: {
+          amount_cents: number | null
+          coupon_code: string | null
+          created_at: string
+          event: string
+          id: string
+          meta: Json
+          path: string | null
+          period: string | null
+          plan_code: string | null
+          session_id: string | null
+          source: string | null
+          user_id: string | null
+          visitor_id: string
+        }
+        Insert: {
+          amount_cents?: number | null
+          coupon_code?: string | null
+          created_at?: string
+          event: string
+          id?: string
+          meta?: Json
+          path?: string | null
+          period?: string | null
+          plan_code?: string | null
+          session_id?: string | null
+          source?: string | null
+          user_id?: string | null
+          visitor_id: string
+        }
+        Update: {
+          amount_cents?: number | null
+          coupon_code?: string | null
+          created_at?: string
+          event?: string
+          id?: string
+          meta?: Json
+          path?: string | null
+          period?: string | null
+          plan_code?: string | null
+          session_id?: string | null
+          source?: string | null
+          user_id?: string | null
+          visitor_id?: string
+        }
+        Relationships: []
+      }
       bulk_jobs: {
         Row: {
           created_at: string
