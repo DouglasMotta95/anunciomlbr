@@ -365,6 +365,7 @@ export const adminListPayments = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { resolveRefs } = await import("@/lib/admin-refs.server");
 
     let query = supabaseAdmin
       .from("payments")
