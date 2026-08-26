@@ -27,6 +27,7 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as CheckoutIndexRouteImport } from './routes/checkout/index'
+import { Route as CheckoutSuccessRouteImport } from './routes/checkout/success'
 import { Route as AuthenticatedEditorIdRouteImport } from './routes/_authenticated/editor.$id'
 import { Route as ApiPublicMlCallbackRouteImport } from './routes/api/public/ml/callback'
 import { Route as ApiPublicWebhooksMercadolivreRouteImport } from './routes/api/public/webhooks/mercadolivre'
@@ -122,6 +123,11 @@ const CheckoutIndexRoute = CheckoutIndexRouteImport.update({
   path: '/checkout/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CheckoutSuccessRoute = CheckoutSuccessRouteImport.update({
+  id: '/checkout/success',
+  path: '/checkout/success',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedEditorIdRoute = AuthenticatedEditorIdRouteImport.update({
   id: '/editor/$id',
   path: '/editor/$id',
@@ -162,6 +168,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/checkout/': typeof CheckoutIndexRoute
   '/editor/$id': typeof AuthenticatedEditorIdRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/checkout': typeof CheckoutIndexRoute
   '/editor/$id': typeof AuthenticatedEditorIdRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
@@ -210,6 +218,7 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/checkout/success': typeof CheckoutSuccessRoute
   '/checkout/': typeof CheckoutIndexRoute
   '/_authenticated/editor/$id': typeof AuthenticatedEditorIdRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
@@ -235,6 +244,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/vendas'
     | '/admin/login'
+    | '/checkout/success'
     | '/checkout/'
     | '/editor/$id'
     | '/api/public/ml/callback'
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/vendas'
     | '/admin/login'
+    | '/checkout/success'
     | '/checkout'
     | '/editor/$id'
     | '/api/public/ml/callback'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/vendas'
     | '/admin/login'
+    | '/checkout/success'
     | '/checkout/'
     | '/_authenticated/editor/$id'
     | '/api/public/ml/callback'
@@ -295,6 +307,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   AdminLoginRoute: typeof AdminLoginRoute
+  CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   CheckoutIndexRoute: typeof CheckoutIndexRoute
   ApiPublicMlCallbackRoute: typeof ApiPublicMlCallbackRoute
   ApiPublicWebhooksMercadolivreRoute: typeof ApiPublicWebhooksMercadolivreRoute
@@ -429,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CheckoutIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/checkout/success': {
+      id: '/checkout/success'
+      path: '/checkout/success'
+      fullPath: '/checkout/success'
+      preLoaderRoute: typeof CheckoutSuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/editor/$id': {
       id: '/_authenticated/editor/$id'
       path: '/editor/$id'
@@ -501,6 +521,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   AdminLoginRoute: AdminLoginRoute,
+  CheckoutSuccessRoute: CheckoutSuccessRoute,
   CheckoutIndexRoute: CheckoutIndexRoute,
   ApiPublicMlCallbackRoute: ApiPublicMlCallbackRoute,
   ApiPublicWebhooksMercadolivreRoute: ApiPublicWebhooksMercadolivreRoute,
