@@ -36,7 +36,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppMockup } from "@/components/landing/AppMockup";
 import { Logo, SLOGAN } from "@/components/brand";
@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/hooks/useAuth";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import { formatBRL } from "@/lib/format";
 import {
