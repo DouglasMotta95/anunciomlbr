@@ -36,3 +36,34 @@ export const adminGetVisitAnalytics = createServerFn({ method: "GET" })
     const { getVisitAnalytics } = await import("@/lib/analytics.server");
     return getVisitAnalytics(context);
   });
+
+/** Registra um evento real do funil (view_plan, start_checkout, purchase). */
+export const trackFunnelEvent = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        visitor_id: z.string().trim().min(1).max(80),
+        session_id: optionalText,
+        event: z.enum(["view_plan", "start_checkout", "purchase"]),
+        path: optionalText,
+        referrer: optionalText,
+        plan_code: optionalText,
+        period: optionalText,
+        amount_cents: z.number().int().min(0).max(100000000).optional(),
+        coupon_code: optionalText,
+        meta: z.record(z.string(), z.unknown()).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { recordFunnelEvent } = await import("@/lib/analytics.server");
+    return recordFunnelEvent(data);
+  });
+
+/** Funil de conversão real (somente administradores). */
+export const adminGetFunnelAnalytics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { getFunnelAnalytics } = await import("@/lib/analytics.server");
+    return getFunnelAnalytics(context);
+  });
