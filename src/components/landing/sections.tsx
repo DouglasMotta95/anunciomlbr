@@ -1178,11 +1178,19 @@ export function PricingSection() {
             </button>
           ))}
         </div>
-        {period === "annual" && (
+        {period === "monthly" ? (
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Sem fidelidade — cancele quando quiser.{" "}
+            <span className="font-semibold text-primary">
+              Prefere economizar? Escolha 3, 6 ou 12 meses.
+            </span>
+          </p>
+        ) : (
           <p className="mt-3 text-center text-xs font-semibold text-primary">
-            ⭐ MELHOR CUSTO-BENEFÍCIO
+            MELHOR CUSTO-BENEFÍCIO
           </p>
         )}
+
 
         <div
           key={period}
