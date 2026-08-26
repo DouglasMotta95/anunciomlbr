@@ -40,7 +40,7 @@ export function VideoDemoSection() {
   }, []);
 
   const activeCaption =
-    CAPTIONS.find((cue) => currentTime >= cue.from && currentTime < cue.to)?.text ?? CAPTIONS[0].text;
+    CAPTIONS.find((cue) => currentTime >= cue.from && currentTime < cue.to)?.text ?? CAPTIONS[0]!.text;
 
   const togglePlay = () => {
     const v = videoRef.current;
