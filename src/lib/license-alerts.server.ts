@@ -152,7 +152,8 @@ export async function runLicenseAlerts(
 
   for (const lic of licenses) {
     const daysLeft = Math.ceil((new Date(lic.expires_at).getTime() - now.getTime()) / 86400000);
-    const bucket = days.find((d) => daysLeft <= d && daysLeft > (days.filter((x) => x < d).sort((a, b) => b - a)[0] ?? 0));
+    // faixa = menor dia configurado que ainda cobre o vencimento (ex.: 8 dias -> faixa 10)
+    const bucket = days.filter((d) => d >= daysLeft).sort((a, b) => a - b)[0];
     if (bucket === undefined) continue;
 
     const email = emailMap.get(lic.user_id) ?? null;
