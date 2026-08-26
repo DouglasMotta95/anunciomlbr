@@ -23,7 +23,14 @@ import {
 /** Métricas gerais do painel administrativo (somente admin). */
 export const adminGetMetrics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => getAdminMetrics(context));
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        period: z.enum(["7d", "30d", "90d", "12m"]).default("30d"),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => getAdminMetrics(data, context));
 
 /** Lista clientes com licença/plano/status para a tabela admin. */
 export const adminListClients = createServerFn({ method: "POST" })

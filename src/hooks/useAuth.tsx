@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -37,13 +38,14 @@ export function useAuth(): AuthState {
 
 export function useIsAdmin() {
   const { user } = useAuth();
+  const checkAdmin = useServerFn(checkIsAdmin);
   return useQuery({
     queryKey: ["is-admin", user?.id],
     enabled: !!user,
     staleTime: 60_000,
     queryFn: async () => {
       // Autorização validada no backend (bearer token + has_role no banco).
-      const { isAdmin } = await checkIsAdmin();
+      const { isAdmin } = await checkAdmin();
       return isAdmin;
     },
   });
@@ -55,10 +57,11 @@ export function useProfile() {
     queryKey: ["profile", user?.id],
     enabled: !!user,
     queryFn: async () => {
+      if (!user) return null;
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", user!.id)
+        .eq("id", user.id)
         .maybeSingle();
       if (error) throw error;
       return data;

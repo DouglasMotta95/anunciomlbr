@@ -9,7 +9,6 @@ import {
   Plug,
   Search,
   Settings,
-  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Tag,
@@ -22,7 +21,7 @@ import { Logo } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useAuth, useIsAdmin, useProfile } from "@/hooks/useAuth";
+import { useAuth, useProfile } from "@/hooks/useAuth";
 import { useLicense } from "@/hooks/useLicense";
 import { supabase } from "@/integrations/supabase/client";
 import { daysUntil } from "@/lib/format";
@@ -66,7 +65,6 @@ const MOBILE_NAV = [
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { data: isAdmin } = useIsAdmin();
 
   return (
     <nav className="flex flex-col gap-4">
@@ -100,16 +98,6 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           })}
         </div>
       ))}
-      {isAdmin && (
-        <Link
-          to="/admin"
-          onClick={onNavigate}
-          className="mt-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        >
-          <ShieldCheck className="h-4 w-4" />
-          Painel administrativo
-        </Link>
-      )}
     </nav>
   );
 }

@@ -31,7 +31,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { AppShell } from "@/components/app/AppShell";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import {
@@ -102,62 +102,52 @@ export const Route = createFileRoute("/_authenticated/admin")({
 type Origin = "mercado_pago" | "pix_manual" | "courtesy" | "promo" | "partner" | "admin";
 
 function AdminPage() {
-  return (
-    <AppShell title="Painel administrativo" description="Métricas, clientes, licenças e planos.">
-      <Tabs defaultValue="dashboard">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="clientes">Clientes</TabsTrigger>
-          <TabsTrigger value="inativos">Clientes inativos</TabsTrigger>
-          <TabsTrigger value="licencas">Licenças</TabsTrigger>
-          <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
-          <TabsTrigger value="assinaturas">Assinaturas</TabsTrigger>
-          <TabsTrigger value="anuncios">Anúncios processados</TabsTrigger>
-          <TabsTrigger value="testes">Testes gratuitos</TabsTrigger>
-          <TabsTrigger value="integracoes">Integrações</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="planos">Planos e preços</TabsTrigger>
-          <TabsTrigger value="configuracoes">Configurações</TabsTrigger>
-        </TabsList>
+  const [activeSection, setActiveSection] = useState("dashboard");
 
-        <TabsContent value="dashboard" className="mt-4">
+  return (
+    <AdminLayout activeSection={activeSection} onSectionChange={setActiveSection}>
+      <Tabs value={activeSection} onValueChange={setActiveSection}>
+        <TabsContent value="dashboard" className="mt-0">
           <DashboardTab />
         </TabsContent>
-        <TabsContent value="clientes" className="mt-4">
+        <TabsContent value="clientes" className="mt-0">
           <ClientsTab />
         </TabsContent>
-        <TabsContent value="inativos" className="mt-4">
+        <TabsContent value="inativos" className="mt-0">
           <InactiveTab />
         </TabsContent>
-        <TabsContent value="licencas" className="mt-4">
+        <TabsContent value="licencas" className="mt-0">
           <LicensesTab />
         </TabsContent>
-        <TabsContent value="pagamentos" className="mt-4">
+        <TabsContent value="pagamentos" className="mt-0">
           <PaymentsTab />
         </TabsContent>
-        <TabsContent value="assinaturas" className="mt-4">
+        <TabsContent value="assinaturas" className="mt-0">
           <SubscriptionsTab />
         </TabsContent>
-        <TabsContent value="anuncios" className="mt-4">
+        <TabsContent value="anuncios" className="mt-0">
           <ListingsTab />
         </TabsContent>
-        <TabsContent value="testes" className="mt-4">
+        <TabsContent value="testes" className="mt-0">
           <FreeTrialsTab />
         </TabsContent>
-        <TabsContent value="integracoes" className="mt-4">
+        <TabsContent value="integracoes" className="mt-0">
           <IntegrationsTab />
         </TabsContent>
-        <TabsContent value="logs" className="mt-4">
+        <TabsContent value="logs" className="mt-0">
           <LogsTab />
         </TabsContent>
-        <TabsContent value="planos" className="mt-4">
+        <TabsContent value="planos" className="mt-0">
           <PlansTab />
         </TabsContent>
-        <TabsContent value="configuracoes" className="mt-4">
+        <TabsContent value="configuracoes" className="mt-0">
           <SettingsTab />
         </TabsContent>
+        <TabsContent value="suporte" className="mt-0">
+          <SupportTab />
+        </TabsContent>
       </Tabs>
-    </AppShell>
+    </AdminLayout>
   );
 }
 
@@ -174,9 +164,10 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function DashboardTab() {
   const getMetrics = useServerFn(adminGetMetrics);
+  const [period, setPeriod] = useState<"7d" | "30d" | "90d" | "12m">("30d");
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ["admin-metrics"],
-    queryFn: () => getMetrics(),
+    queryKey: ["admin-metrics", period],
+    queryFn: () => getMetrics({ data: { period } }),
   });
 
   if (isLoading) {
@@ -191,9 +182,27 @@ function DashboardTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-2xl font-extrabold tracking-tight">Visão geral SaaS</h2>
+          <p className="text-sm text-muted-foreground">Dados reais de clientes, receita, integrações e operação.</p>
+        </div>
+        <Select value={period} onValueChange={(value) => setPeriod(value as typeof period)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Período" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7d">Últimos 7 dias</SelectItem>
+            <SelectItem value="30d">Últimos 30 dias</SelectItem>
+            <SelectItem value="90d">Últimos 90 dias</SelectItem>
+            <SelectItem value="12m">Últimos 12 meses</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Usuários" value={formatNumber(metrics?.users)} />
         <StatCard label="Clientes pagantes" value={formatNumber(metrics?.payingUsers)} />
+        <StatCard label="Assinaturas ativas" value={formatNumber(metrics?.subscriptionsActive)} />
         <StatCard label="Licenças ativas" value={formatNumber(metrics?.licensesActive)} />
         <StatCard label="Licenças expiradas" value={formatNumber(metrics?.licensesExpired)} />
         <StatCard label="Testes gratuitos usados" value={formatNumber(metrics?.freeTrialUsers)} />
@@ -201,7 +210,11 @@ function DashboardTab() {
         <StatCard label="Receita aprovada" value={formatBRL(metrics?.revenueTotalCents)} />
         <StatCard label="MRR (mês atual)" value={formatBRL(metrics?.mrrCents)} />
         <StatCard label="Anúncios processados" value={formatNumber(metrics?.listingsTotal)} />
+        <StatCard label="Anúncios publicados" value={formatNumber(metrics?.listingsPublished)} />
+        <StatCard label="Uso de IA" value={formatNumber(metrics?.aiUsage)} />
+        <StatCard label="Contas Mercado Livre" value={formatNumber(metrics?.mlConnected)} />
         <StatCard label="Pagamentos recusados" value={formatNumber(metrics?.failedPayments)} />
+        <StatCard label="Novos usuários" value={formatNumber(metrics?.newUsers)} />
         <StatCard label="Novos usuários (7d)" value={formatNumber(metrics?.newUsers7d)} />
         <StatCard label="Clientes ativos" value={formatNumber(metrics?.activeClients)} />
         <StatCard label="Clientes inativos" value={formatNumber(metrics?.inactiveClients)} />
@@ -229,7 +242,46 @@ function DashboardTab() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Crescimento operacional</CardTitle>
+        </CardHeader>
+        <CardContent className="h-72">
+          {metrics?.growth && metrics.growth.some((m) => m.users + m.subscriptions + m.publications + m.ai_usage > 0) ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={metrics.growth}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="label" fontSize={12} />
+                <YAxis fontSize={12} width={42} />
+                <RTooltip />
+                <Bar dataKey="users" name="Usuários" radius={[4, 4, 0, 0]} fill="hsl(var(--primary))" />
+                <Bar dataKey="subscriptions" name="Assinaturas" radius={[4, 4, 0, 0]} fill="hsl(var(--accent))" />
+                <Bar dataKey="publications" name="Publicações" radius={[4, 4, 0, 0]} fill="hsl(var(--secondary))" />
+                <Bar dataKey="ai_usage" name="IA" radius={[4, 4, 0, 0]} fill="hsl(var(--muted-foreground))" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+              Ainda não há atividade registrada neste período.
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+function SupportTab() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Suporte administrativo</CardTitle>
+      </CardHeader>
+      <CardContent className="text-sm text-muted-foreground">
+        Use as abas de clientes, pagamentos, licenças e logs para investigar solicitações de suporte com dados reais do sistema.
+      </CardContent>
+    </Card>
   );
 }
 

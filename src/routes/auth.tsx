@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -15,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth, useIsAdmin } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+import { checkIsAdmin } from "@/lib/roles.functions";
 
 const searchSchema = z.object({
   mode: z.enum(["login", "signup"]).optional(),
@@ -43,6 +45,7 @@ function AuthPage() {
   const navigate = useNavigate();
   const { user, loading: sessionLoading } = useAuth();
   const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
+  const checkAdmin = useServerFn(checkIsAdmin);
   const [isSignup, setIsSignup] = useState(mode === "signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -99,7 +102,8 @@ function AuthPage() {
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/dashboard" });
+        const { isAdmin: adminSession } = await checkAdmin();
+        navigate({ to: adminSession ? "/admin" : "/dashboard", replace: true });
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível continuar.");
@@ -144,7 +148,8 @@ function AuthPage() {
         toast.error("Não foi possível concluir o login com o Google.");
         return;
       }
-      navigate({ to: "/onboarding" });
+      const { isAdmin: adminSession } = await checkAdmin();
+      navigate({ to: adminSession ? "/admin" : "/dashboard", replace: true });
     } catch {
       toast.error("Não foi possível entrar com o Google", {
         description: "Verifique sua conexão e tente novamente.",
