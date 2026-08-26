@@ -1332,7 +1332,6 @@ const footerColumns = [
   {
     title: "Empresa",
     links: [
-      { label: "Área administrativa", to: "/admin/login" },
       { label: "Entrar", to: "/auth" },
       { label: "Criar conta", to: "/auth" },
     ],

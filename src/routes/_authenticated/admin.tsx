@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Navigate } from "@tanstack/react-router";
+import { createFileRoute, isRedirect, redirect } from "@tanstack/react-router";
+import { checkIsAdmin } from "@/lib/roles.functions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -49,7 +49,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useIsAdmin } from "@/hooks/useAuth";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import {
   adminCreateCoupon,
@@ -87,26 +86,22 @@ export const Route = createFileRoute("/_authenticated/admin")({
       { name: "robots", content: "noindex" },
     ],
   }),
+  // Guard de servidor: sem role admin no banco, nada administrativo é renderizado.
+  beforeLoad: async () => {
+    try {
+      const { isAdmin } = await checkIsAdmin();
+      if (!isAdmin) throw redirect({ to: "/dashboard", replace: true });
+    } catch (error) {
+      if (isRedirect(error)) throw error;
+      throw redirect({ to: "/dashboard", replace: true });
+    }
+  },
   component: AdminPage,
 });
 
 type Origin = "mercado_pago" | "pix_manual" | "courtesy" | "promo" | "partner" | "admin";
 
 function AdminPage() {
-  const { data: isAdmin, isLoading } = useIsAdmin();
-
-  if (isLoading) {
-    return (
-      <AppShell title="Painel administrativo">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </AppShell>
-    );
-  }
-
-  if (!isAdmin) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   return (
     <AppShell title="Painel administrativo" description="Métricas, clientes, licenças e planos.">
       <Tabs defaultValue="dashboard">
