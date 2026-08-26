@@ -27,6 +27,8 @@ export function Reveal({
       setVisible(true);
       return;
     }
+    // Rede de segurança: nenhum bloco pode ficar invisível se o observer falhar.
+    const fallback = window.setTimeout(() => setVisible(true), 1200);
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
@@ -34,11 +36,15 @@ export function Reveal({
           io.disconnect();
         }
       },
-      { rootMargin: "0px 0px -10% 0px", threshold: 0.1 },
+      { rootMargin: "120px 0px 0px 0px", threshold: 0 },
     );
     io.observe(el);
-    return () => io.disconnect();
+    return () => {
+      window.clearTimeout(fallback);
+      io.disconnect();
+    };
   }, []);
+
 
   return (
     <Tag
