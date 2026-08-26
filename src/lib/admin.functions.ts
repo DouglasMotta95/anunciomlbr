@@ -572,7 +572,7 @@ export const adminListActivity = createServerFn({ method: "POST" })
 
     let query = supabaseAdmin
       .from("activity_events")
-      .select("id,kind,message,meta,created_at,user_id,profiles(email)")
+      .select("id,kind,message,meta,created_at,user_id")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -581,7 +581,10 @@ export const adminListActivity = createServerFn({ method: "POST" })
     }
 
     const { data: rows, error } = await query;
-    if (error) throw new Error("Falha ao listar logs.");
+    if (error) throw new Error(`Falha ao listar logs: ${error.message}`);
+
+    const { resolveRefs } = await import("@/lib/admin-refs.server");
+    const { emailMap } = await resolveRefs(supabaseAdmin, (rows ?? []) as any[]);
 
     return {
       events: (rows ?? []).map((r: any) => ({
@@ -589,7 +592,7 @@ export const adminListActivity = createServerFn({ method: "POST" })
         kind: r.kind,
         message: r.message,
         created_at: r.created_at,
-        email: r.profiles?.email ?? null,
+        email: r.user_id ? emailMap.get(r.user_id) ?? null : null,
       })),
     };
   });
