@@ -436,11 +436,24 @@ export async function listAdminInactiveClients(context: AdminContext) {
 }
 
 export async function runAdminLicenseAction(data: LicenseActionInput, context: AdminContext) {
-  await assertAdmin(context);
+  const capabilityByAction = {
+    renew: "licenses.renew",
+    reset: "licenses.reset",
+    activate: "licenses.generate",
+    suspend: "licenses.suspend",
+    cancel: "licenses.cancel",
+  } as const;
+  await assertCapability(context, capabilityByAction[data.action]);
+
+  const { data: current } = await supabaseAdmin
+    .from("licenses")
+    .select("id,code,user_id,period,expires_at,status,ads_used")
+    .eq("id", data.id)
+    .maybeSingle();
+  if (!current) throw new Error("Licença não encontrada.");
+  const license = current as any;
 
   if (data.action === "renew") {
-    const { data: license } = await supabaseAdmin.from("licenses").select("*").eq("id", data.id).maybeSingle();
-    if (!license) throw new Error("Licença não encontrada.");
     const months = data.months ?? PERIOD_MONTHS[license.period] ?? 1;
     const base = license.expires_at && new Date(license.expires_at) > new Date() ? new Date(license.expires_at) : new Date();
     base.setMonth(base.getMonth() + months);
@@ -449,6 +462,13 @@ export async function runAdminLicenseAction(data: LicenseActionInput, context: A
       .update({ status: "active", expires_at: base.toISOString() })
       .eq("id", data.id);
     if (error) throw new Error(`Falha ao renovar licença: ${error.message}`);
+    await logAudit({
+      actorId: context.userId,
+      action: "license_renew",
+      entityId: license.code,
+      targetUserId: license.user_id,
+      details: { months, new_expires_at: base.toISOString(), previous_expires_at: license.expires_at },
+    });
     return { ok: true as const };
   }
 
@@ -461,13 +481,18 @@ export async function runAdminLicenseAction(data: LicenseActionInput, context: A
     await supabaseAdmin.from("activity_events").insert({
       user_id: context.userId,
       kind: "admin_license_action",
-      message: `Licença ${data.id} → consumo resetado`,
+      message: `Licença ${license.code} → consumo resetado`,
       meta: { license_id: data.id, action: "reset" },
+    });
+    await logAudit({
+      actorId: context.userId,
+      action: "license_reset",
+      entityId: license.code,
+      targetUserId: license.user_id,
+      details: { previous_ads_used: license.ads_used ?? 0 },
     });
     return { ok: true as const };
   }
-
-
 
   const statusMap = { activate: "active", suspend: "suspended", cancel: "cancelled" } as const;
   const status = statusMap[data.action as "activate" | "suspend" | "cancel"];
@@ -477,12 +502,21 @@ export async function runAdminLicenseAction(data: LicenseActionInput, context: A
   await supabaseAdmin.from("activity_events").insert({
     user_id: context.userId,
     kind: "admin_license_action",
-    message: `Licença ${data.id} → ${data.action}`,
+    message: `Licença ${license.code} → ${data.action}`,
     meta: { license_id: data.id, action: data.action },
+  });
+
+  await logAudit({
+    actorId: context.userId,
+    action: `license_${data.action}`,
+    entityId: license.code,
+    targetUserId: license.user_id,
+    details: { previous_status: license.status, new_status: status },
   });
 
   return { ok: true as const };
 }
+
 
 export async function updateAdminPlan(data: UpdatePlanInput, context: AdminContext) {
   await assertAdmin(context);
