@@ -146,7 +146,7 @@ export const adminListClients = createServerFn({ method: "POST" })
     let query = supabaseAdmin
       .from("profiles")
       .select(
-        "id,email,full_name,created_at,last_seen_at,free_listings_used,free_listings_limit,licenses(id,code,status,expires_at,period,plans(id,name))",
+        "id,email,full_name,created_at,last_seen_at,free_listings_used,free_listings_limit",
         { count: "exact" },
       )
       .order("created_at", { ascending: false });
@@ -159,18 +159,30 @@ export const adminListClients = createServerFn({ method: "POST" })
       data.page * data.pageSize,
       data.page * data.pageSize + data.pageSize - 1,
     );
-    if (error) throw new Error("Falha ao listar clientes.");
+    if (error) throw new Error(`Falha ao listar clientes: ${error.message}`);
+
+    const userIds = (rows ?? []).map((r) => r.id);
+    const { data: licRows } = userIds.length
+      ? await supabaseAdmin
+          .from("licenses")
+          .select("id,code,status,expires_at,period,user_id,plan_id")
+          .in("user_id", userIds)
+      : { data: [] as any[] };
+    const planIds = Array.from(new Set((licRows ?? []).map((l: any) => l.plan_id).filter(Boolean)));
+    const { data: planRows } = planIds.length
+      ? await supabaseAdmin.from("plans").select("id,name").in("id", planIds)
+      : { data: [] as any[] };
+    const planMap = new Map((planRows ?? []).map((p: any) => [p.id, p.name as string]));
+    const licByUser = new Map<string, any[]>();
+    for (const l of licRows ?? []) {
+      const list = licByUser.get(l.user_id as string) ?? [];
+      list.push(l);
+      licByUser.set(l.user_id as string, list);
+    }
 
     const now = Date.now();
     const clients = (rows ?? []).map((row) => {
-      const licenses = ((row as unknown as { licenses?: unknown }).licenses ?? []) as Array<{
-        id: string;
-        code: string;
-        status: string;
-        expires_at: string | null;
-        period: string;
-        plans: { id: string; name: string } | null;
-      }>;
+      const licenses = licByUser.get(row.id) ?? [];
       const active = licenses.find((l) => l.status === "active" && (!l.expires_at || new Date(l.expires_at).getTime() > now));
       const expired = licenses.find(
         (l) => l.status === "expired" || (l.status === "active" && l.expires_at && new Date(l.expires_at).getTime() <= now),
@@ -181,6 +193,7 @@ export const adminListClients = createServerFn({ method: "POST" })
       else if (expired) status = "expirado";
       else if (isTrial) status = "teste";
 
+      const lic = active ?? expired;
       return {
         id: row.id,
         email: row.email,
@@ -188,9 +201,9 @@ export const adminListClients = createServerFn({ method: "POST" })
         created_at: row.created_at,
         last_seen_at: row.last_seen_at,
         status,
-        plan: active?.plans?.name ?? expired?.plans?.name ?? null,
-        license_code: active?.code ?? expired?.code ?? null,
-        license_expires_at: active?.expires_at ?? expired?.expires_at ?? null,
+        plan: lic?.plan_id ? planMap.get(lic.plan_id) ?? null : null,
+        license_code: lic?.code ?? null,
+        license_expires_at: lic?.expires_at ?? null,
       };
     });
 
@@ -352,10 +365,11 @@ export const adminListPayments = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { resolveRefs } = await import("@/lib/admin-refs.server");
 
     let query = supabaseAdmin
       .from("payments")
-      .select("id,created_at,amount_cents,status,period,provider,provider_ref,profiles(email),plans(name)", {
+      .select("id,created_at,amount_cents,status,period,provider,provider_ref,user_id,plan_id", {
         count: "exact",
       })
       .order("created_at", { ascending: false });
@@ -368,7 +382,9 @@ export const adminListPayments = createServerFn({ method: "POST" })
       data.page * data.pageSize,
       data.page * data.pageSize + data.pageSize - 1,
     );
-    if (error) throw new Error("Falha ao listar pagamentos.");
+    if (error) throw new Error(`Falha ao listar pagamentos: ${error.message}`);
+
+    const { emailMap, planMap } = await resolveRefs(supabaseAdmin, rows ?? []);
 
     const payments = (rows ?? []).map((row: any) => ({
       id: row.id,
@@ -378,8 +394,8 @@ export const adminListPayments = createServerFn({ method: "POST" })
       period: row.period,
       provider: row.provider,
       provider_ref: row.provider_ref,
-      email: row.profiles?.email ?? null,
-      plan: row.plans?.name ?? null,
+      email: row.user_id ? emailMap.get(row.user_id) ?? null : null,
+      plan: row.plan_id ? planMap.get(row.plan_id) ?? null : null,
     }));
 
     return { payments, total: count ?? payments.length };
@@ -401,9 +417,11 @@ export const adminListSubscriptions = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    const { resolveRefs } = await import("@/lib/admin-refs.server");
+
     let query = supabaseAdmin
       .from("licenses")
-      .select("id,code,status,period,created_at,expires_at,user_id,profiles(email),plans(name)", {
+      .select("id,code,status,period,created_at,expires_at,user_id,plan_id", {
         count: "exact",
       })
       .not("user_id", "is", null)
@@ -417,7 +435,9 @@ export const adminListSubscriptions = createServerFn({ method: "POST" })
       data.page * data.pageSize,
       data.page * data.pageSize + data.pageSize - 1,
     );
-    if (error) throw new Error("Falha ao listar assinaturas.");
+    if (error) throw new Error(`Falha ao listar assinaturas: ${error.message}`);
+
+    const { emailMap, planMap } = await resolveRefs(supabaseAdmin, rows ?? []);
 
     const now = Date.now();
     const subscriptions = (rows ?? []).map((row: any) => ({
@@ -427,8 +447,8 @@ export const adminListSubscriptions = createServerFn({ method: "POST" })
       period: row.period,
       created_at: row.created_at,
       expires_at: row.expires_at,
-      email: row.profiles?.email ?? null,
-      plan: row.plans?.name ?? null,
+      email: row.user_id ? emailMap.get(row.user_id) ?? null : null,
+      plan: row.plan_id ? planMap.get(row.plan_id) ?? null : null,
       daysRemaining: row.expires_at ? Math.ceil((new Date(row.expires_at).getTime() - now) / 86_400_000) : null,
     }));
 
@@ -451,10 +471,13 @@ export const adminGetListingsMetrics = createServerFn({ method: "GET" })
       supabaseAdmin.from("listings").select("id", { count: "exact", head: true }).eq("status", "error"),
       supabaseAdmin
         .from("bulk_jobs")
-        .select("id,kind,status,total,processed,failed,created_at,user_id,profiles(email)")
+        .select("id,kind,status,total,processed,failed,created_at,user_id")
         .order("created_at", { ascending: false })
         .limit(30),
     ]);
+
+    const { resolveRefs } = await import("@/lib/admin-refs.server");
+    const { emailMap } = await resolveRefs(supabaseAdmin, (jobs.data ?? []) as any[]);
 
     return {
       total: total.count ?? 0,
@@ -469,7 +492,7 @@ export const adminGetListingsMetrics = createServerFn({ method: "GET" })
         processed: j.processed,
         failed: j.failed,
         created_at: j.created_at,
-        email: j.profiles?.email ?? null,
+        email: j.user_id ? emailMap.get(j.user_id) ?? null : null,
       })),
     };
   });
@@ -549,7 +572,7 @@ export const adminListActivity = createServerFn({ method: "POST" })
 
     let query = supabaseAdmin
       .from("activity_events")
-      .select("id,kind,message,meta,created_at,user_id,profiles(email)")
+      .select("id,kind,message,meta,created_at,user_id")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -558,7 +581,10 @@ export const adminListActivity = createServerFn({ method: "POST" })
     }
 
     const { data: rows, error } = await query;
-    if (error) throw new Error("Falha ao listar logs.");
+    if (error) throw new Error(`Falha ao listar logs: ${error.message}`);
+
+    const { resolveRefs } = await import("@/lib/admin-refs.server");
+    const { emailMap } = await resolveRefs(supabaseAdmin, (rows ?? []) as any[]);
 
     return {
       events: (rows ?? []).map((r: any) => ({
@@ -566,7 +592,7 @@ export const adminListActivity = createServerFn({ method: "POST" })
         kind: r.kind,
         message: r.message,
         created_at: r.created_at,
-        email: r.profiles?.email ?? null,
+        email: r.user_id ? emailMap.get(r.user_id) ?? null : null,
       })),
     };
   });
