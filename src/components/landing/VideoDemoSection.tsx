@@ -65,14 +65,16 @@ export function VideoDemoSection() {
             <div className="relative aspect-video w-full">
               <video
                 ref={videoRef}
-                src={demoVideo}
                 className="h-full w-full object-cover"
                 loop
                 muted={muted}
                 playsInline
                 preload="metadata"
                 onClick={togglePlay}
-              />
+              >
+                <source src="/videos/platform-demo.webm" type="video/webm" />
+                <source src={demoVideo} type="video/mp4" />
+              </video>
 
               {/* Overlay de play */}
               {!playing && (
