@@ -102,62 +102,52 @@ export const Route = createFileRoute("/_authenticated/admin")({
 type Origin = "mercado_pago" | "pix_manual" | "courtesy" | "promo" | "partner" | "admin";
 
 function AdminPage() {
-  return (
-    <AppShell title="Painel administrativo" description="Métricas, clientes, licenças e planos.">
-      <Tabs defaultValue="dashboard">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="clientes">Clientes</TabsTrigger>
-          <TabsTrigger value="inativos">Clientes inativos</TabsTrigger>
-          <TabsTrigger value="licencas">Licenças</TabsTrigger>
-          <TabsTrigger value="pagamentos">Pagamentos</TabsTrigger>
-          <TabsTrigger value="assinaturas">Assinaturas</TabsTrigger>
-          <TabsTrigger value="anuncios">Anúncios processados</TabsTrigger>
-          <TabsTrigger value="testes">Testes gratuitos</TabsTrigger>
-          <TabsTrigger value="integracoes">Integrações</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="planos">Planos e preços</TabsTrigger>
-          <TabsTrigger value="configuracoes">Configurações</TabsTrigger>
-        </TabsList>
+  const [activeSection, setActiveSection] = useState("dashboard");
 
-        <TabsContent value="dashboard" className="mt-4">
+  return (
+    <AdminLayout activeSection={activeSection} onSectionChange={setActiveSection}>
+      <Tabs value={activeSection} onValueChange={setActiveSection}>
+        <TabsContent value="dashboard" className="mt-0">
           <DashboardTab />
         </TabsContent>
-        <TabsContent value="clientes" className="mt-4">
+        <TabsContent value="clientes" className="mt-0">
           <ClientsTab />
         </TabsContent>
-        <TabsContent value="inativos" className="mt-4">
+        <TabsContent value="inativos" className="mt-0">
           <InactiveTab />
         </TabsContent>
-        <TabsContent value="licencas" className="mt-4">
+        <TabsContent value="licencas" className="mt-0">
           <LicensesTab />
         </TabsContent>
-        <TabsContent value="pagamentos" className="mt-4">
+        <TabsContent value="pagamentos" className="mt-0">
           <PaymentsTab />
         </TabsContent>
-        <TabsContent value="assinaturas" className="mt-4">
+        <TabsContent value="assinaturas" className="mt-0">
           <SubscriptionsTab />
         </TabsContent>
-        <TabsContent value="anuncios" className="mt-4">
+        <TabsContent value="anuncios" className="mt-0">
           <ListingsTab />
         </TabsContent>
-        <TabsContent value="testes" className="mt-4">
+        <TabsContent value="testes" className="mt-0">
           <FreeTrialsTab />
         </TabsContent>
-        <TabsContent value="integracoes" className="mt-4">
+        <TabsContent value="integracoes" className="mt-0">
           <IntegrationsTab />
         </TabsContent>
-        <TabsContent value="logs" className="mt-4">
+        <TabsContent value="logs" className="mt-0">
           <LogsTab />
         </TabsContent>
-        <TabsContent value="planos" className="mt-4">
+        <TabsContent value="planos" className="mt-0">
           <PlansTab />
         </TabsContent>
-        <TabsContent value="configuracoes" className="mt-4">
+        <TabsContent value="configuracoes" className="mt-0">
           <SettingsTab />
         </TabsContent>
+        <TabsContent value="suporte" className="mt-0">
+          <SupportTab />
+        </TabsContent>
       </Tabs>
-    </AppShell>
+    </AdminLayout>
   );
 }
 
