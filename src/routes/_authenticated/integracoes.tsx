@@ -13,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 import {
   disconnectMercadoLivre,
-  getMlAuthorizationUrl,
   getMlConnection,
   syncMlListings,
 } from "@/lib/ml.functions";
@@ -65,7 +64,6 @@ function IntegrationsPage() {
   const { ml, sync: syncResult } = Route.useSearch();
 
   const fetchConnection = useServerFn(getMlConnection);
-  const getAuthUrl = useServerFn(getMlAuthorizationUrl);
   const sync = useServerFn(syncMlListings);
   const disconnect = useServerFn(disconnectMercadoLivre);
 
@@ -90,18 +88,6 @@ function IntegrationsPage() {
     }
     navigate({ to: "/integracoes", replace: true, search: {} });
   }, [ml, syncResult, navigate, queryClient]);
-
-  const connectMl = useMutation({
-    mutationFn: () => getAuthUrl(),
-    onSuccess: (result) => {
-      if (result.url) window.location.href = result.url;
-      else
-        toast.info("Integração indisponível", {
-          description: "A conexão com o Mercado Livre está temporariamente indisponível.",
-        });
-    },
-    onError: () => toast.error("Falha ao iniciar a conexão com o Mercado Livre."),
-  });
 
   const syncMl = useMutation({
     mutationFn: () => sync(),

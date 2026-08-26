@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProfile } from "@/hooks/useAuth";
 import {
   disconnectMercadoLivre,
-  getMlAuthorizationUrl,
   getMlConnection,
   syncMlListings,
 } from "@/lib/ml.functions";
@@ -40,26 +39,10 @@ function OnboardingPage() {
   const queryClient = useQueryClient();
   const { data: profile } = useProfile();
   const fetchConnection = useServerFn(getMlConnection);
-  const fetchAuthUrl = useServerFn(getMlAuthorizationUrl);
 
   const { data, isLoading } = useQuery({
     queryKey: ["ml-connection-state"],
     queryFn: () => fetchConnection(),
-  });
-
-  const connect = useMutation({
-    mutationFn: () => fetchAuthUrl(),
-    onSuccess: (result) => {
-      if (!result.configured || !result.url) {
-        toast.info("Integração pendente", {
-          description:
-            "As credenciais oficiais do Mercado Livre ainda não foram cadastradas nesta instalação.",
-        });
-        return;
-      }
-      window.location.href = result.url;
-    },
-    onError: () => toast.error("Não foi possível iniciar a conexão."),
   });
 
   const runSync = useServerFn(syncMlListings);
