@@ -107,7 +107,11 @@ export const getMlAuthorizationUrl = createServerFn({ method: "POST" })
     const clientId = process.env["ML_CLIENT_ID"];
     const redirectUri = process.env["ML_REDIRECT_URI"];
     if (!clientId || !redirectUri) {
-      return { configured: false as const, url: null };
+      console.warn("ML OAuth start blocked: missing required configuration", {
+        hasClientId: !!clientId,
+        hasRedirectUri: !!redirectUri,
+      });
+      return { configured: false as const, url: null, reason: "not_configured" as const };
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -122,16 +126,23 @@ export const getMlAuthorizationUrl = createServerFn({ method: "POST" })
     const { error } = await supabaseAdmin.from("ml_oauth_states").insert({
       state,
       user_id: context.userId,
-      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     });
-    if (error) throw new Error("ml_state_persist_failed");
+    if (error) {
+      console.error("ML OAuth state persist failed", {
+        code: error.code,
+        message: error.message,
+      });
+      return { configured: true as const, url: null, reason: "state_error" as const };
+    }
 
     const url = new URL("https://auth.mercadolivre.com.br/authorization");
     url.searchParams.set("response_type", "code");
     url.searchParams.set("client_id", clientId);
     url.searchParams.set("redirect_uri", redirectUri);
     url.searchParams.set("state", state);
-    return { configured: true as const, url: url.toString() };
+    console.info("ML OAuth authorization URL generated", { redirectUriHost: new URL(redirectUri).host });
+    return { configured: true as const, url: url.toString(), reason: null };
   });
 
 /** Estado da conexão do usuário com o Mercado Livre. */

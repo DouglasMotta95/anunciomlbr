@@ -53,6 +53,10 @@ const ML_RETURN_MESSAGES: Record<string, { type: "success" | "info" | "error"; t
     type: "error",
     text: "Não foi possível concluir a autorização no Mercado Livre. Tente novamente.",
   },
+  start_error: {
+    type: "error",
+    text: "Não foi possível iniciar a conexão com o Mercado Livre. Tente novamente.",
+  },
 };
 
 function IntegrationsPage() {
@@ -217,18 +221,11 @@ function IntegrationsPage() {
                 Você será redirecionado ao site oficial do Mercado Livre para autorizar o acesso.
                 Nunca pedimos sua senha.
               </p>
-              <Button
-                size="sm"
-                className="font-semibold"
-                disabled={connectMl.isPending}
-                onClick={() => connectMl.mutate()}
-              >
-                {connectMl.isPending ? (
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                ) : (
+              <Button size="sm" className="font-semibold" asChild>
+                <a href="/integracoes/mercadolivre/start" target="_top">
                   <Link2 className="mr-2 h-3.5 w-3.5" />
-                )}
-                Conectar Mercado Livre
+                  Conectar Mercado Livre
+                </a>
               </Button>
             </>
           )}

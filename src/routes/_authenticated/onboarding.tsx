@@ -149,13 +149,11 @@ function OnboardingPage() {
                 </div>
               </div>
             ) : (
-              <Button onClick={() => connect.mutate()} disabled={connect.isPending}>
-                {connect.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+              <Button asChild>
+                <a href="/integracoes/mercadolivre/start" target="_top">
                   <Link2 className="mr-2 h-4 w-4" />
-                )}
-                Conectar com Mercado Livre
+                  Conectar com Mercado Livre
+                </a>
               </Button>
             )}
             {data && !data.configured && (
