@@ -1,4 +1,4 @@
-import { createServerFn, getRequestHeader } from "@tanstack/react-start";
+import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -19,14 +19,14 @@ export const trackVisit = createServerFn({ method: "POST" })
         utm_campaign: optionalText,
         utm_term: optionalText,
         utm_content: optionalText,
+        user_agent: optionalText,
         is_authenticated: z.boolean().optional(),
       })
       .parse(data),
   )
   .handler(async ({ data }) => {
     const { recordVisit } = await import("@/lib/analytics.server");
-    const userAgent = getRequestHeader("user-agent");
-    return recordVisit(data, userAgent ?? null);
+    return recordVisit(data, data.user_agent ?? null);
   });
 
 /** Analytics reais de visitas (somente administradores). */
