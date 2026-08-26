@@ -240,15 +240,21 @@ export async function getFunnelAnalytics(context: AdminContext) {
   for (const row of rows) {
     const event = row.event as string;
     counts[event] = (counts[event] ?? 0) + 1;
-    const bucket = timelineMap.get(dayKey(row.created_at as string));
-    if (bucket && event in bucket) {
-      (bucket as unknown as Record<string, number>)[event] += 1;
+    const bucket = timelineMap.get(dayKey(row.created_at as string)) as
+      | Record<string, number>
+      | undefined;
+    if (bucket && typeof bucket[event] === "number") {
+      bucket[event] = (bucket[event] ?? 0) + 1;
     }
     const planCode = (row.plan_code as string | null) ?? "—";
-    const planBucket =
-      plans.get(planCode) ?? { plan: planCode, view_plan: 0, start_checkout: 0, purchase: 0 };
-    (planBucket as unknown as Record<string, number>)[event] += 1;
-    plans.set(planCode, planBucket);
+    const planBucket = (plans.get(planCode) ?? {
+      plan: planCode,
+      view_plan: 0,
+      start_checkout: 0,
+      purchase: 0,
+    }) as unknown as Record<string, number> & { plan: string };
+    planBucket[event] = (planBucket[event] ?? 0) + 1;
+    plans.set(planCode, planBucket as unknown as { plan: string; view_plan: number; start_checkout: number; purchase: number });
     if (event === "purchase") revenueCents += Number(row.amount_cents ?? 0);
   }
 
