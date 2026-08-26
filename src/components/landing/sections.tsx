@@ -121,6 +121,9 @@ export function LandingNav() {
           <a href="#planos" className="transition-colors hover:text-foreground">
             Planos
           </a>
+          <a href="#faq" className="transition-colors hover:text-foreground">
+            FAQ
+          </a>
         </nav>
         <div className="flex items-center gap-2">
           {loggedIn ? (
