@@ -2,27 +2,50 @@ import { createFileRoute } from "@tanstack/react-router";
 
 /**
  * Callback OAuth oficial do Mercado Livre.
- * Troca o `code` pelo token de acesso e guarda os tokens em tabela restrita.
+ *
+ * Fluxo: valida erro/cancelamento -> valida e consome o `state` de uso único
+ * (anti-CSRF, vinculado ao usuário que iniciou a conexão) -> troca o `code`
+ * por tokens -> identifica a conta ML -> grava tokens e conexão no backend
+ * -> dispara a sincronização inicial -> redireciona para /integracoes.
+ *
+ * Tokens e secrets jamais aparecem em URLs, logs ou respostas.
  */
 export const Route = createFileRoute("/api/public/ml/callback")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
-        const code = url.searchParams.get("code");
-        const userId = url.searchParams.get("state");
         const appOrigin = process.env["APP_PUBLIC_URL"] ?? url.origin;
+        const fail = (reason: string) =>
+          Response.redirect(`${appOrigin}/integracoes?ml=${encodeURIComponent(reason)}`, 302);
+
+        // Usuário cancelou ou o ML recusou a autorização.
+        if (url.searchParams.get("error")) return fail("cancelled");
+
+        const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state");
+        if (!code || !state) return fail("invalid_callback");
 
         const clientId = process.env["ML_CLIENT_ID"];
         const clientSecret = process.env["ML_CLIENT_SECRET"];
         const redirectUri = process.env["ML_REDIRECT_URI"];
+        if (!clientId || !clientSecret || !redirectUri) return fail("not_configured");
 
-        if (!clientId || !clientSecret || !redirectUri) {
-          return Response.redirect(`${appOrigin}/onboarding?ml=not_configured`, 302);
-        }
-        if (!code || !userId) {
-          return Response.redirect(`${appOrigin}/onboarding?ml=invalid_callback`, 302);
-        }
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+        // Valida o state: precisa existir, estar dentro da validade e ser de uso único.
+        const { data: oauthState } = await supabaseAdmin
+          .from("ml_oauth_states")
+          .select("user_id, expires_at")
+          .eq("state", state)
+          .maybeSingle();
+        if (!oauthState) return fail("invalid_state");
+
+        // Consome o state imediatamente (uso único), mesmo se expirado.
+        await supabaseAdmin.from("ml_oauth_states").delete().eq("state", state);
+        if (new Date(oauthState.expires_at).getTime() < Date.now()) return fail("invalid_state");
+
+        const userId = oauthState.user_id;
 
         const tokenResponse = await fetch("https://api.mercadolibre.com/oauth/token", {
           method: "POST",
@@ -38,7 +61,7 @@ export const Route = createFileRoute("/api/public/ml/callback")({
 
         if (!tokenResponse.ok) {
           console.error("ML token exchange failed", tokenResponse.status);
-          return Response.redirect(`${appOrigin}/onboarding?ml=token_error`, 302);
+          return fail("token_error");
         }
 
         const token = (await tokenResponse.json()) as {
@@ -47,8 +70,6 @@ export const Route = createFileRoute("/api/public/ml/callback")({
           expires_in?: number;
           user_id?: number | string;
         };
-
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         let nickname: string | null = null;
         try {
@@ -100,7 +121,7 @@ export const Route = createFileRoute("/api/public/ml/callback")({
         }
 
         return Response.redirect(
-          `${appOrigin}/onboarding?ml=connected&sync=${encodeURIComponent(sync)}`,
+          `${appOrigin}/integracoes?ml=connected&sync=${encodeURIComponent(sync)}`,
           302,
         );
       },
