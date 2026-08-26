@@ -47,7 +47,7 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
       POST: async ({ request }) => {
         const accessToken = process.env["MERCADOPAGO_ACCESS_TOKEN"];
         const webhookSecret = process.env["MERCADOPAGO_WEBHOOK_SECRET"];
-        if (!accessToken || !webhookSecret) {
+        if (!accessToken) {
           return json({ ok: false, reason: "not_configured" }, 503);
         }
 
@@ -60,9 +60,13 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
 
         const paymentId = payload.data?.id;
         if (!paymentId) return new Response("ignored", { status: 200 });
-        if (!isValidMercadoPagoSignature(request, String(paymentId), webhookSecret)) {
+        // Com secret configurado, exigimos a assinatura HMAC do Mercado Pago.
+        // Sem secret, o status ainda é confirmado consultando a API oficial do
+        // Mercado Pago com o nosso access token — nunca confiamos no corpo.
+        if (webhookSecret && !isValidMercadoPagoSignature(request, String(paymentId), webhookSecret)) {
           return json({ ok: false, reason: "invalid_signature" }, 401);
         }
+
 
         const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
