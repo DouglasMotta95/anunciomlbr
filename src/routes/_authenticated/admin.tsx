@@ -655,6 +655,10 @@ function LicensesTab() {
                         onClick={() => action.mutate({ id: license.id, action: "renew" })}>
                         <RefreshCcw className="h-3.5 w-3.5" />
                       </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Resetar consumo de anúncios"
+                        onClick={() => action.mutate({ id: license.id, action: "reset" })}>
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Cancelar"
                         onClick={() => action.mutate({ id: license.id, action: "cancel" })}>
                         <ShieldAlert className="h-3.5 w-3.5" />
