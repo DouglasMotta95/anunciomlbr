@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { Logo, SLOGAN } from "@/components/brand";
+import { SessionSplash } from "@/components/SessionSplash";
+import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,7 +41,7 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { mode } = Route.useSearch();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: sessionLoading } = useAuth();
   const [isSignup, setIsSignup] = useState(mode === "signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -50,8 +52,15 @@ function AuthPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/onboarding" });
+    // Já autenticado -> direto para o dashboard (não exige novo login).
+    if (user) navigate({ to: "/dashboard", replace: true });
   }, [user, navigate]);
+
+  // Enquanto a sessão é restaurada/validada, mostra splash em vez do
+  // formulário (evita o flash de "visitante" no retorno do Google / F5).
+  if (user || (sessionLoading && hasStoredSession() && !hasAuthErrorInUrl())) {
+    return <SessionSplash />;
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

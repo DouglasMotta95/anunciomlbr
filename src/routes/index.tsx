@@ -42,8 +42,27 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: description },
     ],
   }),
-  component: Landing,
+  component: LandingGate,
 });
+
+/**
+ * Porta de sessão da landing:
+ * - visitante real (sem sessão gravada) vê a landing imediatamente;
+ * - quem tem sessão gravada (retorno do Google, F5) vê um splash profissional
+ *   enquanto a sessão é validada e é levado direto ao dashboard —
+ *   nunca aparece como "visitante" por alguns segundos.
+ */
+function LandingGate() {
+  const { user, loading } = useAuth();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  // Antes da hidratação, renderiza a landing (SEO e visitantes sem flash).
+  if (!mounted) return <Landing />;
+  if (user) return <Navigate to="/dashboard" replace />;
+  if (loading && hasStoredSession() && !hasAuthErrorInUrl()) return <SessionSplash />;
+  return <Landing />;
+}
 
 function Landing() {
   return (
