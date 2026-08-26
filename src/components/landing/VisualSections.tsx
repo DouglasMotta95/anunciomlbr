@@ -24,11 +24,48 @@ function Eyebrow({ children }: { children: string }) {
 /* ------------------------------------------------------------------ */
 
 const radarProducts = [
-  { t: "Fone Bluetooth TWS Pro 5.3", p: "R$ 129,90", rel: 96, img: demoImages.fone },
-  { t: "Suporte Articulado Monitor", p: "R$ 89,00", rel: 91, img: demoImages.suporte },
-  { t: "Mini Projetor Full HD", p: "R$ 549,90", rel: 88, img: demoImages.projetor },
-  { t: "Câmera Wi-Fi 360°", p: "R$ 179,90", rel: 84, img: demoImages.camera },
+  {
+    t: "Fone Bluetooth TWS Pro 5.3",
+    p: "R$ 129,90",
+    old: "R$ 189,90",
+    rel: 96,
+    sales: "1.２mil vendidos",
+    profit: "lucro estimado R$ 42/un",
+    tag: "MAIS VENDIDO",
+    img: demoImages.fone,
+  },
+  {
+    t: "Suporte Articulado Monitor",
+    p: "R$ 89,00",
+    old: "R$ 119,00",
+    rel: 91,
+    sales: "870 vendidos",
+    profit: "lucro estimado R$ 28/un",
+    tag: "ALTO GIRO",
+    img: demoImages.suporte,
+  },
+  {
+    t: "Mini Projetor Full HD",
+    p: "R$ 549,90",
+    old: "R$ 699,90",
+    rel: 88,
+    sales: "410 vendidos",
+    profit: "lucro estimado R$ 155/un",
+    tag: "TICKET ALTO",
+    img: demoImages.projetor,
+  },
+  {
+    t: "Câmera Wi-Fi 360°",
+    p: "R$ 179,90",
+    old: "R$ 229,90",
+    rel: 84,
+    sales: "630 vendidos",
+    profit: "lucro estimado R$ 51/un",
+    tag: "TENDÊNCIA",
+    img: demoImages.camera,
+  },
 ];
+
 
 export function RadarSection() {
   const [scan, setScan] = useState(0);
