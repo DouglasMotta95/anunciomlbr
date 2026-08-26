@@ -27,6 +27,7 @@ import {
   Shield,
   ShoppingCart,
   Sparkles,
+  Star,
   Store,
   TrendingUp,
   Truck,
