@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCheckoutSummary } from "@/lib/checkout.functions";
+import { confirmCheckoutPayment, getCheckoutSummary } from "@/lib/checkout.functions";
 import { formatBRL, formatDate } from "@/lib/format";
 import { trackEventOnce } from "@/lib/track";
 
