@@ -147,6 +147,78 @@ export type VisitAlert = {
   message: string;
 };
 
+/**
+ * Alertas automáticos: compara as visitas de hoje e de ontem com a média
+ * dos dias anteriores e avisa quando há pico (ou queda) fora do normal.
+ */
+function buildVisitAlerts(input: {
+  timeline: { date: string; visits: number; visitors: number }[];
+  today: number;
+  bots30: number;
+  visits30: number;
+}): VisitAlert[] {
+  const alerts: VisitAlert[] = [];
+  const { timeline } = input;
+  if (timeline.length < 8) return alerts;
+
+  const previous = timeline.slice(-8, -1); // 7 dias anteriores a hoje
+  const baseline = previous.reduce((sum, d) => sum + d.visits, 0) / previous.length;
+  const todayVisits = input.today;
+
+  const fmt = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
+  if (baseline >= 3 && todayVisits >= Math.max(10, baseline * 2)) {
+    const factor = baseline > 0 ? todayVisits / baseline : 0;
+    alerts.push({
+      level: "warning",
+      title: `Pico de visitas hoje (${fmt(factor)}x a média)`,
+      message: `Hoje já são ${todayVisits} visitas contra uma média de ${fmt(baseline)}/dia nos últimos 7 dias. Acompanhe a campanha ativa e a conversão em tempo real.`,
+    });
+  } else if (baseline >= 3 && todayVisits >= Math.max(5, baseline * 1.5)) {
+    alerts.push({
+      level: "info",
+      title: "Alta de visitas acima da média",
+      message: `${todayVisits} visitas hoje contra média de ${fmt(baseline)}/dia nos últimos 7 dias.`,
+    });
+  }
+
+  const yesterday = timeline[timeline.length - 2];
+  if (yesterday) {
+    const beforeYesterday = timeline.slice(-9, -2);
+    const base2 =
+      beforeYesterday.length > 0
+        ? beforeYesterday.reduce((sum, d) => sum + d.visits, 0) / beforeYesterday.length
+        : 0;
+    if (base2 >= 3 && yesterday.visits >= Math.max(10, base2 * 2)) {
+      alerts.push({
+        level: "info",
+        title: "Ontem teve pico de visitas",
+        message: `${yesterday.visits} visitas em ${yesterday.date} contra média de ${fmt(base2)}/dia. Vale revisar a origem do tráfego.`,
+      });
+    }
+    if (baseline >= 10 && todayVisits > 0 && todayVisits <= baseline * 0.4) {
+      alerts.push({
+        level: "warning",
+        title: "Queda forte de visitas hoje",
+        message: `Apenas ${todayVisits} visitas hoje contra média de ${fmt(baseline)}/dia. Verifique campanhas pausadas ou problemas no site.`,
+      });
+    }
+  }
+
+  const totalWithBots = input.visits30 + input.bots30;
+  if (totalWithBots > 20 && input.bots30 / totalWithBots >= 0.4) {
+    alerts.push({
+      level: "warning",
+      title: "Muito tráfego suspeito bloqueado",
+      message: `${input.bots30} acessos de bots/spam foram descartados nos últimos 30 dias (${Math.round((input.bots30 / totalWithBots) * 100)}% do total). Os números do painel já excluem esses acessos.`,
+    });
+  }
+
+  return alerts;
+}
+
+
+
 /** Métricas reais de visitas para o painel administrativo. */
 export async function getVisitAnalytics(context: AdminContext) {
   await assertAdmin(context);
