@@ -10,6 +10,10 @@ const PERIOD_MONTHS: Record<string, number> = {
 
 type AdminContext = { supabase: any; userId: string };
 
+type AdminPeriodInput = {
+  period: "7d" | "30d" | "90d" | "12m";
+};
+
 type ListClientsInput = {
   page: number;
   pageSize: number;
@@ -54,6 +58,12 @@ type ListSubscriptionsInput = {
   status: "all" | "available" | "active" | "expired" | "suspended" | "cancelled";
 };
 
+type ListLicensesInput = ListSubscriptionsInput;
+
+type ClientDetailsInput = {
+  id: string;
+};
+
 type ListActivityInput = {
   kind?: string | undefined;
 };
@@ -92,10 +102,79 @@ function cleanSearchTerm(value?: string) {
   return term.replace(/[,%]/g, " ").replace(/\s+/g, " ").trim() || undefined;
 }
 
-export async function getAdminMetrics(context: AdminContext) {
+function startDateForPeriod(period: AdminPeriodInput["period"]) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  if (period === "7d") date.setDate(date.getDate() - 6);
+  if (period === "30d") date.setDate(date.getDate() - 29);
+  if (period === "90d") date.setDate(date.getDate() - 89);
+  if (period === "12m") {
+    date.setDate(1);
+    date.setMonth(date.getMonth() - 11);
+  }
+  return date;
+}
+
+function bucketKey(value: string | null | undefined, period: AdminPeriodInput["period"]) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  if (period === "12m") return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  return date.toISOString().slice(0, 10);
+}
+
+function emptyTimeline(period: AdminPeriodInput["period"]) {
+  const start = startDateForPeriod(period);
+  const rows: Array<{
+    label: string;
+    users: number;
+    subscriptions: number;
+    revenue_cents: number;
+    publications: number;
+    platform_usage: number;
+    ai_usage: number;
+  }> = [];
+
+  if (period === "12m") {
+    for (let i = 0; i < 12; i += 1) {
+      const d = new Date(start);
+      d.setMonth(start.getMonth() + i);
+      rows.push({
+        label: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+        users: 0,
+        subscriptions: 0,
+        revenue_cents: 0,
+        publications: 0,
+        platform_usage: 0,
+        ai_usage: 0,
+      });
+    }
+    return rows;
+  }
+
+  const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
+  for (let i = 0; i < days; i += 1) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    rows.push({
+      label: d.toISOString().slice(0, 10),
+      users: 0,
+      subscriptions: 0,
+      revenue_cents: 0,
+      publications: 0,
+      platform_usage: 0,
+      ai_usage: 0,
+    });
+  }
+  return rows;
+}
+
+export async function getAdminMetrics(data: AdminPeriodInput, context: AdminContext) {
   await assertAdmin(context);
 
   const now = new Date().toISOString();
+  const period = data.period ?? "30d";
+  const since = startDateForPeriod(period).toISOString();
 
   const [
     usersTotal,
@@ -105,7 +184,17 @@ export async function getAdminMetrics(context: AdminContext) {
     approvedPayments,
     allPayments,
     listingsTotal,
+    listingsPublished,
+    aiListings,
+    mlConnected,
     trialsTotal,
+    newUsers,
+    activeSubscriptions,
+    recentUsers,
+    recentLicenses,
+    recentPayments,
+    recentListings,
+    recentActivity,
   ] = await Promise.all([
     supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }),
     supabaseAdmin.from("licenses").select("id", { count: "exact", head: true }).eq("status", "active"),
@@ -117,7 +206,17 @@ export async function getAdminMetrics(context: AdminContext) {
     supabaseAdmin.from("payments").select("amount_cents,created_at").eq("status", "approved"),
     supabaseAdmin.from("payments").select("status", { count: "exact", head: false }),
     supabaseAdmin.from("listings").select("id", { count: "exact", head: true }),
+    supabaseAdmin.from("listings").select("id", { count: "exact", head: true }).eq("status", "active"),
+    supabaseAdmin.from("listings").select("id", { count: "exact", head: true }).not("ai_score", "is", null),
+    supabaseAdmin.from("ml_connections").select("user_id", { count: "exact", head: true }).eq("connected", true),
     supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).lte("free_listings_used", 0),
+    supabaseAdmin.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", since),
+    supabaseAdmin.from("licenses").select("id", { count: "exact", head: true }).eq("status", "active").not("user_id", "is", null),
+    supabaseAdmin.from("profiles").select("created_at").gte("created_at", since),
+    supabaseAdmin.from("licenses").select("created_at,status").gte("created_at", since),
+    supabaseAdmin.from("payments").select("amount_cents,created_at,status").gte("created_at", since),
+    supabaseAdmin.from("listings").select("created_at,published_at,status,ai_score").gte("created_at", since),
+    supabaseAdmin.from("activity_events").select("created_at,kind").gte("created_at", since),
   ]);
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -150,6 +249,38 @@ export async function getAdminMetrics(context: AdminContext) {
 
   const failedPayments = (allPayments.data ?? []).filter((p: any) => p.status === "rejected").length;
 
+  const timeline = emptyTimeline(period);
+  const timelineMap = new Map(timeline.map((row) => [row.label, row]));
+  for (const row of recentUsers.data ?? []) {
+    const key = bucketKey((row as any).created_at, period);
+    const bucket = key ? timelineMap.get(key) : undefined;
+    if (bucket) bucket.users += 1;
+  }
+  for (const row of recentLicenses.data ?? []) {
+    const key = bucketKey((row as any).created_at, period);
+    const bucket = key ? timelineMap.get(key) : undefined;
+    if (bucket && (row as any).status === "active") bucket.subscriptions += 1;
+  }
+  for (const row of recentPayments.data ?? []) {
+    const key = bucketKey((row as any).created_at, period);
+    const bucket = key ? timelineMap.get(key) : undefined;
+    if (bucket && (row as any).status === "approved") bucket.revenue_cents += (row as any).amount_cents ?? 0;
+  }
+  for (const row of recentListings.data ?? []) {
+    const key = bucketKey((row as any).published_at ?? (row as any).created_at, period);
+    const bucket = key ? timelineMap.get(key) : undefined;
+    if (!bucket) continue;
+    if ((row as any).status === "active" || (row as any).published_at) bucket.publications += 1;
+    if ((row as any).ai_score != null) bucket.ai_usage += 1;
+  }
+  for (const row of recentActivity.data ?? []) {
+    const key = bucketKey((row as any).created_at, period);
+    const bucket = key ? timelineMap.get(key) : undefined;
+    if (!bucket) continue;
+    bucket.platform_usage += 1;
+    if (String((row as any).kind ?? "").toLowerCase().includes("ai")) bucket.ai_usage += 1;
+  }
+
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   sixMonthsAgo.setDate(1);
@@ -178,6 +309,7 @@ export async function getAdminMetrics(context: AdminContext) {
   return {
     users: usersTotal.count ?? 0,
     payingUsers,
+    subscriptionsActive: activeSubscriptions.count ?? 0,
     licensesActive: licensesActive.count ?? 0,
     licensesExpired: licensesExpired.count ?? 0,
     licensesCancelled: licensesCancelled.count ?? 0,
@@ -186,7 +318,12 @@ export async function getAdminMetrics(context: AdminContext) {
     mrrCents,
     failedPayments,
     listingsTotal: listingsTotal.count ?? 0,
+    listingsPublished: listingsPublished.count ?? 0,
+    aiUsage: aiListings.count ?? 0,
+    mlConnected: mlConnected.count ?? 0,
     revenueByMonth,
+    growth: timeline,
+    newUsers: newUsers.count ?? 0,
     newUsers7d: newUsers7d.count ?? 0,
     activeClients: payingUsers,
     inactiveClients: Math.max((usersTotal.count ?? 0) - payingUsers, 0),
