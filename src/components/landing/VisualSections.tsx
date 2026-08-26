@@ -123,16 +123,27 @@ export function RadarSection() {
                   <Badge className="absolute left-2 top-2 bg-background/80 text-[10px] font-bold text-primary backdrop-blur">
                     {p.rel}% relevância
                   </Badge>
+                  <Badge className="absolute right-2 top-2 bg-primary text-[10px] font-extrabold text-primary-foreground">
+                    {p.tag}
+                  </Badge>
+                  <span className="absolute bottom-2 left-2 rounded-full bg-success/90 px-2 py-0.5 text-[10px] font-bold text-background">
+                    FRETE GRÁTIS
+                  </span>
                 </div>
                 <div className="space-y-2 p-4">
                   <p className="line-clamp-2 min-h-10 text-sm font-semibold">{p.t}</p>
-                  <p className="font-display text-lg font-extrabold text-primary">{p.p}</p>
+                  <div className="flex items-end gap-2">
+                    <p className="font-display text-lg font-extrabold text-primary">{p.p}</p>
+                    <p className="text-xs text-muted-foreground line-through">{p.old}</p>
+                  </div>
+                  <p className="text-[11px] font-semibold text-success">{p.profit}</p>
                   <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     {[0, 1, 2, 3].map((s) => (
                       <Star key={s} className="h-3 w-3 fill-primary text-primary" />
                     ))}
-                    <span className="ml-1">4.8</span>
+                    <span className="ml-1">4.8 · {p.sales}</span>
                   </div>
+
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" className="h-8 flex-1 text-[11px] font-bold active:scale-95">
                       <Copy className="mr-1 h-3 w-3" /> DUPLICAR
