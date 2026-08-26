@@ -1,0 +1,292 @@
+import { useMutation } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Check, Gauge, Loader2, ListOrdered, Sparkles, Wand2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { analyzeListing, generateDescription, generateTitles, pickBestTitle } from "@/lib/ai.functions";
+
+type Ctx = {
+  title: string;
+  description: string | null | undefined;
+  category?: string | null;
+  priceCents?: number | null;
+  imagesCount?: number;
+};
+
+const COUNTS = [5, 10, 20] as const;
+
+/** Estúdio de títulos: gera 5/10/20 opções reais e escolhe a melhor via IA. */
+export function TitleStudio({ ctx, onPick }: { ctx: Ctx; onPick: (title: string) => void }) {
+  const gen = useServerFn(generateTitles);
+  const best = useServerFn(pickBestTitle);
+  const [items, setItems] = useState<{ title: string; score: number; keywords: string[] }[]>([]);
+  const [bestTitle, setBestTitle] = useState<string | null>(null);
+
+  const run = useMutation({
+    mutationFn: (count: (typeof COUNTS)[number]) =>
+      gen({
+        data: {
+          title: ctx.title,
+          description: ctx.description ?? null,
+          category: ctx.category ?? null,
+          count,
+        },
+      }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast.info("IA indisponível", { description: res.reason });
+        return;
+      }
+      setItems(res.titles);
+      setBestTitle(null);
+      toast.success(`${res.titles.length} títulos gerados`);
+    },
+    onError: () => toast.error("A IA não respondeu agora."),
+  });
+
+  const choose = useMutation({
+    mutationFn: () =>
+      best({
+        data: {
+          titles: items.map((i) => i.title),
+          context: `${ctx.title} | ${ctx.category ?? ""}`.slice(0, 480),
+        },
+      }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast.info("IA indisponível", { description: res.reason });
+        return;
+      }
+      setBestTitle(res.best.title);
+      toast.success("Melhor título selecionado", { description: res.best.reason });
+    },
+    onError: () => toast.error("A IA não respondeu agora."),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ListOrdered className="h-4 w-4 text-primary" /> Títulos com IA
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {COUNTS.map((count) => (
+            <Button
+              key={count}
+              size="sm"
+              variant="outline"
+              disabled={ctx.title.trim().length < 3 || run.isPending}
+              onClick={() => run.mutate(count)}
+            >
+              {run.isPending && run.variables === count && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              Gerar {count}
+            </Button>
+          ))}
+          {items.length > 1 && (
+            <Button size="sm" disabled={choose.isPending} onClick={() => choose.mutate()}>
+              {choose.isPending ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Escolher o melhor
+            </Button>
+          )}
+        </div>
+
+        {items.length > 0 && (
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <li
+                key={item.title}
+                className={`flex flex-wrap items-center gap-2 rounded-lg border p-2 text-sm ${
+                  bestTitle === item.title ? "border-primary bg-primary/5" : "border-border"
+                }`}
+              >
+                <span className="min-w-0 flex-1 break-words">{item.title}</span>
+                <Badge variant="outline" className="shrink-0 text-[10px]">
+                  {item.title.length}/60
+                </Badge>
+                <Badge variant="secondary" className="shrink-0 text-[10px]">
+                  score {item.score}
+                </Badge>
+                <Button size="sm" variant="ghost" onClick={() => onPick(item.title)}>
+                  <Check className="mr-1 h-3.5 w-3.5" /> Usar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const MODES = [
+  { key: "generate", label: "Criar" },
+  { key: "improve", label: "Melhorar" },
+  { key: "rewrite", label: "Reescrever" },
+  { key: "organize", label: "Organizar" },
+  { key: "expand", label: "Expandir" },
+  { key: "summarize", label: "Resumir" },
+] as const;
+
+/** Estúdio de descrição com os 6 modos de geração. */
+export function DescriptionStudio({ ctx, onApply }: { ctx: Ctx; onApply: (description: string) => void }) {
+  const gen = useServerFn(generateDescription);
+  const [preview, setPreview] = useState<{ description: string; changes: string[] } | null>(null);
+
+  const run = useMutation({
+    mutationFn: (mode: (typeof MODES)[number]["key"]) =>
+      gen({
+        data: { title: ctx.title, description: ctx.description ?? null, category: ctx.category ?? null, mode },
+      }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast.info("IA indisponível", { description: res.reason });
+        return;
+      }
+      setPreview({ description: res.description, changes: res.changes });
+    },
+    onError: () => toast.error("A IA não respondeu agora."),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Wand2 className="h-4 w-4 text-primary" /> Descrição com IA
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          {MODES.map((mode) => (
+            <Button
+              key={mode.key}
+              size="sm"
+              variant="outline"
+              disabled={ctx.title.trim().length < 3 || run.isPending}
+              onClick={() => run.mutate(mode.key)}
+            >
+              {run.isPending && run.variables === mode.key && (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              )}
+              {mode.label}
+            </Button>
+          ))}
+        </div>
+
+        {preview && (
+          <div className="space-y-2">
+            <p className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+              {preview.description}
+            </p>
+            {preview.changes.length > 0 && (
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                {preview.changes.map((change) => (
+                  <li key={change}>• {change}</li>
+                ))}
+              </ul>
+            )}
+            <Button size="sm" onClick={() => { onApply(preview.description); toast.success("Descrição aplicada ao formulário"); }}>
+              Aplicar descrição
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Análise completa do anúncio com nota 0-100. */
+export function AnalysisCard({ ctx }: { ctx: Ctx }) {
+  const analyze = useServerFn(analyzeListing);
+  const [analysis, setAnalysis] = useState<{
+    score: number;
+    strengths: string[];
+    problems: string[];
+    suggestions: string[];
+    keywords: string[];
+  } | null>(null);
+
+  const run = useMutation({
+    mutationFn: () =>
+      analyze({
+        data: {
+          title: ctx.title,
+          description: ctx.description ?? null,
+          category: ctx.category ?? null,
+          images_count: ctx.imagesCount ?? 0,
+          price_cents: ctx.priceCents ?? null,
+        },
+      }),
+    onSuccess: (res) => {
+      if (!res.ok) {
+        toast.info("IA indisponível", { description: res.reason });
+        return;
+      }
+      setAnalysis(res.analysis);
+    },
+    onError: () => toast.error("A IA não respondeu agora."),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Gauge className="h-4 w-4 text-primary" /> Análise do anúncio
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Button size="sm" variant="outline" disabled={ctx.title.trim().length < 3 || run.isPending} onClick={() => run.mutate()}>
+          {run.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+          Analisar qualidade
+        </Button>
+
+        {analysis && (
+          <div className="space-y-3 text-sm">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Pontuação</span>
+                <span className="font-semibold text-foreground">{analysis.score}/100</span>
+              </div>
+              <Progress value={analysis.score} />
+            </div>
+            {[
+              { label: "Pontos fortes", items: analysis.strengths },
+              { label: "Problemas", items: analysis.problems },
+              { label: "Sugestões", items: analysis.suggestions },
+            ].map((block) =>
+              block.items?.length ? (
+                <div key={block.label}>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{block.label}</p>
+                  <ul className="mt-1 space-y-1 text-xs text-muted-foreground">
+                    {block.items.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null,
+            )}
+            {analysis.keywords?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {analysis.keywords.map((keyword) => (
+                  <Badge key={keyword} variant="secondary" className="text-[10px]">
+                    {keyword}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

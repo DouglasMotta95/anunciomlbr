@@ -232,3 +232,77 @@ export async function getAppAccessToken(): Promise<string | null> {
   };
   return appToken.value;
 }
+
+export type MlPublishResult =
+  | { ok: true; mlItemId: string; permalink: string | null }
+  | { ok: false; reason: string };
+
+/**
+ * Publica um rascunho na conta do cliente via API oficial (POST /items).
+ * Não simula: qualquer erro do Mercado Livre é devolvido como está.
+ */
+export async function publishListingToMl(userId: string, listingId: string): Promise<MlPublishResult> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+  const { data: listing } = await supabaseAdmin
+    .from("listings")
+    .select("*")
+    .eq("id", listingId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!listing) return { ok: false, reason: "Anúncio não encontrado." };
+  if (!listing.category) return { ok: false, reason: "Informe a categoria do Mercado Livre antes de publicar." };
+  if (!listing.price_cents || listing.price_cents <= 0) return { ok: false, reason: "Informe o preço antes de publicar." };
+
+  const token = await getValidMlAccessToken(userId);
+  if (!token.ok) return { ok: false, reason: "Conecte sua conta do Mercado Livre para publicar." };
+
+  const pictures = Array.isArray(listing.images)
+    ? (listing.images as unknown[])
+        .map((img) => (typeof img === "string" ? img : (img as { url?: string; secure_url?: string })?.secure_url ?? (img as { url?: string })?.url))
+        .filter((url): url is string => typeof url === "string" && url.startsWith("http"))
+        .slice(0, 10)
+        .map((url) => ({ source: url }))
+    : [];
+
+  const attributes = Array.isArray(listing.attributes)
+    ? (listing.attributes as { id?: string; value_name?: string }[]).filter((a) => a?.id && a?.value_name)
+    : [];
+
+  const body = {
+    title: listing.title.slice(0, 60),
+    category_id: listing.category,
+    price: Number((listing.price_cents / 100).toFixed(2)),
+    currency_id: "BRL",
+    available_quantity: Math.max(listing.stock ?? 1, 1),
+    buying_mode: "buy_it_now",
+    condition: listing.condition ?? "new",
+    listing_type_id: "gold_special",
+    pictures,
+    attributes,
+  };
+
+  const response = await fetch(`${ML_API}/items`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { id?: string; permalink?: string; message?: string; cause?: { message?: string }[] }
+    | null;
+
+  if (!response.ok || !payload?.id) {
+    const detail = payload?.cause?.map((c) => c.message).filter(Boolean).join(" | ") || payload?.message;
+    return { ok: false, reason: detail ? `Mercado Livre: ${detail}` : "O Mercado Livre recusou a publicação." };
+  }
+
+  if (listing.description) {
+    await fetch(`${ML_API}/items/${payload.id}/description`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ plain_text: listing.description }),
+    }).catch(() => null);
+  }
+
+  return { ok: true, mlItemId: payload.id, permalink: payload.permalink ?? null };
+}

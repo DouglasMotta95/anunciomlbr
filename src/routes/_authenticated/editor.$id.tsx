@@ -6,6 +6,8 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/app/AppShell";
 import { AiPanel } from "@/components/app/AiPanel";
+import { AnalysisCard, DescriptionStudio, TitleStudio } from "@/components/app/AiStudio";
+import { PublishButton } from "@/components/app/PublishButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,10 +151,13 @@ function EditorPage() {
             <Copy className="mr-2 h-4 w-4" /> Duplicar
           </Button>
         )}
-        <Button size="sm" className="ml-auto" onClick={() => save.mutate()} disabled={save.isPending}>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+        {!isNew && <PublishButton listingId={id} disabled={save.isPending} />}
+        <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           Salvar
         </Button>
+        </div>
       </div>
 
       {listing.isLoading && !isNew ? (
@@ -232,6 +237,26 @@ function EditorPage() {
                 </p>
               </CardContent>
             </Card>
+
+            <TitleStudio
+              ctx={{ title: form.title, description: form.description, category: form.category }}
+              onPick={(picked) => setForm((prev) => ({ ...prev, title: picked }))}
+            />
+
+            <DescriptionStudio
+              ctx={{ title: form.title, description: form.description, category: form.category }}
+              onApply={(text) => setForm((prev) => ({ ...prev, description: text }))}
+            />
+
+            <AnalysisCard
+              ctx={{
+                title: form.title,
+                description: form.description,
+                category: form.category,
+                priceCents: form.price ? Math.round(Number(form.price.replace(",", ".")) * 100) : null,
+                imagesCount: Array.isArray(listing.data?.images) ? listing.data.images.length : 0,
+              }}
+            />
 
             <AiPanel
               title={form.title || "Anúncio sem título"}

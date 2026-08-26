@@ -10,6 +10,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 
+import { AdQuotaBar } from "@/components/app/PublishButton";
 import { AppShell } from "@/components/app/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,6 +85,10 @@ function DashboardPage() {
         </>
       }
     >
+      <div className="mb-4">
+        <AdQuotaBar />
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Anúncios criados" value={String(listings.length)} icon={Tag} hint={`${drafts} em rascunho`} />
         <StatCard label="Anúncios ativos" value={String(published)} icon={ArrowUpRight} hint="status local sincronizado" />

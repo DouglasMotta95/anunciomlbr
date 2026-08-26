@@ -122,6 +122,8 @@ export type Database = {
       licenses: {
         Row: {
           activated_at: string | null
+          ads_quota: number | null
+          ads_used: number
           code: string
           created_at: string
           created_by: string | null
@@ -138,6 +140,8 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
+          ads_quota?: number | null
+          ads_used?: number
           code: string
           created_at?: string
           created_by?: string | null
@@ -154,6 +158,8 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
+          ads_quota?: number | null
+          ads_used?: number
           code?: string
           created_at?: string
           created_by?: string | null
@@ -191,6 +197,8 @@ export type Database = {
           id: string
           images: Json
           price_cents: number | null
+          published_at: string | null
+          published_ml_id: string | null
           sku: string | null
           source_ml_id: string | null
           source_permalink: string | null
@@ -212,6 +220,8 @@ export type Database = {
           id?: string
           images?: Json
           price_cents?: number | null
+          published_at?: string | null
+          published_ml_id?: string | null
           sku?: string | null
           source_ml_id?: string | null
           source_permalink?: string | null
@@ -233,6 +243,8 @@ export type Database = {
           id?: string
           images?: Json
           price_cents?: number | null
+          published_at?: string | null
+          published_ml_id?: string | null
           sku?: string | null
           source_ml_id?: string | null
           source_permalink?: string | null
@@ -453,14 +465,18 @@ export type Database = {
       plans: {
         Row: {
           active: boolean
+          ad_quota: number | null
           ai_credits: number | null
+          badge: string | null
           code: string
           created_at: string
           features: Json
           highlighted: boolean
           id: string
+          kind: Database["public"]["Enums"]["plan_kind"]
           listing_limit: number | null
           name: string
+          period_months: number | null
           price_monthly_cents: number
           sort_order: number
           tagline: string | null
@@ -468,14 +484,18 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          ad_quota?: number | null
           ai_credits?: number | null
+          badge?: string | null
           code: string
           created_at?: string
           features?: Json
           highlighted?: boolean
           id?: string
+          kind?: Database["public"]["Enums"]["plan_kind"]
           listing_limit?: number | null
           name: string
+          period_months?: number | null
           price_monthly_cents: number
           sort_order?: number
           tagline?: string | null
@@ -483,14 +503,18 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          ad_quota?: number | null
           ai_credits?: number | null
+          badge?: string | null
           code?: string
           created_at?: string
           features?: Json
           highlighted?: boolean
           id?: string
+          kind?: Database["public"]["Enums"]["plan_kind"]
           listing_limit?: number | null
           name?: string
+          period_months?: number | null
           price_monthly_cents?: number
           sort_order?: number
           tagline?: string | null
@@ -560,6 +584,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      ad_quota_summary: {
+        Args: { _user_id: string }
+        Returns: {
+          expires_at: string
+          plan_name: string
+          quota: number
+          remaining: number
+          used: number
+        }[]
+      }
+      consume_ad_quota: {
+        Args: { _amount: number; _user_id: string }
+        Returns: boolean
+      }
       generate_license_code: { Args: { _plan_code: string }; Returns: string }
       has_role: {
         Args: {
@@ -567,6 +605,16 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      my_ad_quota: {
+        Args: never
+        Returns: {
+          expires_at: string
+          plan_name: string
+          quota: number
+          remaining: number
+          used: number
+        }[]
       }
     }
     Enums: {
@@ -587,6 +635,7 @@ export type Database = {
         | "suspended"
         | "cancelled"
       listing_status: "draft" | "active" | "paused" | "error"
+      plan_kind: "subscription" | "ad_package" | "subscription_with_ad_limit"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -733,6 +782,7 @@ export const Constants = {
         "cancelled",
       ],
       listing_status: ["draft", "active", "paused", "error"],
+      plan_kind: ["subscription", "ad_package", "subscription_with_ad_limit"],
     },
   },
 } as const
