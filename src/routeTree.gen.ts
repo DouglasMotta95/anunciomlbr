@@ -26,6 +26,7 @@ import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authentic
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as AuthenticatedEditorIdRouteImport } from './routes/_authenticated/editor.$id'
+import { Route as AuthenticatedIntegracoesMercadolivreStartRouteImport } from './routes/_authenticated/integracoes.mercadolivre.start'
 import { Route as ApiPublicMlCallbackRouteImport } from './routes/api/public/ml/callback'
 import { Route as ApiPublicWebhooksMercadolivreRouteImport } from './routes/api/public/webhooks/mercadolivre'
 import { Route as ApiPublicWebhooksMercadopagoRouteImport } from './routes/api/public/webhooks/mercadopago'
@@ -115,6 +116,12 @@ const AuthenticatedEditorIdRoute = AuthenticatedEditorIdRouteImport.update({
   path: '/editor/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedIntegracoesMercadolivreStartRoute =
+  AuthenticatedIntegracoesMercadolivreStartRouteImport.update({
+    id: '/mercadolivre/start',
+    path: '/mercadolivre/start',
+    getParentRoute: () => AuthenticatedIntegracoesRoute,
+  } as any)
 const ApiPublicMlCallbackRoute = ApiPublicMlCallbackRouteImport.update({
   id: '/api/public/ml/callback',
   path: '/api/public/ml/callback',
@@ -143,13 +150,14 @@ export interface FileRoutesByFullPath {
   '/conta': typeof AuthenticatedContaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
-  '/integracoes': typeof AuthenticatedIntegracoesRoute
+  '/integracoes': typeof AuthenticatedIntegracoesRouteWithChildren
   '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/editor/$id': typeof AuthenticatedEditorIdRoute
+  '/integracoes/mercadolivre/start': typeof AuthenticatedIntegracoesMercadolivreStartRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
   '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
@@ -164,13 +172,14 @@ export interface FileRoutesByTo {
   '/conta': typeof AuthenticatedContaRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
-  '/integracoes': typeof AuthenticatedIntegracoesRoute
+  '/integracoes': typeof AuthenticatedIntegracoesRouteWithChildren
   '/licenca': typeof AuthenticatedLicencaRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/editor/$id': typeof AuthenticatedEditorIdRoute
+  '/integracoes/mercadolivre/start': typeof AuthenticatedIntegracoesMercadolivreStartRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
   '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
@@ -187,13 +196,14 @@ export interface FileRoutesById {
   '/_authenticated/conta': typeof AuthenticatedContaRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/estoque': typeof AuthenticatedEstoqueRoute
-  '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
+  '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRouteWithChildren
   '/_authenticated/licenca': typeof AuthenticatedLicencaRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/_authenticated/editor/$id': typeof AuthenticatedEditorIdRoute
+  '/_authenticated/integracoes/mercadolivre/start': typeof AuthenticatedIntegracoesMercadolivreStartRoute
   '/api/public/ml/callback': typeof ApiPublicMlCallbackRoute
   '/api/public/webhooks/mercadolivre': typeof ApiPublicWebhooksMercadolivreRoute
   '/api/public/webhooks/mercadopago': typeof ApiPublicWebhooksMercadopagoRoute
@@ -217,6 +227,7 @@ export interface FileRouteTypes {
     | '/vendas'
     | '/admin/login'
     | '/editor/$id'
+    | '/integracoes/mercadolivre/start'
     | '/api/public/ml/callback'
     | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/vendas'
     | '/admin/login'
     | '/editor/$id'
+    | '/integracoes/mercadolivre/start'
     | '/api/public/ml/callback'
     | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
@@ -260,6 +272,7 @@ export interface FileRouteTypes {
     | '/_authenticated/vendas'
     | '/admin/login'
     | '/_authenticated/editor/$id'
+    | '/_authenticated/integracoes/mercadolivre/start'
     | '/api/public/ml/callback'
     | '/api/public/webhooks/mercadolivre'
     | '/api/public/webhooks/mercadopago'
@@ -397,6 +410,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEditorIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/integracoes/mercadolivre/start': {
+      id: '/_authenticated/integracoes/mercadolivre/start'
+      path: '/mercadolivre/start'
+      fullPath: '/integracoes/mercadolivre/start'
+      preLoaderRoute: typeof AuthenticatedIntegracoesMercadolivreStartRouteImport
+      parentRoute: typeof AuthenticatedIntegracoesRoute
+    }
     '/api/public/ml/callback': {
       id: '/api/public/ml/callback'
       path: '/api/public/ml/callback'
@@ -421,6 +441,21 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedIntegracoesRouteChildren {
+  AuthenticatedIntegracoesMercadolivreStartRoute: typeof AuthenticatedIntegracoesMercadolivreStartRoute
+}
+
+const AuthenticatedIntegracoesRouteChildren: AuthenticatedIntegracoesRouteChildren =
+  {
+    AuthenticatedIntegracoesMercadolivreStartRoute:
+      AuthenticatedIntegracoesMercadolivreStartRoute,
+  }
+
+const AuthenticatedIntegracoesRouteWithChildren =
+  AuthenticatedIntegracoesRoute._addFileChildren(
+    AuthenticatedIntegracoesRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAnunciosRoute: typeof AuthenticatedAnunciosRoute
@@ -428,7 +463,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedContaRoute: typeof AuthenticatedContaRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEstoqueRoute: typeof AuthenticatedEstoqueRoute
-  AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
+  AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRouteWithChildren
   AuthenticatedLicencaRoute: typeof AuthenticatedLicencaRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
@@ -443,7 +478,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedContaRoute: AuthenticatedContaRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEstoqueRoute: AuthenticatedEstoqueRoute,
-  AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
+  AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRouteWithChildren,
   AuthenticatedLicencaRoute: AuthenticatedLicencaRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
