@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
+import { checkIsAdmin } from "@/lib/roles.functions";
 
 export type AuthState = {
   user: User | null;
@@ -39,15 +40,11 @@ export function useIsAdmin() {
   return useQuery({
     queryKey: ["is-admin", user?.id],
     enabled: !!user,
+    staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user!.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      if (error) throw error;
-      return !!data;
+      // Autorização validada no backend (bearer token + has_role no banco).
+      const { isAdmin } = await checkIsAdmin();
+      return isAdmin;
     },
   });
 }
