@@ -1207,7 +1207,7 @@ export function PricingSection() {
               const monthly = periodMonthlyCents(plan, discount);
               const savings = periodSavingsCents(plan, discount);
               const fullPrice = plan.price_monthly_cents * discount.months;
-              const isBestValue = plan.highlighted || period === "annual";
+              const isBestValue = plan.highlighted;
               return (
                 <Card
                   key={plan.id}
