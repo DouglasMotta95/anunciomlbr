@@ -47,7 +47,6 @@ function EditorPage() {
   const { user } = useAuth();
   const [form, setForm] = useState<Form>(EMPTY);
   const [score, setScore] = useState<number | null>(null);
-  const productImage = getProductImage(listing.data?.images);
 
   const listing = useQuery({
     queryKey: ["listing", id],
@@ -58,6 +57,7 @@ function EditorPage() {
       return data;
     },
   });
+  const productImage = getProductImage(listing.data?.images);
 
   useEffect(() => {
     const row = listing.data;
