@@ -19,6 +19,7 @@ import { useProfile } from "@/hooks/useAuth";
 import { useActivity, useLicense, useListings } from "@/hooks/useLicense";
 import { supabase } from "@/integrations/supabase/client";
 import { daysUntil, formatBRL, formatDate, relativeTime } from "@/lib/format";
+import { getProductImage } from "@/lib/product-image";
 
 const title = "Dashboard — ANÚNCIO ML";
 const description = "Acompanhe anúncios, licença, integrações e otimizações de IA em um só painel.";
@@ -234,6 +235,59 @@ function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-4">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <CardTitle className="text-base">Últimos anúncios</CardTitle>
+          <Button asChild size="sm" variant="ghost">
+            <Link to="/anuncios">Ver todos</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {listings.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum anúncio ainda. Use o radar de busca para criar o primeiro.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {listings.slice(0, 4).map((l) => {
+                const img = getProductImage(l.images);
+                return (
+                  <div
+                    key={l.id}
+                    className="group overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/40"
+                  >
+                    <div className="aspect-square w-full overflow-hidden bg-muted/40">
+                      {img ? (
+                        <img
+                          src={img}
+                          alt={l.title}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                          <Tag className="h-6 w-6" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-1 p-3">
+                      <p className="line-clamp-2 min-h-9 text-xs font-semibold">{l.title}</p>
+                      <p className="font-display text-sm font-bold text-primary">
+                        {formatBRL(l.price_cents ?? 0)}
+                      </p>
+                      <Badge variant="outline" className="text-[10px]">
+                        {l.status}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="mt-4">
         <CardHeader>
