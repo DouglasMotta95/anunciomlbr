@@ -155,6 +155,58 @@ const heroBenefits = [
   "Publique direto na sua conta ML",
 ];
 
+const testimonialAvatars = [
+  { initials: "RL", color: "bg-secondary text-secondary-foreground" },
+  { initials: "MF", color: "bg-primary text-primary-foreground" },
+  { initials: "JP", color: "bg-success text-success-foreground" },
+  { initials: "TA", color: "bg-warning text-warning-foreground" },
+];
+
+function StarRating({ value = 5 }: { value?: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star
+          key={i}
+          className={cn(
+            "h-3.5 w-3.5",
+            i < value ? "fill-primary text-primary" : "fill-muted text-muted",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AvatarStack({
+  avatars,
+  count,
+}: {
+  avatars: { initials: string; color: string }[];
+  count: number;
+}) {
+  return (
+    <div className="flex items-center">
+      <div className="flex -space-x-2">
+        {avatars.map((a, i) => (
+          <span
+            key={i}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-[10px] font-bold",
+              a.color,
+            )}
+          >
+            {a.initials}
+          </span>
+        ))}
+      </div>
+      <span className="ml-3 text-xs font-medium text-muted-foreground">
+        +{count} vendedores ativos
+      </span>
+    </div>
+  );
+}
+
 export function Hero() {
   return (
     <section className="grid-noise relative overflow-hidden border-b border-border/60">
@@ -200,16 +252,28 @@ export function Hero() {
             </Button>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <BadgeCheck className="h-4 w-4 text-success" /> Integração oficial ML
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <BadgeCheck className="h-4 w-4 text-success" /> Sem cartão para testar
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <BadgeCheck className="h-4 w-4 text-success" /> Suporte no WhatsApp
-            </span>
+          {/* Prova social + selos de confiança ao lado do CTA */}
+          <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-border/60 bg-surface/40 p-4 sm:flex-row sm:items-center sm:gap-6">
+            <div className="space-y-1">
+              <AvatarStack avatars={testimonialAvatars} count={847} />
+              <div className="flex items-center gap-2">
+                <StarRating value={5} />
+                <span className="text-xs font-semibold text-foreground">4.9/5</span>
+                <span className="text-[11px] text-muted-foreground">(127 avaliações)</span>
+              </div>
+            </div>
+            <div className="hidden h-8 w-px bg-border/60 sm:block" />
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <BadgeCheck className="h-4 w-4 text-success" /> Integração oficial ML
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Lock className="h-4 w-4 text-success" /> Sem cartão para testar
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-success" /> Suporte no WhatsApp
+              </span>
+            </div>
           </div>
 
           <div className="mt-8 grid grid-cols-3 gap-3 border-t border-border/60 pt-6 sm:max-w-md">
