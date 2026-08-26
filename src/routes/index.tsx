@@ -7,6 +7,11 @@ import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
 import { Reveal } from "@/components/landing/Reveal";
 import {
+  MobileStickyCta,
+  PlanPeriodComparisonSection,
+  PurchaseFlowSection,
+} from "@/components/landing/ConversionSections";
+import {
   AiTitlesSection,
   DuplicationFlowSection,
   RadarSection,
