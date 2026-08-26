@@ -60,9 +60,9 @@ function CheckoutPage() {
   const [period, setPeriod] = useState<BillingPeriod>(search.period ?? "monthly");
 
   useEffect(() => {
-    if (!planCode && plans.length) {
-      setPlanCode((plans.find((p) => p.highlighted) ?? plans[0]).code);
-    }
+    if (planCode) return;
+    const fallback = plans.find((p) => p.highlighted) ?? plans[0];
+    if (fallback) setPlanCode(fallback.code);
   }, [planCode, plans]);
 
   const plan = plans.find((p) => p.code === planCode);
