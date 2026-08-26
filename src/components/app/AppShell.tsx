@@ -78,17 +78,24 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           {group.items.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
-            return (
-              const className = cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                active && "bg-primary/10 text-foreground ring-1 ring-primary/30",
-              );
-              const content = <><Icon className={cn("h-4 w-4", active && "text-primary")} />{item.label}</>;
-              return "external" in item ? (
-                <a key={item.to} href={item.to} target="_blank" rel="noreferrer" onClick={onNavigate} className={className}>{content}</a>
-              ) : (
-                <Link key={item.to} to={item.to} onClick={onNavigate} className={className}>{content}</Link>
-              );
+            const className = cn(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              active && "bg-primary/10 text-foreground ring-1 ring-primary/30",
+            );
+            const content = (
+              <>
+                <Icon className={cn("h-4 w-4", active && "text-primary")} />
+                {item.label}
+              </>
+            );
+            return "external" in item ? (
+              <a key={item.to} href={item.to} target="_blank" rel="noreferrer" onClick={onNavigate} className={className}>
+                {content}
+              </a>
+            ) : (
+              <Link key={item.to} to={item.to} onClick={onNavigate} className={className}>
+                {content}
+              </Link>
             );
           })}
         </div>
