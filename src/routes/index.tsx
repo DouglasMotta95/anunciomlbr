@@ -33,6 +33,7 @@ import {
   ReportsSection,
   SalesSection,
   SearchSection,
+  TestimonialsSection,
   TrustBar,
 } from "@/components/landing/sections";
 
