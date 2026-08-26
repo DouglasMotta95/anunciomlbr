@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Play, Pause, Volume2, VolumeX, MonitorPlay } from "lucide-react";
-import demoVideo from "@/assets/demo/platform-demo.mp4";
+import demoVideoAsset from "@/assets/demo/platform-demo.mp4.asset.json";
+
+const demoVideo = demoVideoAsset.url;
 import { SectionTitle } from "@/components/landing/sections";
 import { cn } from "@/lib/utils";
 
