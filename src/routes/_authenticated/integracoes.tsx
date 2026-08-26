@@ -13,7 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 import {
   disconnectMercadoLivre,
-  getMlAuthorizationUrl,
   getMlConnection,
   syncMlListings,
 } from "@/lib/ml.functions";
@@ -53,6 +52,10 @@ const ML_RETURN_MESSAGES: Record<string, { type: "success" | "info" | "error"; t
     type: "error",
     text: "Não foi possível concluir a autorização no Mercado Livre. Tente novamente.",
   },
+  start_error: {
+    type: "error",
+    text: "Não foi possível iniciar a conexão com o Mercado Livre. Tente novamente.",
+  },
 };
 
 function IntegrationsPage() {
@@ -61,7 +64,6 @@ function IntegrationsPage() {
   const { ml, sync: syncResult } = Route.useSearch();
 
   const fetchConnection = useServerFn(getMlConnection);
-  const getAuthUrl = useServerFn(getMlAuthorizationUrl);
   const sync = useServerFn(syncMlListings);
   const disconnect = useServerFn(disconnectMercadoLivre);
 
@@ -86,18 +88,6 @@ function IntegrationsPage() {
     }
     navigate({ to: "/integracoes", replace: true, search: {} });
   }, [ml, syncResult, navigate, queryClient]);
-
-  const connectMl = useMutation({
-    mutationFn: () => getAuthUrl(),
-    onSuccess: (result) => {
-      if (result.url) window.location.href = result.url;
-      else
-        toast.info("Integração indisponível", {
-          description: "A conexão com o Mercado Livre está temporariamente indisponível.",
-        });
-    },
-    onError: () => toast.error("Falha ao iniciar a conexão com o Mercado Livre."),
-  });
 
   const syncMl = useMutation({
     mutationFn: () => sync(),
@@ -217,18 +207,11 @@ function IntegrationsPage() {
                 Você será redirecionado ao site oficial do Mercado Livre para autorizar o acesso.
                 Nunca pedimos sua senha.
               </p>
-              <Button
-                size="sm"
-                className="font-semibold"
-                disabled={connectMl.isPending}
-                onClick={() => connectMl.mutate()}
-              >
-                {connectMl.isPending ? (
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                ) : (
+              <Button size="sm" className="font-semibold" asChild>
+                <a href="/ml-start" target="_top">
                   <Link2 className="mr-2 h-3.5 w-3.5" />
-                )}
-                Conectar Mercado Livre
+                  Conectar Mercado Livre
+                </a>
               </Button>
             </>
           )}
