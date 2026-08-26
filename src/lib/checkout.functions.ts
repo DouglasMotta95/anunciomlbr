@@ -174,3 +174,33 @@ export const getCheckoutSummary = createServerFn({ method: "GET" })
       license: license ?? null,
     };
   });
+
+/**
+ * Confirma o pagamento direto na API do Mercado Pago e emite a licença
+ * automaticamente quando aprovado — garante a liberação mesmo se o webhook
+ * atrasar ou não chegar. Só o próprio dono do pedido pode chamar.
+ */
+export const confirmCheckoutPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ payment_id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: payment } = await context.supabase
+      .from("payments")
+      .select("id, status")
+      .eq("id", data.payment_id)
+      .maybeSingle();
+    if (!payment) throw new Error("Pedido não encontrado.");
+
+    if (payment.status === "approved") {
+      const { issueLicenseForPayment } = await import("@/lib/licensing.server");
+      const issued = await issueLicenseForPayment(payment.id);
+      return {
+        status: "approved" as string,
+        license_code: issued.ok ? issued.license_code : null,
+      };
+    }
+
+    const { syncPaymentWithMercadoPago } = await import("@/lib/licensing.server");
+    const result = await syncPaymentWithMercadoPago(payment.id);
+    return { status: result.status ?? payment.status, license_code: result.license_code };
+  });
