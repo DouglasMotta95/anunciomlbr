@@ -1421,6 +1421,117 @@ export function FaqSection() {
 }
 
 /* ------------------------------------------------------------------------ */
+/* DEPOIMENTOS / PROVA SOCIAL                                                */
+/* ------------------------------------------------------------------------ */
+
+const testimonials = [
+  {
+    quote:
+      "Em 3 semanas consegui publicar 47 anúncios sem escrever nenhum título do zero. A IA economiza horas do meu dia.",
+    name: "Ricardo L.",
+    role: "Vendedor de eletrônicos, SP",
+    rating: 5,
+    result: "+R$ 12k/mês",
+  },
+  {
+    quote:
+      "O radar me mostrou produtos que eu nem imaginava que vendiam tanto. Hoje 60% do meu faturamento vem dessas oportunidades.",
+    name: "Mariana F.",
+    role: "Loja de acessórios, MG",
+    rating: 5,
+    result: "+340% de lucro",
+  },
+  {
+    quote:
+      "Antes demorava 2 dias para replicar um anúncio. Agora faço isso em minutos e ainda otimizo a descrição com um clique.",
+    name: "João P.",
+    role: "Dropshipping, RS",
+    rating: 5,
+    result: "10x mais rápido",
+  },
+];
+
+export function TestimonialsSection() {
+  return (
+    <section className="border-b border-border/60 bg-surface/30 py-16 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4">
+        <SectionTitle
+          eyebrow="Prova social"
+          title="Vendedores que já estão vendendo mais"
+          subtitle="Resultados reais de quem usa a plataforma para escalar no Mercado Livre."
+        />
+
+        <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
+          {testimonials.map((t) => (
+            <Card
+              key={t.name}
+              className="relative flex flex-col border-border/60 bg-background/60 p-6 transition-transform hover:-translate-y-1"
+            >
+              <Quote className="absolute right-4 top-4 h-6 w-6 text-primary/20" />
+              <StarRating value={t.rating} />
+              <p className="mt-4 flex-1 text-sm leading-relaxed text-foreground/90">
+                “{t.quote}”
+              </p>
+              <div className="mt-6 flex items-center gap-3 border-t border-border/60 pt-4">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-sm font-bold text-primary-foreground">
+                  {t.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{t.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{t.role}</p>
+                </div>
+                <Badge variant="secondary" className="shrink-0 text-[10px] font-bold">
+                  {t.result}
+                </Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div className="mt-10 flex flex-col items-center justify-center gap-4 rounded-2xl border border-border/60 bg-background/40 p-6 sm:flex-row sm:gap-8">
+          <div className="flex items-center gap-3">
+            <div className="flex -space-x-2">
+              {testimonialAvatars.map((a, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-full border-2 border-background text-[11px] font-bold",
+                    a.color,
+                  )}
+                >
+                  {a.initials}
+                </span>
+              ))}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <StarRating value={5} />
+                <span className="text-sm font-bold">4.9/5</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Baseado em 127 avaliações</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground sm:gap-6">
+            <span className="inline-flex items-center gap-1.5">
+              <Shield className="h-4 w-4 text-success" /> Pagamento seguro
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Zap className="h-4 w-4 text-success" /> Ativação imediata
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <BadgeCheck className="h-4 w-4 text-success" /> 7 dias de garantia
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
 /* CTA FINAL                                                                   */
 /* ------------------------------------------------------------------------ */
 
