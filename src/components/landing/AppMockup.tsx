@@ -2,6 +2,7 @@ import { Area, AreaChart, Bar, BarChart, ResponsiveContainer, XAxis } from "rech
 import { Bot, LayoutGrid, Package, Search, Sparkles, TrendingUp, Zap } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { demoImages } from "@/components/landing/demo-media";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
@@ -129,13 +130,45 @@ export function AppMockup({ className }: { className?: string }) {
 
           <div className="space-y-1.5 rounded-xl border border-border/70 bg-surface/70 p-2">
             {[
-              { t: "Fone Bluetooth TWS Pro", p: "R$ 129,90", s: "Ativo" },
-              { t: "Suporte Articulado Monitor", p: "R$ 89,00", s: "Otimizado" },
-              { t: "Mini Projetor 4K Portátil", p: "R$ 549,90", s: "Rascunho" },
+              {
+                t: "Fone Bluetooth TWS Pro 5.3",
+                p: "R$ 129,90",
+                s: "Ativo",
+                img: demoImages.fone,
+                sales: "1,2 mil vendidos",
+                margin: "margem 32%",
+              },
+              {
+                t: "Suporte Articulado Monitor",
+                p: "R$ 89,00",
+                s: "Otimizado",
+                img: demoImages.suporte,
+                sales: "870 vendidos",
+                margin: "margem 31%",
+              },
+              {
+                t: "Mini Projetor Full HD",
+                p: "R$ 549,90",
+                s: "Rascunho",
+                img: demoImages.projetor,
+                sales: "410 vendidos",
+                margin: "margem 28%",
+              },
             ].map((row) => (
               <div key={row.t} className="flex items-center gap-2 rounded-lg px-1.5 py-1">
-                <span className="h-7 w-7 shrink-0 rounded-md bg-gradient-to-br from-secondary/50 to-primary/40" />
-                <span className="min-w-0 flex-1 truncate text-[11px]">{row.t}</span>
+                <img
+                  src={row.img}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-9 w-9 shrink-0 rounded-md border border-border/60 object-cover"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[11px] font-semibold">{row.t}</span>
+                  <span className="block truncate text-[9px] text-muted-foreground">
+                    {row.sales} · {row.margin}
+                  </span>
+                </span>
                 <span className="text-[11px] font-semibold text-primary">{row.p}</span>
                 <span className="hidden rounded-md bg-accent px-1.5 py-0.5 text-[9px] text-muted-foreground sm:inline">
                   {row.s}

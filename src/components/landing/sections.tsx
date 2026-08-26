@@ -1156,7 +1156,7 @@ export function PricingSection() {
         <SectionTitle
           eyebrow="Planos"
           title="Escolha o plano e o período"
-          subtitle="Comece com 10 anúncios grátis. Preços e descontos configuráveis pelo administrador."
+          subtitle="Comece pelo mensal, sem fidelidade. Se quiser economizar, escolha um período maior."
         />
 
         <div className="mx-auto mt-8 flex w-fit flex-wrap justify-center gap-1 rounded-xl border border-border/60 bg-surface/60 p-1">
@@ -1233,9 +1233,11 @@ export function PricingSection() {
                     {formatBRL(monthly)}
                     <span className="text-sm font-medium text-muted-foreground">/mês</span>
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatBRL(total)} por {discount.months} {discount.months > 1 ? "meses" : "mês"}
-                  </p>
+                  {discount.months > 1 && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatBRL(total)} por {discount.months} meses
+                    </p>
+                  )}
                   {savings > 0 && (
                     <p className="mt-1 text-xs font-semibold text-success">
                       Economize {Math.round((savings / fullPrice) * 100)}% ({formatBRL(savings)})
