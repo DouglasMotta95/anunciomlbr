@@ -208,7 +208,7 @@ function IntegrationsPage() {
                 Nunca pedimos sua senha.
               </p>
               <Button size="sm" className="font-semibold" asChild>
-                <a href="/integracoes/mercadolivre/start" target="_top">
+                <a href="/ml-start" target="_top">
                   <Link2 className="mr-2 h-3.5 w-3.5" />
                   Conectar Mercado Livre
                 </a>

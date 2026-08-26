@@ -133,7 +133,7 @@ function OnboardingPage() {
               </div>
             ) : (
               <Button asChild>
-                <a href="/integracoes/mercadolivre/start" target="_top">
+                <a href="/ml-start" target="_top">
                   <Link2 className="mr-2 h-4 w-4" />
                   Conectar com Mercado Livre
                 </a>
