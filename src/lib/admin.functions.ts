@@ -146,7 +146,7 @@ export const adminListClients = createServerFn({ method: "POST" })
     let query = supabaseAdmin
       .from("profiles")
       .select(
-        "id,email,full_name,created_at,last_seen_at,free_listings_used,free_listings_limit,licenses(id,code,status,expires_at,period,plans(id,name))",
+        "id,email,full_name,created_at,last_seen_at,free_listings_used,free_listings_limit",
         { count: "exact" },
       )
       .order("created_at", { ascending: false });
@@ -159,18 +159,30 @@ export const adminListClients = createServerFn({ method: "POST" })
       data.page * data.pageSize,
       data.page * data.pageSize + data.pageSize - 1,
     );
-    if (error) throw new Error("Falha ao listar clientes.");
+    if (error) throw new Error(`Falha ao listar clientes: ${error.message}`);
+
+    const userIds = (rows ?? []).map((r) => r.id);
+    const { data: licRows } = userIds.length
+      ? await supabaseAdmin
+          .from("licenses")
+          .select("id,code,status,expires_at,period,user_id,plan_id")
+          .in("user_id", userIds)
+      : { data: [] as any[] };
+    const planIds = Array.from(new Set((licRows ?? []).map((l: any) => l.plan_id).filter(Boolean)));
+    const { data: planRows } = planIds.length
+      ? await supabaseAdmin.from("plans").select("id,name").in("id", planIds)
+      : { data: [] as any[] };
+    const planMap = new Map((planRows ?? []).map((p: any) => [p.id, p.name as string]));
+    const licByUser = new Map<string, any[]>();
+    for (const l of licRows ?? []) {
+      const list = licByUser.get(l.user_id as string) ?? [];
+      list.push(l);
+      licByUser.set(l.user_id as string, list);
+    }
 
     const now = Date.now();
     const clients = (rows ?? []).map((row) => {
-      const licenses = ((row as unknown as { licenses?: unknown }).licenses ?? []) as Array<{
-        id: string;
-        code: string;
-        status: string;
-        expires_at: string | null;
-        period: string;
-        plans: { id: string; name: string } | null;
-      }>;
+      const licenses = licByUser.get(row.id) ?? [];
       const active = licenses.find((l) => l.status === "active" && (!l.expires_at || new Date(l.expires_at).getTime() > now));
       const expired = licenses.find(
         (l) => l.status === "expired" || (l.status === "active" && l.expires_at && new Date(l.expires_at).getTime() <= now),
@@ -181,6 +193,7 @@ export const adminListClients = createServerFn({ method: "POST" })
       else if (expired) status = "expirado";
       else if (isTrial) status = "teste";
 
+      const lic = active ?? expired;
       return {
         id: row.id,
         email: row.email,
@@ -188,9 +201,9 @@ export const adminListClients = createServerFn({ method: "POST" })
         created_at: row.created_at,
         last_seen_at: row.last_seen_at,
         status,
-        plan: active?.plans?.name ?? expired?.plans?.name ?? null,
-        license_code: active?.code ?? expired?.code ?? null,
-        license_expires_at: active?.expires_at ?? expired?.expires_at ?? null,
+        plan: lic?.plan_id ? planMap.get(lic.plan_id) ?? null : null,
+        license_code: lic?.code ?? null,
+        license_expires_at: lic?.expires_at ?? null,
       };
     });
 
