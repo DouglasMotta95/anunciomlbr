@@ -36,7 +36,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AppMockup } from "@/components/landing/AppMockup";
 import { Logo, SLOGAN } from "@/components/brand";
@@ -46,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/hooks/useAuth";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import { formatBRL } from "@/lib/format";
 import {
@@ -92,6 +93,11 @@ function IllustrativeTag() {
 /* ------------------------------------------------------------------------ */
 
 export function LandingNav() {
+  const { user } = useAuth();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const loggedIn = mounted && !!user;
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
@@ -114,14 +120,22 @@ export function LandingNav() {
           </a>
         </nav>
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/auth">Entrar</Link>
-          </Button>
-          <Button asChild size="sm" className="font-semibold">
-            <Link to="/auth" search={{ mode: "signup" }}>
-              Começar grátis
-            </Link>
-          </Button>
+          {loggedIn ? (
+            <Button asChild size="sm" className="font-semibold">
+              <Link to="/dashboard">Acessar dashboard</Link>
+            </Button>
+          ) : (
+            <>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/auth">Entrar</Link>
+              </Button>
+              <Button asChild size="sm" className="font-semibold">
+                <Link to="/auth" search={{ mode: "signup" }}>
+                  Começar grátis
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>

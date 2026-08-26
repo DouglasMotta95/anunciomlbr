@@ -95,7 +95,12 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
     }
   });
 
-/** Monta a URL de autorização OAuth oficial do Mercado Livre. */
+/**
+ * Monta a URL de autorização OAuth oficial do Mercado Livre.
+ * Gera um `state` aleatório de uso único, vinculado ao usuário autenticado
+ * (anti-CSRF). O callback valida e consome esse state — states desconhecidos,
+ * expirados ou reutilizados são rejeitados.
+ */
 export const getMlAuthorizationUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -104,11 +109,28 @@ export const getMlAuthorizationUrl = createServerFn({ method: "POST" })
     if (!clientId || !redirectUri) {
       return { configured: false as const, url: null };
     }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Limpeza oportunista de states expirados.
+    await supabaseAdmin
+      .from("ml_oauth_states")
+      .delete()
+      .lt("expires_at", new Date().toISOString());
+
+    const state = crypto.randomUUID();
+    const { error } = await supabaseAdmin.from("ml_oauth_states").insert({
+      state,
+      user_id: context.userId,
+      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    });
+    if (error) throw new Error("ml_state_persist_failed");
+
     const url = new URL("https://auth.mercadolivre.com.br/authorization");
     url.searchParams.set("response_type", "code");
     url.searchParams.set("client_id", clientId);
     url.searchParams.set("redirect_uri", redirectUri);
-    url.searchParams.set("state", context.userId);
+    url.searchParams.set("state", state);
     return { configured: true as const, url: url.toString() };
   });
 

@@ -47,7 +47,7 @@ const NAV_GROUPS = [
   {
     label: "Configurações",
     items: [
-      { to: "/integracoes", label: "Integrações", icon: Plug },
+      { to: "/integracoes", label: "Mercado Livre", icon: Plug },
       { to: "/licenca", label: "Plano e licença", icon: BadgeCheck },
       { to: "/conta", label: "Conta", icon: Settings },
     ],
