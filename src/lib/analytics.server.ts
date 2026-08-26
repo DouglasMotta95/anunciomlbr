@@ -270,10 +270,6 @@ export async function getVisitAnalytics(context: AdminContext) {
       .map(([source, visits]) => ({ source, visits }))
       .sort((a, b) => b.visits - a.visits)
       .slice(0, 10),
-
-      .map(([source, visits]) => ({ source, visits }))
-      .sort((a, b) => b.visits - a.visits)
-      .slice(0, 10),
     campaigns: [...campaigns.entries()]
       .map(([campaign, visits]) => ({ campaign, visits }))
       .sort((a, b) => b.visits - a.visits)
