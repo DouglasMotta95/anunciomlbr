@@ -11,7 +11,7 @@ import { getMlAuthorizationUrl } from "@/lib/ml.functions";
 const title = "Conectando Mercado Livre — ANÚNCIO ML";
 const description = "Iniciando a autorização oficial do Mercado Livre.";
 
-export const Route = createFileRoute("/_authenticated/integracoes/mercadolivre/start")({
+export const Route = createFileRoute("/_authenticated/ml-start")({
   head: () => ({
     meta: [
       { title },
