@@ -495,8 +495,10 @@ function LicensesTab() {
   });
 
   const action = useMutation({
-    mutationFn: (vars: { id: string; action: "activate" | "suspend" | "cancel" | "renew" }) =>
-      licenseAction({ data: vars }),
+    mutationFn: (vars: {
+      id: string;
+      action: "activate" | "suspend" | "cancel" | "renew" | "reset";
+    }) => licenseAction({ data: vars }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-licenses"] });
       toast.success("Licença atualizada");
