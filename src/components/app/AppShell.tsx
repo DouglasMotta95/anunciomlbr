@@ -161,6 +161,25 @@ export function AppShell({
 
   const queryClient = useQueryClient();
 
+  // Heartbeat de presença: alimenta o monitor de logins ativos do admin.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const ping = async () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      await supabase
+        .from("profiles")
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq("id", user.id);
+    };
+    void ping();
+    const timer = window.setInterval(ping, 120_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user]);
+
   const signOut = async () => {
     await queryClient.cancelQueries();
     queryClient.clear();
