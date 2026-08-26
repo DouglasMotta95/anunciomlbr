@@ -147,35 +147,69 @@ export function LandingNav() {
 /* HERO                                                                       */
 /* ------------------------------------------------------------------------ */
 
+const heroBenefits = [
+  "Encontre produtos que já vendem no Mercado Livre",
+  "Copie anúncios em massa com um clique",
+  "Otimize títulos e descrições com IA",
+  "Publique direto na sua conta ML",
+];
+
 export function Hero() {
   return (
     <section className="grid-noise relative overflow-hidden border-b border-border/60">
-      <div className="mx-auto grid grid-cols-1 max-w-6xl gap-10 px-4 py-16 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:py-24">
+      {/* Glow decorativo de fundo */}
+      <div className="pointer-events-none absolute -right-40 -top-40 h-[500px] w-[500px] rounded-full bg-primary/10 blur-[120px]" />
+      <div className="pointer-events-none absolute -left-20 top-1/3 h-[350px] w-[350px] rounded-full bg-secondary/15 blur-[100px]" />
+
+      <div className="relative mx-auto grid grid-cols-1 max-w-6xl gap-10 px-4 py-16 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:py-24">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
           <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
-            10 ANÚNCIOS GRÁTIS
+            <Sparkles className="mr-1.5 h-3 w-3" /> 10 ANÚNCIOS GRÁTIS PARA COMEÇAR
           </Badge>
-          <h1 className="mt-5 text-pretty text-4xl font-extrabold leading-[1.05] sm:text-5xl">
-            Encontre, copie, otimize e publique seus anúncios em{" "}
-            <span className="text-gradient">poucos cliques.</span>
+
+          <h1 className="mt-5 text-pretty text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+            Venda mais no Mercado Livre{" "}
+            <span className="text-gradient">sem criar anúncios do zero.</span>
           </h1>
+
           <p className="mt-5 max-w-xl text-pretty text-lg text-muted-foreground">
-            O ANÚNCIO ML reúne inteligência, automação e gestão para você economizar tempo e
-            melhorar sua operação no Mercado Livre.
+            Descubra produtos com alta demanda, copie anúncios prontos, otimize com IA e publique
+            na sua conta — tudo em uma única plataforma.
           </p>
-          <div className="mt-7 flex flex-wrap items-center gap-3">
-            <Button asChild size="lg" className="font-semibold shadow-glow">
+
+          <ul className="mt-6 space-y-3">
+            {heroBenefits.map((b) => (
+              <li key={b} className="flex items-start gap-3 text-sm font-medium sm:text-base">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success/20 text-success">
+                  <Check className="h-3 w-3" />
+                </span>
+                <span className="text-foreground/90">{b}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button asChild size="lg" className="w-full gap-2 bg-gradient-to-r from-primary to-warning font-bold text-primary-foreground shadow-glow sm:w-auto">
               <Link to="/auth" search={{ mode: "signup" }}>
-                Começar grátis <ArrowRight className="ml-1.5 h-4 w-4" />
+                Quero comprar agora <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
+            <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
               <a href="#demo">Ver demonstração</a>
             </Button>
           </div>
-          <p className="mt-5 text-xs text-muted-foreground">
-            {SLOGAN} · Integrações oficiais Mercado Livre e Mercado Pago.
-          </p>
+
+          <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <BadgeCheck className="h-4 w-4 text-success" /> Integração oficial ML
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <BadgeCheck className="h-4 w-4 text-success" /> Sem cartão para testar
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <BadgeCheck className="h-4 w-4 text-success" /> Suporte no WhatsApp
+            </span>
+          </div>
 
           <div className="mt-8 grid grid-cols-3 gap-3 border-t border-border/60 pt-6 sm:max-w-md">
             {[
@@ -208,7 +242,6 @@ export function Hero() {
             <Store className="h-4 w-4 text-success" />
             <p className="text-[11px] font-semibold">Integração oficial</p>
           </div>
-
         </div>
       </div>
     </section>
