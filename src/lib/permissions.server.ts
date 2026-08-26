@@ -118,7 +118,7 @@ export async function logAudit(input: {
       entity_id: input.entityId ?? null,
       target_user_id: input.targetUserId ?? null,
       target_email: (target as any)?.email ?? null,
-      details: input.details ?? {},
+      details: (input.details ?? {}) as any,
     });
   } catch {
     // auditoria não deve bloquear a operação
