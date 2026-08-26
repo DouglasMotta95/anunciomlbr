@@ -143,6 +143,12 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           return json({ ok: false, reason: "license_failed" }, 500);
         }
 
+        const couponCode = (payment.raw as { coupon?: { code?: string } } | null)?.coupon?.code;
+        if (couponCode) {
+          const { consumeCoupon } = await import("@/lib/coupons.server");
+          await consumeCoupon(couponCode);
+        }
+
         if (payment.user_id) {
           await supabaseAdmin.from("activity_events").insert({
             user_id: payment.user_id,
