@@ -1360,7 +1360,7 @@ export function PricingSection() {
                     className="mt-5 font-semibold"
                     variant={plan.highlighted ? "default" : "outline"}
                   >
-                    <Link to="/auth" search={{ mode: "signup" }}>
+                    <Link to="/checkout" search={{ plan: plan.code, period }}>
                       Assinar {plan.name}
                     </Link>
                   </Button>
