@@ -13,33 +13,33 @@ type AdminContext = { supabase: any; userId: string };
 type ListClientsInput = {
   page: number;
   pageSize: number;
-  search?: string;
+  search?: string | undefined;
   filter: "all" | "ativos" | "inativos" | "expirados" | "teste" | "pagantes";
 };
 
 type LicenseActionInput = {
   id: string;
   action: "activate" | "suspend" | "cancel" | "renew";
-  months?: number;
+  months?: number | undefined;
 };
 
 type UpdatePlanInput = {
   id: string;
-  name?: string;
-  tagline?: string | null;
-  price_monthly_cents?: number;
-  listing_limit?: number | null;
-  ai_credits?: number | null;
-  features?: string[];
-  highlighted?: boolean;
-  active?: boolean;
-  sort_order?: number;
+  name?: string | undefined;
+  tagline?: string | null | undefined;
+  price_monthly_cents?: number | undefined;
+  listing_limit?: number | null | undefined;
+  ai_credits?: number | null | undefined;
+  features?: string[] | undefined;
+  highlighted?: boolean | undefined;
+  active?: boolean | undefined;
+  sort_order?: number | undefined;
 };
 
 type UpdateDiscountInput = {
   period: "monthly" | "quarterly" | "semiannual" | "annual";
   discount_percent: number;
-  label?: string;
+  label?: string | undefined;
 };
 
 type ListPaymentsInput = {
@@ -55,14 +55,14 @@ type ListSubscriptionsInput = {
 };
 
 type ListActivityInput = {
-  kind?: string;
+  kind?: string | undefined;
 };
 
 type CreateCouponInput = {
   code: string;
   discount_percent: number;
-  max_uses?: number | null;
-  expires_at?: string | null;
+  max_uses?: number | null | undefined;
+  expires_at?: string | null | undefined;
 };
 
 type ToggleCouponInput = {
