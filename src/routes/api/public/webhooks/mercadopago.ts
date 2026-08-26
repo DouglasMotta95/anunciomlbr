@@ -107,62 +107,14 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           return json({ ok: true, status: mpPayment.status });
         }
 
-        // Evita licença duplicada para o mesmo pagamento.
-        const { data: existing } = await supabaseAdmin
-          .from("licenses")
-          .select("id")
-          .eq("note", `payment:${payment.id}`)
-          .maybeSingle();
-        if (existing) return json({ ok: true, deduped: true });
-
-        const months: Record<string, number> = {
-          monthly: 1,
-          quarterly: 3,
-          semiannual: 6,
-          annual: 12,
-        };
-        const startsAt = new Date();
-        const expiresAt = new Date(startsAt);
-        expiresAt.setMonth(expiresAt.getMonth() + (months[payment.period] ?? 1));
-
-        const { data: code } = await supabaseAdmin.rpc("generate_license_code", {
-          _plan_code: payment.plans?.code ?? "pro",
-        });
-
-        const { error: licenseError } = await supabaseAdmin.from("licenses").insert({
-          code: code as string,
-          plan_id: payment.plan_id,
-          period: payment.period,
-          origin: "mercado_pago",
-          status: payment.user_id ? "active" : "available",
-          user_id: payment.user_id,
-          activated_at: payment.user_id ? startsAt.toISOString() : null,
-          starts_at: startsAt.toISOString(),
-          expires_at: expiresAt.toISOString(),
-          note: `payment:${payment.id}`,
-        });
-        if (licenseError) {
-          if (licenseError.code === "23505") return json({ ok: true, deduped: true });
-          console.error("Mercado Pago license insert failed", licenseError.message);
-          return json({ ok: false, reason: "license_failed" }, 500);
+        // Emissão automática da licença (idempotente).
+        const { issueLicenseForPayment } = await import("@/lib/licensing.server");
+        const issued = await issueLicenseForPayment(payment.id);
+        if (!issued.ok) {
+          return json({ ok: false, reason: issued.reason }, issued.reason === "license_failed" ? 500 : 200);
         }
 
-        const couponCode = (payment.raw as { coupon?: { code?: string } } | null)?.coupon?.code;
-        if (couponCode) {
-          const { consumeCoupon } = await import("@/lib/coupons.server");
-          await consumeCoupon(couponCode);
-        }
-
-        if (payment.user_id) {
-          await supabaseAdmin.from("activity_events").insert({
-            user_id: payment.user_id,
-            kind: "payment_approved",
-            message: "Pagamento aprovado e licença liberada",
-            meta: { payment_id: payment.id },
-          });
-        }
-
-        return json({ ok: true });
+        return json({ ok: true, license_code: issued.license_code, created: issued.created });
       },
     },
   },

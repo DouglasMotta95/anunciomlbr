@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCheckoutSummary } from "@/lib/checkout.functions";
+import { confirmCheckoutPayment, getCheckoutSummary } from "@/lib/checkout.functions";
 import { formatBRL, formatDate } from "@/lib/format";
 import { trackEventOnce } from "@/lib/track";
 
@@ -83,6 +83,8 @@ const steps = [
 function CheckoutSuccessPage() {
   const { payment_id: paymentId } = Route.useSearch();
   const summaryFn = useServerFn(getCheckoutSummary);
+  const confirmFn = useServerFn(confirmCheckoutPayment);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["checkout-summary", paymentId],
@@ -91,6 +93,24 @@ function CheckoutSuccessPage() {
     refetchInterval: (query) =>
       query.state.data && query.state.data.status !== "approved" ? 5000 : false,
   });
+
+  // Emissão automática da licença: confirma o pagamento na API do Mercado Pago
+  // enquanto o pedido não estiver aprovado/licenciado (não depende do webhook).
+  const pendingLicense = Boolean(data) && (data!.status !== "approved" || !data!.license);
+  useQuery({
+    queryKey: ["checkout-confirm", paymentId],
+    queryFn: async () => {
+      const result = await confirmFn({ data: { payment_id: paymentId! } });
+      if (result.license_code || result.status === "approved") {
+        await queryClient.invalidateQueries({ queryKey: ["checkout-summary", paymentId] });
+      }
+      return result;
+    },
+    enabled: Boolean(paymentId) && pendingLicense,
+    refetchInterval: pendingLicense ? 6000 : false,
+    retry: false,
+  });
+
 
   const approved = data?.status === "approved";
 

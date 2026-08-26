@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Play, Pause, Volume2, VolumeX, MonitorPlay } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Play, Pause, Volume2, VolumeX, MonitorPlay, Subtitles } from "lucide-react";
 import demoVideoAsset from "@/assets/demo/platform-demo.mp4.asset.json";
 
 const demoVideo = demoVideoAsset.url;
@@ -10,10 +10,37 @@ import { cn } from "@/lib/utils";
  * Seção de vídeo de demonstração da plataforma na landing page.
  * Mostra rapidamente como o ANÚNCIO ML funciona para novos vendedores.
  */
+/**
+ * Legendas do tour (pt-BR) — o vídeo é compreensível sem áudio.
+ * Tempos em segundos, sincronizados com o screencast de ~10s.
+ */
+const CAPTIONS: Array<{ from: number; to: number; text: string }> = [
+  { from: 0, to: 1.8, text: "Painel do ANÚNCIO ML: vendas, visitas e lucro em tempo real." },
+  { from: 1.8, to: 3.6, text: "O radar encontra anúncios campeões do Mercado Livre em segundos." },
+  { from: 3.6, to: 5.4, text: "Você seleciona os produtos e cria rascunhos em massa." },
+  { from: 5.4, to: 7.2, text: "A IA reescreve título, descrição e ficha técnica otimizados." },
+  { from: 7.2, to: 8.8, text: "Publicação oficial direto na sua conta do Mercado Livre." },
+  { from: 8.8, to: 11, text: "Estoque, pedidos e licença controlados em um só lugar." },
+];
+
 export function VideoDemoSection() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
+  const [captionsOn, setCaptionsOn] = useState(true);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  // Sincroniza a legenda com o tempo do vídeo (frame a frame do player).
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const onTime = () => setCurrentTime(v.currentTime);
+    v.addEventListener("timeupdate", onTime);
+    return () => v.removeEventListener("timeupdate", onTime);
+  }, []);
+
+  const activeCaption =
+    CAPTIONS.find((cue) => currentTime >= cue.from && currentTime < cue.to)?.text ?? CAPTIONS[0]!.text;
 
   const togglePlay = () => {
     const v = videoRef.current;
@@ -76,6 +103,18 @@ export function VideoDemoSection() {
                 <source src={demoVideo} type="video/mp4" />
               </video>
 
+              {/* Legendas queimadas na tela (sem depender do áudio) */}
+              {captionsOn && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center px-4 pb-4 sm:pb-6">
+                  <p
+                    aria-live="polite"
+                    className="max-w-[92%] rounded-lg bg-black/75 px-3 py-2 text-center text-[13px] font-semibold leading-snug text-white shadow-lg backdrop-blur-sm sm:text-base"
+                  >
+                    {activeCaption}
+                  </p>
+                </div>
+              )}
+
               {/* Overlay de play */}
               {!playing && (
                 <button
@@ -106,6 +145,20 @@ export function VideoDemoSection() {
                   </button>
                   <button
                     type="button"
+                    onClick={() => setCaptionsOn((value) => !value)}
+                    aria-label={captionsOn ? "Ocultar legendas" : "Mostrar legendas"}
+                    aria-pressed={captionsOn}
+                    className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition",
+                      captionsOn
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-black/60 text-white hover:bg-black/80",
+                    )}
+                  >
+                    <Subtitles className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={toggleMute}
                     aria-label={muted ? "Ativar som" : "Silenciar"}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/80"
@@ -119,7 +172,8 @@ export function VideoDemoSection() {
         </div>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Demonstração visual do produto — clique para assistir com som.
+          Demonstração visual do produto — com legendas em português, dá para entender tudo sem
+          áudio.
         </p>
       </div>
     </section>
