@@ -13,10 +13,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/format";
 import {
   disconnectMercadoLivre,
-  getMlAuthorizationUrl,
   getMlConnection,
   syncMlListings,
 } from "@/lib/ml.functions";
+import { openMercadoLivreOAuthStart } from "@/lib/ml-oauth-client";
 
 const title = "Integrações — ANÚNCIO ML";
 const description = "Conecte sua conta do Mercado Livre ao ANÚNCIO ML.";
@@ -65,7 +65,6 @@ function IntegrationsPage() {
   const { ml, sync: syncResult } = Route.useSearch();
 
   const fetchConnection = useServerFn(getMlConnection);
-  const startOAuth = useServerFn(getMlAuthorizationUrl);
   const sync = useServerFn(syncMlListings);
   const disconnect = useServerFn(disconnectMercadoLivre);
 
@@ -113,24 +112,6 @@ function IntegrationsPage() {
       toast.success("Conta do Mercado Livre desconectada.");
     },
     onError: () => toast.error("Falha ao desconectar."),
-  });
-
-  const connectMl = useMutation({
-    mutationFn: () => startOAuth(),
-    onSuccess: (result) => {
-      if (result.configured && result.url) {
-        window.location.assign(result.url);
-        return;
-      }
-
-      toast.error("Não foi possível iniciar a conexão com o Mercado Livre.", {
-        description:
-          result.reason === "state_error"
-            ? "Não foi possível criar a sessão segura de conexão. Tente novamente."
-            : "A configuração oficial do Mercado Livre está pendente.",
-      });
-    },
-    onError: () => toast.error("Não foi possível iniciar a conexão com o Mercado Livre."),
   });
 
   const connection = data?.connection ?? null;
@@ -230,14 +211,9 @@ function IntegrationsPage() {
               <Button
                 size="sm"
                 className="font-semibold"
-                disabled={connectMl.isPending}
-                onClick={() => connectMl.mutate()}
+                onClick={openMercadoLivreOAuthStart}
               >
-                {connectMl.isPending ? (
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Link2 className="mr-2 h-3.5 w-3.5" />
-                )}
+                <Link2 className="mr-2 h-3.5 w-3.5" />
                 Conectar Mercado Livre
               </Button>
             </>
