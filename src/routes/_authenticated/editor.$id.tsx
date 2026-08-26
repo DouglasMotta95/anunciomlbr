@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { getProductImage } from "@/lib/product-image";
 
 export const Route = createFileRoute("/_authenticated/editor/$id")({
   head: () => ({
@@ -56,6 +57,7 @@ function EditorPage() {
       return data;
     },
   });
+  const productImage = getProductImage(listing.data?.images);
 
   useEffect(() => {
     const row = listing.data;
@@ -205,6 +207,17 @@ function EditorPage() {
                 <CardTitle className="text-base">Pré-visualização</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
+                {productImage ? (
+                  <img
+                    src={productImage}
+                    alt={form.title || "Imagem do produto"}
+                    className="aspect-square w-full rounded-md object-contain bg-muted"
+                  />
+                ) : (
+                  <div className="flex aspect-square w-full items-center justify-center rounded-md bg-muted text-sm text-muted-foreground">
+                    Sem imagem do produto
+                  </div>
+                )}
                 <p className="text-sm font-semibold leading-snug">{form.title || "Título do anúncio"}</p>
                 <p className="text-2xl font-bold">
                   {form.price ? `R$ ${form.price}` : "R$ --"}

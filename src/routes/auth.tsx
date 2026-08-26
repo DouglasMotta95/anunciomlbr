@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth, useIsAdmin } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 
@@ -42,6 +42,7 @@ function AuthPage() {
   const { mode } = Route.useSearch();
   const navigate = useNavigate();
   const { user, loading: sessionLoading } = useAuth();
+  const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
   const [isSignup, setIsSignup] = useState(mode === "signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -57,9 +58,9 @@ function AuthPage() {
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    // Já autenticado -> direto para o dashboard (não exige novo login).
-    if (user) navigate({ to: "/dashboard", replace: true });
-  }, [user, navigate]);
+    if (!user || roleLoading) return;
+    navigate({ to: isAdmin ? "/admin" : "/dashboard", replace: true });
+  }, [user, isAdmin, roleLoading, navigate]);
 
   // Enquanto a sessão é restaurada/validada, mostra splash em vez do
   // formulário (evita o flash de "visitante" no retorno do Google / F5).
@@ -80,16 +81,20 @@ function AuthPage() {
           toast.error("É necessário aceitar os termos de uso.");
           return;
         }
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: { full_name: name },
-            emailRedirectTo: `${window.location.origin}/onboarding`,
+            emailRedirectTo: window.location.origin,
           },
         });
         if (error) throw error;
-        toast.success("Bem-vindo ao ANÚNCIO ML 👋");
+        if (!data.session) {
+          toast.success("Confira seu e-mail para confirmar a conta.");
+          setIsSignup(false);
+          return;
+        }
         navigate({ to: "/onboarding" });
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });

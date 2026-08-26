@@ -243,7 +243,8 @@ Retorne JSON com as chaves exatas:
         ai_score: parsed.score_after,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", item.id);
+      .eq("id", item.id)
+      .eq("user_id", userId);
     if (updateError) throw new Error(updateError.message);
     return;
   }

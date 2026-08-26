@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
@@ -6,16 +8,47 @@ import { createFileRoute } from "@tanstack/react-router";
  * servidor — nunca confiamos apenas no corpo recebido — e só então geramos a
  * licença correspondente.
  */
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function parseSignature(header: string | null) {
+  const parts = new Map<string, string>();
+  for (const segment of (header ?? "").split(",")) {
+    const [key, value] = segment.split("=").map((part) => part?.trim());
+    if (key && value) parts.set(key, value);
+  }
+  return { ts: parts.get("ts") ?? null, v1: parts.get("v1") ?? null };
+}
+
+function isValidMercadoPagoSignature(request: Request, dataId: string, secret: string) {
+  const requestId = request.headers.get("x-request-id");
+  const { ts, v1 } = parseSignature(request.headers.get("x-signature"));
+  if (!requestId || !ts || !v1) return false;
+
+  const timestamp = Number(ts);
+  if (!Number.isFinite(timestamp)) return false;
+  const maxAgeMs = 10 * 60 * 1000;
+  if (Math.abs(Date.now() - timestamp) > maxAgeMs) return false;
+
+  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  const expected = createHmac("sha256", secret).update(manifest).digest("hex");
+  const received = Buffer.from(v1, "hex");
+  const calculated = Buffer.from(expected, "hex");
+  return received.length === calculated.length && timingSafeEqual(received, calculated);
+}
+
 export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         const accessToken = process.env["MERCADOPAGO_ACCESS_TOKEN"];
-        if (!accessToken) {
-          return new Response(JSON.stringify({ ok: false, reason: "not_configured" }), {
-            status: 503,
-            headers: { "content-type": "application/json" },
-          });
+        const webhookSecret = process.env["MERCADOPAGO_WEBHOOK_SECRET"];
+        if (!accessToken || !webhookSecret) {
+          return json({ ok: false, reason: "not_configured" }, 503);
         }
 
         let payload: { data?: { id?: string | number }; type?: string; action?: string };
@@ -27,6 +60,9 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
 
         const paymentId = payload.data?.id;
         if (!paymentId) return new Response("ignored", { status: 200 });
+        if (!isValidMercadoPagoSignature(request, String(paymentId), webhookSecret)) {
+          return json({ ok: false, reason: "invalid_signature" }, 401);
+        }
 
         const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -64,9 +100,7 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           .eq("id", payment.id);
 
         if (mpPayment.status !== "approved") {
-          return new Response(JSON.stringify({ ok: true, status: mpPayment.status }), {
-            headers: { "content-type": "application/json" },
-          });
+          return json({ ok: true, status: mpPayment.status });
         }
 
         // Evita licença duplicada para o mesmo pagamento.
@@ -75,7 +109,7 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           .select("id")
           .eq("note", `payment:${payment.id}`)
           .maybeSingle();
-        if (existing) return new Response(JSON.stringify({ ok: true, deduped: true }));
+        if (existing) return json({ ok: true, deduped: true });
 
         const months: Record<string, number> = {
           monthly: 1,
@@ -91,7 +125,7 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           _plan_code: payment.plans?.code ?? "pro",
         });
 
-        await supabaseAdmin.from("licenses").insert({
+        const { error: licenseError } = await supabaseAdmin.from("licenses").insert({
           code: code as string,
           plan_id: payment.plan_id,
           period: payment.period,
@@ -103,6 +137,11 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           expires_at: expiresAt.toISOString(),
           note: `payment:${payment.id}`,
         });
+        if (licenseError) {
+          if (licenseError.code === "23505") return json({ ok: true, deduped: true });
+          console.error("Mercado Pago license insert failed", licenseError.message);
+          return json({ ok: false, reason: "license_failed" }, 500);
+        }
 
         if (payment.user_id) {
           await supabaseAdmin.from("activity_events").insert({
@@ -113,9 +152,7 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           });
         }
 
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { "content-type": "application/json" },
-        });
+        return json({ ok: true });
       },
     },
   },

@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListings } from "@/hooks/useLicense";
 import { startBulkJob } from "@/lib/bulk.functions";
 import { formatBRL, formatDate } from "@/lib/format";
+import { getProductImage } from "@/lib/product-image";
 
 const title = "Meus anúncios — ANÚNCIO ML";
 const description =
@@ -209,6 +210,18 @@ function ListingsPage() {
                       checked={!!selected[listing.id]}
                       onCheckedChange={(checked) => setSelected((prev) => ({ ...prev, [listing.id]: !!checked }))}
                     />
+                    {getProductImage(listing.images) ? (
+                      <img
+                        src={getProductImage(listing.images) ?? undefined}
+                        alt={listing.title}
+                        loading="lazy"
+                        className="h-16 w-16 shrink-0 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] text-muted-foreground">
+                        Sem imagem
+                      </div>
+                    )}
                     <div className="min-w-[240px] flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold">{listing.title}</span>

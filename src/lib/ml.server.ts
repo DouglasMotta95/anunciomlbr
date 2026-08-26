@@ -101,13 +101,24 @@ export async function syncUserListings(userId: string, limit = 50): Promise<MlSy
 
   const auth = { Authorization: `Bearer ${tokenState.accessToken}`, Accept: "application/json" };
 
-  const searchResponse = await fetch(
-    `${ML_API}/users/${mlUserId}/items/search?limit=${limit}`,
-    { headers: auth },
-  );
-  if (!searchResponse.ok) return { ok: false, reason: `items_search_${searchResponse.status}` };
+  const pageSize = Math.min(Math.max(limit, 1), 50);
+  const maxItems = Math.max(limit, 1);
+  const ids: string[] = [];
 
-  const ids = ((await searchResponse.json()) as { results?: string[] }).results ?? [];
+  for (let offset = 0; ids.length < maxItems; offset += pageSize) {
+    const searchResponse = await fetch(
+      `${ML_API}/users/${mlUserId}/items/search?limit=${pageSize}&offset=${offset}`,
+      { headers: auth },
+    );
+    if (!searchResponse.ok) return { ok: false, reason: `items_search_${searchResponse.status}` };
+
+    const page = (await searchResponse.json()) as { results?: string[]; paging?: { total?: number } };
+    const results = page.results ?? [];
+    ids.push(...results.slice(0, maxItems - ids.length));
+    const total = page.paging?.total ?? ids.length;
+    if (results.length < pageSize || ids.length >= total) break;
+  }
+
   if (ids.length === 0) {
     await supabaseAdmin
       .from("ml_connections")

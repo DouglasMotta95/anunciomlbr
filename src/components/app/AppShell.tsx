@@ -14,6 +14,7 @@ import {
   Sparkles,
   Tag,
   Menu,
+  MessageCircle,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
@@ -50,6 +51,7 @@ const NAV_GROUPS = [
       { to: "/integracoes", label: "Mercado Livre", icon: Plug },
       { to: "/licenca", label: "Plano e licença", icon: BadgeCheck },
       { to: "/conta", label: "Conta", icon: Settings },
+      { to: "https://wa.me/5535991429262", label: "Suporte", icon: MessageCircle, external: true },
     ],
   },
 ] as const;
@@ -76,18 +78,23 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
           {group.items.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={onNavigate}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                  active && "bg-primary/10 text-foreground ring-1 ring-primary/30",
-                )}
-              >
+            const className = cn(
+              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              active && "bg-primary/10 text-foreground ring-1 ring-primary/30",
+            );
+            const content = (
+              <>
                 <Icon className={cn("h-4 w-4", active && "text-primary")} />
                 {item.label}
+              </>
+            );
+            return "external" in item ? (
+              <a key={item.to} href={item.to} target="_blank" rel="noreferrer" onClick={onNavigate} className={className}>
+                {content}
+              </a>
+            ) : (
+              <Link key={item.to} to={item.to} onClick={onNavigate} className={className}>
+                {content}
               </Link>
             );
           })}
