@@ -79,6 +79,7 @@ function Landing() {
       <main>
         <Hero />
         <TrustBar />
+        <TestimonialsSection />
         <RadarSection />
         <DuplicationFlowSection />
         <Reveal><HowItWorks /></Reveal>
