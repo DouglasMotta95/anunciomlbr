@@ -452,6 +452,23 @@ export async function runAdminLicenseAction(data: LicenseActionInput, context: A
     return { ok: true as const };
   }
 
+  if (data.action === "reset") {
+    const { error } = await supabaseAdmin
+      .from("licenses")
+      .update({ ads_used: 0 })
+      .eq("id", data.id);
+    if (error) throw new Error(`Falha ao resetar licença: ${error.message}`);
+    await supabaseAdmin.from("activity_events").insert({
+      user_id: context.userId,
+      kind: "admin_license_action",
+      message: `Licença ${data.id} → consumo resetado`,
+      meta: { license_id: data.id, action: "reset" },
+    });
+    return { ok: true as const };
+  }
+
+
+
   const statusMap = { activate: "active", suspend: "suspended", cancel: "cancelled" } as const;
   const status = statusMap[data.action as "activate" | "suspend" | "cancel"];
   const { error } = await supabaseAdmin.from("licenses").update({ status }).eq("id", data.id);
