@@ -185,3 +185,27 @@ export const adminToggleCoupon = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => toggleAdminCoupon(data, context));
+
+/** Logins ativos agora (heartbeat real do app). */
+export const adminListActiveSessions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z.object({ minutes: z.number().int().min(1).max(1440).default(15) }).parse(data),
+  )
+  .handler(async ({ data, context }) => listAdminActiveSessions(data, context));
+
+/** Licenças ativas que vencem nos próximos N dias. */
+export const adminListExpiringLicenses = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z.object({ days: z.number().int().min(1).max(90).default(10) }).parse(data),
+  )
+  .handler(async ({ data, context }) => listAdminExpiringLicenses(data, context));
+
+/** Dispara o alerta de vencimento para os clientes das licenças a vencer. */
+export const adminNotifyExpiringLicenses = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z.object({ days: z.number().int().min(1).max(90).default(10) }).parse(data),
+  )
+  .handler(async ({ data, context }) => notifyAdminExpiringLicenses(data, context));
