@@ -23,7 +23,7 @@ type ListClientsInput = {
 
 type LicenseActionInput = {
   id: string;
-  action: "activate" | "suspend" | "cancel" | "renew";
+  action: "activate" | "suspend" | "cancel" | "renew" | "reset";
   months?: number | undefined;
 };
 
