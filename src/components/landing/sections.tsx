@@ -120,14 +120,22 @@ export function LandingNav() {
           </a>
         </nav>
         <div className="flex items-center gap-2">
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/auth">Entrar</Link>
-          </Button>
-          <Button asChild size="sm" className="font-semibold">
-            <Link to="/auth" search={{ mode: "signup" }}>
-              Começar grátis
-            </Link>
-          </Button>
+          {loggedIn ? (
+            <Button asChild size="sm" className="font-semibold">
+              <Link to="/dashboard">Acessar dashboard</Link>
+            </Button>
+          ) : (
+            <>
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/auth">Entrar</Link>
+              </Button>
+              <Button asChild size="sm" className="font-semibold">
+                <Link to="/auth" search={{ mode: "signup" }}>
+                  Começar grátis
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>
