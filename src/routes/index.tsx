@@ -33,6 +33,7 @@ import {
   ReportsSection,
   SalesSection,
   SearchSection,
+  TestimonialsSection,
   TrustBar,
 } from "@/components/landing/sections";
 
@@ -78,6 +79,7 @@ function Landing() {
       <main>
         <Hero />
         <TrustBar />
+        <TestimonialsSection />
         <RadarSection />
         <DuplicationFlowSection />
         <Reveal><HowItWorks /></Reveal>

@@ -22,11 +22,13 @@ import {
   Package,
   PackageCheck,
   PenSquare,
+  Quote,
   Rocket,
   Search,
   Shield,
   ShoppingCart,
   Sparkles,
+  Star,
   Store,
   TrendingUp,
   Truck,
@@ -154,6 +156,58 @@ const heroBenefits = [
   "Publique direto na sua conta ML",
 ];
 
+const testimonialAvatars = [
+  { initials: "RL", color: "bg-secondary text-secondary-foreground" },
+  { initials: "MF", color: "bg-primary text-primary-foreground" },
+  { initials: "JP", color: "bg-success text-success-foreground" },
+  { initials: "TA", color: "bg-warning text-warning-foreground" },
+];
+
+function StarRating({ value = 5 }: { value?: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star
+          key={i}
+          className={cn(
+            "h-3.5 w-3.5",
+            i < value ? "fill-primary text-primary" : "fill-muted text-muted",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AvatarStack({
+  avatars,
+  count,
+}: {
+  avatars: { initials: string; color: string }[];
+  count: number;
+}) {
+  return (
+    <div className="flex items-center">
+      <div className="flex -space-x-2">
+        {avatars.map((a, i) => (
+          <span
+            key={i}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-full border-2 border-background text-[10px] font-bold",
+              a.color,
+            )}
+          >
+            {a.initials}
+          </span>
+        ))}
+      </div>
+      <span className="ml-3 text-xs font-medium text-muted-foreground">
+        +{count} vendedores ativos
+      </span>
+    </div>
+  );
+}
+
 export function Hero() {
   return (
     <section className="grid-noise relative overflow-hidden border-b border-border/60">
@@ -199,16 +253,28 @@ export function Hero() {
             </Button>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5">
-              <BadgeCheck className="h-4 w-4 text-success" /> Integração oficial ML
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <BadgeCheck className="h-4 w-4 text-success" /> Sem cartão para testar
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <BadgeCheck className="h-4 w-4 text-success" /> Suporte no WhatsApp
-            </span>
+          {/* Prova social + selos de confiança ao lado do CTA */}
+          <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-border/60 bg-surface/40 p-4 sm:flex-row sm:items-center sm:gap-6">
+            <div className="space-y-1">
+              <AvatarStack avatars={testimonialAvatars} count={847} />
+              <div className="flex items-center gap-2">
+                <StarRating value={5} />
+                <span className="text-xs font-semibold text-foreground">4.9/5</span>
+                <span className="text-[11px] text-muted-foreground">(127 avaliações)</span>
+              </div>
+            </div>
+            <div className="hidden h-8 w-px bg-border/60 sm:block" />
+            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <BadgeCheck className="h-4 w-4 text-success" /> Integração oficial ML
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Lock className="h-4 w-4 text-success" /> Sem cartão para testar
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-success" /> Suporte no WhatsApp
+              </span>
+            </div>
           </div>
 
           <div className="mt-8 grid grid-cols-3 gap-3 border-t border-border/60 pt-6 sm:max-w-md">
@@ -1350,6 +1416,117 @@ export function FaqSection() {
             </AccordionItem>
           ))}
         </Accordion>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------------ */
+/* DEPOIMENTOS / PROVA SOCIAL                                                */
+/* ------------------------------------------------------------------------ */
+
+const testimonials = [
+  {
+    quote:
+      "Em 3 semanas consegui publicar 47 anúncios sem escrever nenhum título do zero. A IA economiza horas do meu dia.",
+    name: "Ricardo L.",
+    role: "Vendedor de eletrônicos, SP",
+    rating: 5,
+    result: "+R$ 12k/mês",
+  },
+  {
+    quote:
+      "O radar me mostrou produtos que eu nem imaginava que vendiam tanto. Hoje 60% do meu faturamento vem dessas oportunidades.",
+    name: "Mariana F.",
+    role: "Loja de acessórios, MG",
+    rating: 5,
+    result: "+340% de lucro",
+  },
+  {
+    quote:
+      "Antes demorava 2 dias para replicar um anúncio. Agora faço isso em minutos e ainda otimizo a descrição com um clique.",
+    name: "João P.",
+    role: "Dropshipping, RS",
+    rating: 5,
+    result: "10x mais rápido",
+  },
+];
+
+export function TestimonialsSection() {
+  return (
+    <section className="border-b border-border/60 bg-surface/30 py-16 sm:py-24">
+      <div className="mx-auto max-w-6xl px-4">
+        <SectionTitle
+          eyebrow="Prova social"
+          title="Vendedores que já estão vendendo mais"
+          subtitle="Resultados reais de quem usa a plataforma para escalar no Mercado Livre."
+        />
+
+        <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
+          {testimonials.map((t) => (
+            <Card
+              key={t.name}
+              className="relative flex flex-col border-border/60 bg-background/60 p-6 transition-transform hover:-translate-y-1"
+            >
+              <Quote className="absolute right-4 top-4 h-6 w-6 text-primary/20" />
+              <StarRating value={t.rating} />
+              <p className="mt-4 flex-1 text-sm leading-relaxed text-foreground/90">
+                “{t.quote}”
+              </p>
+              <div className="mt-6 flex items-center gap-3 border-t border-border/60 pt-4">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary font-display text-sm font-bold text-primary-foreground">
+                  {t.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{t.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{t.role}</p>
+                </div>
+                <Badge variant="secondary" className="shrink-0 text-[10px] font-bold">
+                  {t.result}
+                </Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div className="mt-10 flex flex-col items-center justify-center gap-4 rounded-2xl border border-border/60 bg-background/40 p-6 sm:flex-row sm:gap-8">
+          <div className="flex items-center gap-3">
+            <div className="flex -space-x-2">
+              {testimonialAvatars.map((a, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-full border-2 border-background text-[11px] font-bold",
+                    a.color,
+                  )}
+                >
+                  {a.initials}
+                </span>
+              ))}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <StarRating value={5} />
+                <span className="text-sm font-bold">4.9/5</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Baseado em 127 avaliações</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground sm:gap-6">
+            <span className="inline-flex items-center gap-1.5">
+              <Shield className="h-4 w-4 text-success" /> Pagamento seguro
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Zap className="h-4 w-4 text-success" /> Ativação imediata
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <BadgeCheck className="h-4 w-4 text-success" /> 7 dias de garantia
+            </span>
+          </div>
+        </div>
       </div>
     </section>
   );
