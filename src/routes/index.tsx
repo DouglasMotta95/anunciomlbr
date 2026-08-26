@@ -79,28 +79,28 @@ function Landing() {
         <Hero />
         <TrustBar />
         <RadarSection />
-        <Reveal><DemoSection /></Reveal>
-        <Reveal><HowItWorks /></Reveal>
-        <Reveal><SearchSection /></Reveal>
         <DuplicationFlowSection />
-        <Reveal><CopySection /></Reveal>
+        <Reveal><HowItWorks /></Reveal>
         <AiTitlesSection />
-        <Reveal><AiSection /></Reveal>
         <StudioSection />
+        <Reveal><PricingSection /></Reveal>
+        <Reveal><DemoSection /></Reveal>
+        <Reveal><SearchSection /></Reveal>
+        <Reveal><CopySection /></Reveal>
+        <Reveal><AiSection /></Reveal>
         <Reveal><EditorSection /></Reveal>
-        <Reveal><ManageSection /></Reveal>
         <Reveal><DashboardSection /></Reveal>
-        <Reveal><ReportsSection /></Reveal>
         <Reveal><SalesSection /></Reveal>
         <Reveal><InventorySection /></Reveal>
+        <Reveal><ReportsSection /></Reveal>
+        <Reveal><ManageSection /></Reveal>
         <Reveal><BenefitsSection /></Reveal>
         <Reveal><FeaturesGridSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
-        <Reveal><PricingSection /></Reveal>
         <Reveal><FaqSection /></Reveal>
         <Reveal><FinalCta /></Reveal>
-
       </main>
+
       <LandingFooter />
     </div>
   );

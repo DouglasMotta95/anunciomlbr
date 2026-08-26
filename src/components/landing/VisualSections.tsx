@@ -24,11 +24,48 @@ function Eyebrow({ children }: { children: string }) {
 /* ------------------------------------------------------------------ */
 
 const radarProducts = [
-  { t: "Fone Bluetooth TWS Pro 5.3", p: "R$ 129,90", rel: 96, img: demoImages.fone },
-  { t: "Suporte Articulado Monitor", p: "R$ 89,00", rel: 91, img: demoImages.suporte },
-  { t: "Mini Projetor Full HD", p: "R$ 549,90", rel: 88, img: demoImages.projetor },
-  { t: "Câmera Wi-Fi 360°", p: "R$ 179,90", rel: 84, img: demoImages.camera },
+  {
+    t: "Fone Bluetooth TWS Pro 5.3",
+    p: "R$ 129,90",
+    old: "R$ 189,90",
+    rel: 96,
+    sales: "1,2 mil vendidos",
+    profit: "lucro estimado R$ 42/un",
+    tag: "MAIS VENDIDO",
+    img: demoImages.fone,
+  },
+  {
+    t: "Suporte Articulado Monitor",
+    p: "R$ 89,00",
+    old: "R$ 119,00",
+    rel: 91,
+    sales: "870 vendidos",
+    profit: "lucro estimado R$ 28/un",
+    tag: "ALTO GIRO",
+    img: demoImages.suporte,
+  },
+  {
+    t: "Mini Projetor Full HD",
+    p: "R$ 549,90",
+    old: "R$ 699,90",
+    rel: 88,
+    sales: "410 vendidos",
+    profit: "lucro estimado R$ 155/un",
+    tag: "TICKET ALTO",
+    img: demoImages.projetor,
+  },
+  {
+    t: "Câmera Wi-Fi 360°",
+    p: "R$ 179,90",
+    old: "R$ 229,90",
+    rel: 84,
+    sales: "630 vendidos",
+    profit: "lucro estimado R$ 51/un",
+    tag: "TENDÊNCIA",
+    img: demoImages.camera,
+  },
 ];
+
 
 export function RadarSection() {
   const [scan, setScan] = useState(0);
@@ -86,16 +123,27 @@ export function RadarSection() {
                   <Badge className="absolute left-2 top-2 bg-background/80 text-[10px] font-bold text-primary backdrop-blur">
                     {p.rel}% relevância
                   </Badge>
+                  <Badge className="absolute right-2 top-2 bg-primary text-[10px] font-extrabold text-primary-foreground">
+                    {p.tag}
+                  </Badge>
+                  <span className="absolute bottom-2 left-2 rounded-full bg-success/90 px-2 py-0.5 text-[10px] font-bold text-background">
+                    FRETE GRÁTIS
+                  </span>
                 </div>
                 <div className="space-y-2 p-4">
                   <p className="line-clamp-2 min-h-10 text-sm font-semibold">{p.t}</p>
-                  <p className="font-display text-lg font-extrabold text-primary">{p.p}</p>
+                  <div className="flex items-end gap-2">
+                    <p className="font-display text-lg font-extrabold text-primary">{p.p}</p>
+                    <p className="text-xs text-muted-foreground line-through">{p.old}</p>
+                  </div>
+                  <p className="text-[11px] font-semibold text-success">{p.profit}</p>
                   <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     {[0, 1, 2, 3].map((s) => (
                       <Star key={s} className="h-3 w-3 fill-primary text-primary" />
                     ))}
-                    <span className="ml-1">4.8</span>
+                    <span className="ml-1">4.8 · {p.sales}</span>
                   </div>
+
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" className="h-8 flex-1 text-[11px] font-bold active:scale-95">
                       <Copy className="mr-1 h-3 w-3" /> DUPLICAR

@@ -1147,7 +1147,7 @@ export function ComparisonSection() {
 export function PricingSection() {
   const { data: plans, isLoading } = usePlans();
   const { data: periods } = usePeriods();
-  const [period, setPeriod] = useState<BillingPeriod>("annual");
+  const [period, setPeriod] = useState<BillingPeriod>("monthly");
   const discount = periods?.find((p) => p.period === period) ?? periods?.[0];
 
   return (
@@ -1156,7 +1156,7 @@ export function PricingSection() {
         <SectionTitle
           eyebrow="Planos"
           title="Escolha o plano e o período"
-          subtitle="Comece com 10 anúncios grátis. Preços e descontos configuráveis pelo administrador."
+          subtitle="Comece pelo mensal, sem fidelidade. Se quiser economizar, escolha um período maior."
         />
 
         <div className="mx-auto mt-8 flex w-fit flex-wrap justify-center gap-1 rounded-xl border border-border/60 bg-surface/60 p-1">
@@ -1178,11 +1178,19 @@ export function PricingSection() {
             </button>
           ))}
         </div>
-        {period === "annual" && (
+        {period === "monthly" ? (
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Sem fidelidade — cancele quando quiser.{" "}
+            <span className="font-semibold text-primary">
+              Prefere economizar? Escolha 3, 6 ou 12 meses.
+            </span>
+          </p>
+        ) : (
           <p className="mt-3 text-center text-xs font-semibold text-primary">
-            ⭐ MELHOR CUSTO-BENEFÍCIO
+            MELHOR CUSTO-BENEFÍCIO
           </p>
         )}
+
 
         <div
           key={period}
@@ -1199,7 +1207,7 @@ export function PricingSection() {
               const monthly = periodMonthlyCents(plan, discount);
               const savings = periodSavingsCents(plan, discount);
               const fullPrice = plan.price_monthly_cents * discount.months;
-              const isBestValue = plan.highlighted || period === "annual";
+              const isBestValue = plan.highlighted;
               return (
                 <Card
                   key={plan.id}
@@ -1225,9 +1233,11 @@ export function PricingSection() {
                     {formatBRL(monthly)}
                     <span className="text-sm font-medium text-muted-foreground">/mês</span>
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatBRL(total)} por {discount.months} {discount.months > 1 ? "meses" : "mês"}
-                  </p>
+                  {discount.months > 1 && (
+                    <p className="text-xs text-muted-foreground">
+                      {formatBRL(total)} por {discount.months} meses
+                    </p>
+                  )}
                   {savings > 0 && (
                     <p className="mt-1 text-xs font-semibold text-success">
                       Economize {Math.round((savings / fullPrice) * 100)}% ({formatBRL(savings)})
