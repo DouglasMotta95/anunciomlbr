@@ -17,6 +17,7 @@ import {
   Settings,
   ShieldCheck,
   Store,
+  TrendingUp,
   Users,
 } from "lucide-react";
 import { type ReactNode } from "react";
@@ -39,6 +40,7 @@ const ADMIN_NAV = [
   { label: "Anúncios", icon: FileText, section: "anuncios" },
   { label: "Publicações", icon: BarChart3, section: "anuncios" },
   { label: "Uso de IA", icon: Bot, section: "anuncios" },
+  { label: "Analytics", icon: TrendingUp, section: "analytics" },
   { label: "Atividade", icon: Activity, section: "logs" },
   { label: "Logs", icon: ScrollText, section: "logs" },
   { label: "Suporte", icon: LifeBuoy, section: "suporte" },

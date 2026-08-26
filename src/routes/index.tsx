@@ -2,6 +2,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { SessionSplash } from "@/components/SessionSplash";
+import { VisitTracker } from "@/components/VisitTracker";
 import { useAuth } from "@/hooks/useAuth";
 import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
@@ -80,6 +81,7 @@ function LandingGate() {
 function Landing() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
+      <VisitTracker path="/" />
       <LandingNav />
       <main>
         <Hero />

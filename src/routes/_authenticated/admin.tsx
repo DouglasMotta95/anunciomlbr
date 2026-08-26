@@ -32,6 +32,7 @@ import {
 } from "recharts";
 
 import { AdminLayout } from "@/components/admin/AdminLayout";
+import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,6 +134,9 @@ function AdminPage() {
         </TabsContent>
         <TabsContent value="integracoes" className="mt-0">
           <IntegrationsTab />
+        </TabsContent>
+        <TabsContent value="analytics" className="mt-0">
+          <AnalyticsTab />
         </TabsContent>
         <TabsContent value="logs" className="mt-0">
           <LogsTab />
