@@ -471,10 +471,13 @@ export const adminGetListingsMetrics = createServerFn({ method: "GET" })
       supabaseAdmin.from("listings").select("id", { count: "exact", head: true }).eq("status", "error"),
       supabaseAdmin
         .from("bulk_jobs")
-        .select("id,kind,status,total,processed,failed,created_at,user_id,profiles(email)")
+        .select("id,kind,status,total,processed,failed,created_at,user_id")
         .order("created_at", { ascending: false })
         .limit(30),
     ]);
+
+    const { resolveRefs } = await import("@/lib/admin-refs.server");
+    const { emailMap } = await resolveRefs(supabaseAdmin, (jobs.data ?? []) as any[]);
 
     return {
       total: total.count ?? 0,
@@ -489,7 +492,7 @@ export const adminGetListingsMetrics = createServerFn({ method: "GET" })
         processed: j.processed,
         failed: j.failed,
         created_at: j.created_at,
-        email: j.profiles?.email ?? null,
+        email: j.user_id ? emailMap.get(j.user_id) ?? null : null,
       })),
     };
   });
