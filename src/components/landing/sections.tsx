@@ -39,6 +39,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { AppMockup } from "@/components/landing/AppMockup";
+import { ProductThumb, demoImages } from "@/components/landing/demo-media";
 import { Logo, SLOGAN } from "@/components/brand";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
@@ -152,7 +153,7 @@ export function Hero() {
       <div className="mx-auto grid grid-cols-1 max-w-6xl gap-10 px-4 py-16 lg:grid-cols-[1fr_1.15fr] lg:items-center lg:py-24">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
           <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
-            🎁 10 ANÚNCIOS GRÁTIS
+            10 ANÚNCIOS GRÁTIS
           </Badge>
           <h1 className="mt-5 text-pretty text-4xl font-extrabold leading-[1.05] sm:text-5xl">
             Encontre, copie, otimize e publique seus anúncios em{" "}
@@ -190,8 +191,24 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="animate-in fade-in zoom-in-95 duration-1000">
-          <AppMockup />
+        <div className="relative animate-in fade-in zoom-in-95 duration-1000">
+          <div className="float-soft">
+            <AppMockup />
+          </div>
+
+          {/* Cards flutuantes sobrepostos para dar profundidade ao mockup */}
+          <div className="glass-panel float-soft absolute -bottom-5 -left-4 hidden items-center gap-2 rounded-2xl px-3 py-2 lg:flex">
+            <ProductThumb src={demoImages.fone} alt="Fone bluetooth (exemplo)" className="h-10 w-10" />
+            <div>
+              <p className="text-[11px] font-semibold">Fone TWS Pro 5.3</p>
+              <p className="text-[10px] text-primary">score 94 · otimizado</p>
+            </div>
+          </div>
+          <div className="glass-panel absolute -right-4 -top-4 hidden items-center gap-2 rounded-2xl px-3 py-2 lg:flex">
+            <Store className="h-4 w-4 text-success" />
+            <p className="text-[11px] font-semibold">Integração oficial</p>
+          </div>
+
         </div>
       </div>
     </section>
@@ -365,10 +382,10 @@ export function HowItWorks() {
 /* ------------------------------------------------------------------------ */
 
 const searchResults = [
-  { t: "Fone Bluetooth TWS Pro 5.3", p: "R$ 129,90", c: "Eletrônicos", sales: "1.2k vendas" },
-  { t: "Suporte Articulado para Monitor", p: "R$ 89,00", c: "Informática", sales: "480 vendas" },
-  { t: "Mini Projetor Portátil Full HD", p: "R$ 549,90", c: "Áudio e Vídeo", sales: "302 vendas" },
-  { t: "Câmera de Segurança Wi-Fi 360°", p: "R$ 179,90", c: "Segurança", sales: "890 vendas" },
+  { t: "Fone Bluetooth TWS Pro 5.3", p: "R$ 129,90", c: "Eletrônicos", sales: "1.2k vendas", img: demoImages.fone },
+  { t: "Suporte Articulado para Monitor", p: "R$ 89,00", c: "Informática", sales: "480 vendas", img: demoImages.suporte },
+  { t: "Mini Projetor Portátil Full HD", p: "R$ 549,90", c: "Áudio e Vídeo", sales: "302 vendas", img: demoImages.projetor },
+  { t: "Câmera de Segurança Wi-Fi 360°", p: "R$ 179,90", c: "Segurança", sales: "890 vendas", img: demoImages.camera },
 ];
 
 export function SearchSection() {
@@ -404,7 +421,7 @@ export function SearchSection() {
                 className="flex items-center gap-3 p-3 transition-colors hover:bg-background/40 sm:p-4"
                 style={{ animationDelay: `${i * 80}ms` }}
               >
-                <span className="h-12 w-12 shrink-0 rounded-lg bg-gradient-to-br from-secondary/50 to-primary/40" />
+                <ProductThumb src={r.img} alt={r.t} className="h-12 w-12" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{r.t}</p>
                   <p className="text-xs text-muted-foreground">
@@ -433,9 +450,9 @@ export function SearchSection() {
 /* ------------------------------------------------------------------------ */
 
 const copyResults = [
-  { t: "Fone Bluetooth TWS Pro 5.3", p: "R$ 129,90", c: "Eletrônicos", id: "MLB1234567890" },
-  { t: "Suporte Articulado para Monitor", p: "R$ 89,00", c: "Informática", id: "MLB2233445566" },
-  { t: "Mini Projetor Portátil Full HD", p: "R$ 549,90", c: "Áudio e Vídeo", id: "MLB9988776655" },
+  { t: "Fone Bluetooth TWS Pro 5.3", p: "R$ 129,90", c: "Eletrônicos", id: "MLB1234567890", img: demoImages.fone },
+  { t: "Suporte Articulado para Monitor", p: "R$ 89,00", c: "Informática", id: "MLB2233445566", img: demoImages.suporte },
+  { t: "Mini Projetor Portátil Full HD", p: "R$ 549,90", c: "Áudio e Vídeo", id: "MLB9988776655", img: demoImages.projetor },
 ];
 
 export function CopySection() {
@@ -459,7 +476,7 @@ export function CopySection() {
                   className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/50 p-2.5"
                 >
                   <Checkbox checked className="pointer-events-none" />
-                  <span className="h-10 w-10 shrink-0 rounded-lg bg-gradient-to-br from-secondary/50 to-primary/40" />
+                  <ProductThumb src={r.img} alt={r.t} className="h-10 w-10" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{r.t}</p>
                     <p className="text-xs text-muted-foreground">
@@ -646,7 +663,15 @@ export function EditorSection() {
               <ImageIcon className="h-4 w-4 text-secondary" /> PRÉ-VISUALIZAÇÃO
             </div>
             <div className="overflow-hidden rounded-xl border border-border/60 bg-background/60">
-              <div className="h-40 bg-gradient-to-br from-secondary/40 to-primary/30" />
+              <img
+                src={demoImages.fone}
+                alt="Pré-visualização do anúncio de fone bluetooth (exemplo ilustrativo)"
+                loading="lazy"
+                decoding="async"
+                width={512}
+                height={512}
+                className="h-40 w-full object-cover"
+              />
               <div className="space-y-2 p-4">
                 <p className="text-sm font-semibold">
                   Fone Bluetooth TWS Pro 5.3 Cancelamento de Ruído
@@ -674,10 +699,10 @@ export function EditorSection() {
 /* ------------------------------------------------------------------------ */
 
 const manageRows = [
-  { t: "Fone Bluetooth TWS Pro", status: "Ativo", tone: "success", visits: 342, sales: 21 },
-  { t: "Suporte Articulado Monitor", status: "Otimizado", tone: "primary", visits: 128, sales: 9 },
-  { t: "Mini Projetor 4K Portátil", status: "Rascunho", tone: "muted", visits: 0, sales: 0 },
-  { t: "Câmera de Segurança 360°", status: "Pausado", tone: "warning", visits: 54, sales: 3 },
+  { t: "Fone Bluetooth TWS Pro", status: "Ativo", tone: "success", visits: 342, sales: 21, img: demoImages.fone },
+  { t: "Suporte Articulado Monitor", status: "Otimizado", tone: "primary", visits: 128, sales: 9, img: demoImages.suporte },
+  { t: "Mini Projetor 4K Portátil", status: "Rascunho", tone: "muted", visits: 0, sales: 0, img: demoImages.projetor },
+  { t: "Câmera de Segurança 360°", status: "Pausado", tone: "warning", visits: 54, sales: 3, img: demoImages.camera },
 ];
 
 export function ManageSection() {
@@ -708,7 +733,7 @@ export function ManageSection() {
             {manageRows.map((r) => (
               <div key={r.t} className="flex items-center gap-3 p-3">
                 <Checkbox checked className="pointer-events-none" />
-                <span className="h-9 w-9 shrink-0 rounded-lg bg-gradient-to-br from-secondary/50 to-primary/40" />
+                <ProductThumb src={r.img} alt={r.t} className="h-9 w-9" />
                 <p className="min-w-0 flex-1 truncate text-sm font-medium">{r.t}</p>
                 <Badge
                   variant="outline"

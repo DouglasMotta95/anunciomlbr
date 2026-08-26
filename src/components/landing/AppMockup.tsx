@@ -68,11 +68,11 @@ export function AppMockup({ className }: { className?: string }) {
         <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="font-display text-sm font-bold">Bom dia, Douglas 👋</p>
+              <p className="font-display text-sm font-bold">Bom dia, Douglas</p>
               <p className="text-[10px] text-muted-foreground">Dados demonstrativos</p>
             </div>
             <Badge className="border-success/40 bg-success/15 text-success" variant="outline">
-              🟢 Mercado Livre conectado
+              <span className="inline-block size-1.5 rounded-full bg-emerald-400" /> Mercado Livre conectado
             </Badge>
           </div>
 
@@ -80,7 +80,7 @@ export function AppMockup({ className }: { className?: string }) {
             <MiniStat label="Vendas 7d" value="128" hint="+18%" />
             <MiniStat label="Faturamento" value="R$ 24.9k" hint="+11%" />
             <MiniStat label="Anúncios" value="342" />
-            <MiniStat label="Oportunidades" value="17" hint="🔥 novas" />
+            <MiniStat label="Oportunidades" value="17" hint="novas" />
           </div>
 
           <div className="grid gap-2 sm:grid-cols-[1.6fr_1fr]">

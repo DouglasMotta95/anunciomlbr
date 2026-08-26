@@ -5,6 +5,13 @@ import { SessionSplash } from "@/components/SessionSplash";
 import { useAuth } from "@/hooks/useAuth";
 import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
+import { Reveal } from "@/components/landing/Reveal";
+import {
+  AiTitlesSection,
+  DuplicationFlowSection,
+  RadarSection,
+  StudioSection,
+} from "@/components/landing/VisualSections";
 import {
   AiSection,
   BenefitsSection,
@@ -71,23 +78,28 @@ function Landing() {
       <main>
         <Hero />
         <TrustBar />
-        <DemoSection />
-        <HowItWorks />
-        <SearchSection />
-        <CopySection />
-        <AiSection />
-        <EditorSection />
-        <ManageSection />
-        <DashboardSection />
-        <ReportsSection />
-        <SalesSection />
-        <InventorySection />
-        <BenefitsSection />
-        <FeaturesGridSection />
-        <ComparisonSection />
-        <PricingSection />
-        <FaqSection />
-        <FinalCta />
+        <RadarSection />
+        <Reveal><DemoSection /></Reveal>
+        <Reveal><HowItWorks /></Reveal>
+        <Reveal><SearchSection /></Reveal>
+        <DuplicationFlowSection />
+        <Reveal><CopySection /></Reveal>
+        <AiTitlesSection />
+        <Reveal><AiSection /></Reveal>
+        <StudioSection />
+        <Reveal><EditorSection /></Reveal>
+        <Reveal><ManageSection /></Reveal>
+        <Reveal><DashboardSection /></Reveal>
+        <Reveal><ReportsSection /></Reveal>
+        <Reveal><SalesSection /></Reveal>
+        <Reveal><InventorySection /></Reveal>
+        <Reveal><BenefitsSection /></Reveal>
+        <Reveal><FeaturesGridSection /></Reveal>
+        <Reveal><ComparisonSection /></Reveal>
+        <Reveal><PricingSection /></Reveal>
+        <Reveal><FaqSection /></Reveal>
+        <Reveal><FinalCta /></Reveal>
+
       </main>
       <LandingFooter />
     </div>

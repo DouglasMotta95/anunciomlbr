@@ -162,3 +162,15 @@
   backdrop-filter: blur(14px);
   box-shadow: var(--shadow-panel);
 }
+
+@keyframes float-soft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@utility float-soft {
+  animation: float-soft 6s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
