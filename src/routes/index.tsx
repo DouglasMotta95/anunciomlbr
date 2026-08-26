@@ -91,6 +91,7 @@ function Landing() {
         <AiTitlesSection />
         <StudioSection />
         <Reveal><PricingSection /></Reveal>
+        <Reveal><PlanPeriodComparisonSection /></Reveal>
         <Reveal><DemoSection /></Reveal>
         <Reveal><SearchSection /></Reveal>
         <Reveal><CopySection /></Reveal>
@@ -104,11 +105,13 @@ function Landing() {
         <Reveal><BenefitsSection /></Reveal>
         <Reveal><FeaturesGridSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
+        <Reveal><PurchaseFlowSection /></Reveal>
         <Reveal><FaqSection /></Reveal>
         <Reveal><FinalCta /></Reveal>
       </main>
 
       <LandingFooter />
+      <MobileStickyCta />
     </div>
   );
 }
