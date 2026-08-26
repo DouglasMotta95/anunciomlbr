@@ -416,9 +416,11 @@ export const adminListSubscriptions = createServerFn({ method: "POST" })
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    const { resolveRefs } = await import("@/lib/admin-refs.server");
+
     let query = supabaseAdmin
       .from("licenses")
-      .select("id,code,status,period,created_at,expires_at,user_id,profiles(email),plans(name)", {
+      .select("id,code,status,period,created_at,expires_at,user_id,plan_id", {
         count: "exact",
       })
       .not("user_id", "is", null)
@@ -432,7 +434,9 @@ export const adminListSubscriptions = createServerFn({ method: "POST" })
       data.page * data.pageSize,
       data.page * data.pageSize + data.pageSize - 1,
     );
-    if (error) throw new Error("Falha ao listar assinaturas.");
+    if (error) throw new Error(`Falha ao listar assinaturas: ${error.message}`);
+
+    const { emailMap, planMap } = await resolveRefs(supabaseAdmin, rows ?? []);
 
     const now = Date.now();
     const subscriptions = (rows ?? []).map((row: any) => ({
@@ -442,8 +446,8 @@ export const adminListSubscriptions = createServerFn({ method: "POST" })
       period: row.period,
       created_at: row.created_at,
       expires_at: row.expires_at,
-      email: row.profiles?.email ?? null,
-      plan: row.plans?.name ?? null,
+      email: row.user_id ? emailMap.get(row.user_id) ?? null : null,
+      plan: row.plan_id ? planMap.get(row.plan_id) ?? null : null,
       daysRemaining: row.expires_at ? Math.ceil((new Date(row.expires_at).getTime() - now) / 86_400_000) : null,
     }));
 
