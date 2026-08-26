@@ -58,12 +58,6 @@ type ListSubscriptionsInput = {
   status: "all" | "available" | "active" | "expired" | "suspended" | "cancelled";
 };
 
-type ListLicensesInput = ListSubscriptionsInput;
-
-type ClientDetailsInput = {
-  id: string;
-};
-
 type ListActivityInput = {
   kind?: string | undefined;
 };
