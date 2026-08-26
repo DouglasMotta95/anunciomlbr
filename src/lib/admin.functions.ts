@@ -62,7 +62,7 @@ export const adminLicenseAction = createServerFn({ method: "POST" })
     z
       .object({
         id: z.string().uuid(),
-        action: z.enum(["activate", "suspend", "cancel", "renew"]),
+        action: z.enum(["activate", "suspend", "cancel", "renew", "reset"]),
         months: z.number().int().min(1).max(24).optional(),
       })
       .parse(data),
