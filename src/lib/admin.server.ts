@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { resolveRefs } from "@/lib/admin-refs.server";
+import { assertCapability, logAudit } from "@/lib/permissions.server";
 
 const PERIOD_MONTHS: Record<string, number> = {
   monthly: 1,
