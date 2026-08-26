@@ -29,7 +29,7 @@ const radarProducts = [
     p: "R$ 129,90",
     old: "R$ 189,90",
     rel: 96,
-    sales: "1.２mil vendidos",
+    sales: "1,2 mil vendidos",
     profit: "lucro estimado R$ 42/un",
     tag: "MAIS VENDIDO",
     img: demoImages.fone,
