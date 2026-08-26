@@ -22,10 +22,12 @@ const title = "Integrações — ANÚNCIO ML";
 const description = "Conecte sua conta do Mercado Livre ao ANÚNCIO ML.";
 
 export const Route = createFileRoute("/_authenticated/integracoes")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    ml: typeof search["ml"] === "string" ? (search["ml"] as string) : undefined,
-    sync: typeof search["sync"] === "string" ? (search["sync"] as string) : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>) => {
+    const out: { ml?: string; sync?: string } = {};
+    if (typeof search["ml"] === "string") out.ml = search["ml"];
+    if (typeof search["sync"] === "string") out.sync = search["sync"];
+    return out;
+  },
   head: () => ({
     meta: [
       { title },

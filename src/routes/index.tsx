@@ -1,4 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+
+import { SessionSplash } from "@/components/SessionSplash";
+import { useAuth } from "@/hooks/useAuth";
+import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
 import {
   AiSection,
