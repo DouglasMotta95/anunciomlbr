@@ -11,6 +11,7 @@ import {
   Loader2,
   Percent,
   RefreshCcw,
+  RotateCcw,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
@@ -33,6 +34,7 @@ import {
 
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
+import { SessionsTab } from "@/components/admin/SessionsTab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +112,9 @@ function AdminPage() {
       <Tabs value={activeSection} onValueChange={setActiveSection}>
         <TabsContent value="dashboard" className="mt-0">
           <DashboardTab />
+        </TabsContent>
+        <TabsContent value="sessoes" className="mt-0">
+          <SessionsTab />
         </TabsContent>
         <TabsContent value="clientes" className="mt-0">
           <ClientsTab />
@@ -495,8 +500,10 @@ function LicensesTab() {
   });
 
   const action = useMutation({
-    mutationFn: (vars: { id: string; action: "activate" | "suspend" | "cancel" | "renew" }) =>
-      licenseAction({ data: vars }),
+    mutationFn: (vars: {
+      id: string;
+      action: "activate" | "suspend" | "cancel" | "renew" | "reset";
+    }) => licenseAction({ data: vars }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-licenses"] });
       toast.success("Licença atualizada");
@@ -652,6 +659,10 @@ function LicensesTab() {
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Renovar"
                         onClick={() => action.mutate({ id: license.id, action: "renew" })}>
                         <RefreshCcw className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Resetar consumo de anúncios"
+                        onClick={() => action.mutate({ id: license.id, action: "reset" })}>
+                        <RotateCcw className="h-3.5 w-3.5" />
                       </Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Cancelar"
                         onClick={() => action.mutate({ id: license.id, action: "cancel" })}>
