@@ -249,7 +249,28 @@ export async function getVisitAnalytics(context: AdminContext) {
 
   const alerts = buildVisitAlerts({ timeline, today, bots30, visits30: rows.length });
 
+  return {
+    today,
+    last7,
+    last30: rows.length,
+    total: totals.count ?? rows.length,
+    uniqueToday: uniqToday.size,
+    unique7: uniq7.size,
+    unique30: uniq30.size,
+    uniqueTotal: allVisitors.size,
+    botsTotal,
+    bots30,
+    botReasons: [...botReasons.entries()]
+      .map(([reason, hits]) => ({ reason, hits }))
+      .sort((a, b) => b.hits - a.hits)
+      .slice(0, 8),
+    alerts,
+    timeline,
     sources: [...sources.entries()]
+      .map(([source, visits]) => ({ source, visits }))
+      .sort((a, b) => b.visits - a.visits)
+      .slice(0, 10),
+
       .map(([source, visits]) => ({ source, visits }))
       .sort((a, b) => b.visits - a.visits)
       .slice(0, 10),
