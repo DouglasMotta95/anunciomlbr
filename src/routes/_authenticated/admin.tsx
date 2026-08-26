@@ -11,6 +11,7 @@ import {
   Loader2,
   Percent,
   RefreshCcw,
+  RotateCcw,
   ScrollText,
   ShieldAlert,
   ShieldCheck,
@@ -33,6 +34,7 @@ import {
 
 import { AdminLayout } from "@/components/admin/AdminLayout";
 import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
+import { SessionsTab } from "@/components/admin/SessionsTab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +112,9 @@ function AdminPage() {
       <Tabs value={activeSection} onValueChange={setActiveSection}>
         <TabsContent value="dashboard" className="mt-0">
           <DashboardTab />
+        </TabsContent>
+        <TabsContent value="sessoes" className="mt-0">
+          <SessionsTab />
         </TabsContent>
         <TabsContent value="clientes" className="mt-0">
           <ClientsTab />

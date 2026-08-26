@@ -17,6 +17,7 @@ import {
   Ticket,
   UserMinus,
   Users,
+  Radar,
 } from "lucide-react";
 import { type ReactNode } from "react";
 
@@ -46,6 +47,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { label: "Visão geral", icon: LayoutDashboard, section: "dashboard" },
       { label: "Analytics", icon: BarChart3, section: "analytics" },
       { label: "Anúncios e IA", icon: FileText, section: "anuncios" },
+      { label: "Sessões e alertas", icon: Radar, section: "sessoes" },
     ],
   },
   {
