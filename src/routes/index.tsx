@@ -10,7 +10,6 @@ import { Reveal } from "@/components/landing/Reveal";
 import {
   MobileStickyCta,
   PlanPeriodComparisonSection,
-  PurchaseFlowSection,
 } from "@/components/landing/ConversionSections";
 import {
   AiTitlesSection,
@@ -19,26 +18,16 @@ import {
   StudioSection,
 } from "@/components/landing/VisualSections";
 import {
-  AiSection,
-  BenefitsSection,
   ComparisonSection,
-  CopySection,
-  DashboardSection,
   DemoSection,
-  EditorSection,
   FaqSection,
   FeaturesGridSection,
   FinalCta,
   Hero,
   HowItWorks,
-  InventorySection,
   LandingFooter,
   LandingNav,
-  ManageSection,
   PricingSection,
-  ReportsSection,
-  SalesSection,
-  SearchSection,
   TestimonialsSection,
   TrustBar,
 } from "@/components/landing/sections";
