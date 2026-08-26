@@ -50,6 +50,11 @@ function AuthPage() {
   const [terms, setTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Marca a montagem no cliente — SSR e o 1º render do cliente precisam
+  // gerar o mesmo HTML (evita erro de hidratação).
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     // Já autenticado -> direto para o dashboard (não exige novo login).
@@ -58,7 +63,7 @@ function AuthPage() {
 
   // Enquanto a sessão é restaurada/validada, mostra splash em vez do
   // formulário (evita o flash de "visitante" no retorno do Google / F5).
-  if (user || (sessionLoading && hasStoredSession() && !hasAuthErrorInUrl())) {
+  if (mounted && (user || (sessionLoading && hasStoredSession() && !hasAuthErrorInUrl()))) {
     return <SessionSplash />;
   }
 
