@@ -11,3 +11,43 @@ export const getReferralSummary=createServerFn({method:"GET"}).middleware([requi
 export const listCompetitorWatch=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{const {data,error}=await (context.supabase as any).from("competitor_watch").select("*").order("created_at",{ascending:false});if(error)throw new Error("Não foi possível carregar o radar.");return data??[];});
 export const addCompetitorWatch=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).inputValidator((d:unknown)=>z.object({ml_item_id:z.string().trim().regex(/^MLB\d+$/i),title:z.string().max(200).nullish(),permalink:z.string().url().nullish()}).parse(d)).handler(async({data,context})=>{const db=context.supabase as any,id=data.ml_item_id.toUpperCase();const {data:row,error}=await db.from("competitor_watch").upsert({user_id:context.userId,ml_item_id:id,title:data.title??null,permalink:data.permalink??null},{onConflict:"user_id,ml_item_id"}).select("*").single();if(error)throw new Error("Não foi possível adicionar ao radar.");return row;});
 export const removeCompetitorWatch=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).inputValidator((d:unknown)=>z.object({id:z.string().uuid()}).parse(d)).handler(async({data,context})=>{const {error}=await (context.supabase as any).from("competitor_watch").delete().eq("id",data.id).eq("user_id",context.userId);if(error)throw new Error("Não foi possível remover do radar.");return {ok:true as const};});
+
+/** Área exclusiva do revendedor autenticado. */
+export const getResellerDashboard=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{
+  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
+  const db=supabaseAdmin as any;
+  const {data:reseller,error}=await db.from("resellers").select("*").eq("user_id",context.userId).maybeSingle();
+  if(error)throw new Error("Não foi possível carregar o cadastro de revendedor.");
+  if(!reseller)return {enabled:false as const,sales:[]};
+  const {data:sales}=await db.from("reseller_sales").select("*,plans(name)").eq("reseller_id",reseller.id).order("created_at",{ascending:false}).limit(100);
+  return {enabled:reseller.status==="active",reseller,sales:sales??[]};
+});
+
+/** Lista administrativa de revendedores. */
+export const adminListResellers=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{
+  const {assertCapability}=await import("@/lib/permissions.server");
+  await assertCapability(context,"admin.access");
+  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
+  const {data,error}=await (supabaseAdmin as any).from("resellers").select("*").order("created_at",{ascending:false});
+  if(error)throw new Error("Não foi possível carregar os revendedores.");
+  return data??[];
+});
+
+/** Cria um revendedor e vincula automaticamente quando o e-mail já pertence a uma conta. */
+export const adminCreateReseller=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).inputValidator((d:unknown)=>z.object({name:z.string().trim().min(2).max(120),email:z.string().trim().email(),discount_percent:z.number().min(0).max(80),wallet_cents:z.number().int().min(0).max(100000000)}).parse(d)).handler(async({data,context})=>{
+  const {assertCapability,logAudit}=await import("@/lib/permissions.server");
+  await assertCapability(context,"admin.access");
+  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
+  const db=supabaseAdmin as any;
+  const email=data.email.toLowerCase();
+  let userId:string|null=null;
+  const {data:profile}=await db.from("profiles").select("user_id,email").ilike("email",email).limit(1).maybeSingle();
+  if(profile?.user_id)userId=String(profile.user_id);
+  const {data:existing}=await db.from("resellers").select("id").ilike("email",email).limit(1).maybeSingle();
+  if(existing)throw new Error("Já existe um revendedor cadastrado com este e-mail.");
+  const {data:row,error}=await db.from("resellers").insert({name:data.name,email,user_id:userId,discount_percent:data.discount_percent,wallet_cents:data.wallet_cents,status:"active"}).select("*").single();
+  if(error)throw new Error("Não foi possível criar o revendedor.");
+  if(data.wallet_cents>0)await db.from("reseller_wallet_transactions").insert({reseller_id:row.id,amount_cents:data.wallet_cents,kind:"credit",reference:"saldo inicial"});
+  await logAudit({actorId:context.userId,action:"reseller.create",entity:"reseller",entityId:row.id,details:{email,discount_percent:data.discount_percent,wallet_cents:data.wallet_cents,linked_user:!!userId}});
+  return row;
+});
