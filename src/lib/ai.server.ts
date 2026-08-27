@@ -1,7 +1,7 @@
 /** Helpers server-only da IA. Suporta Lovable AI Gateway e Gemini API direta. */
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const GATEWAY_MODEL = process.env["LOVABLE_AI_MODEL"] || "google/gemini-3.5-flash";
+const GATEWAY_MODEL = process.env["LOVABLE_AI_MODEL"] || "google/gemini-2.5-flash";
 const GEMINI_MODEL = process.env["GEMINI_MODEL"] || "gemini-2.5-flash";
 const AI_TIMEOUT_MS = 30_000;
 
@@ -11,9 +11,13 @@ export type AiProvider = "lovable" | "gemini" | "none";
 const SYSTEM =
   "Você é especialista em SEO e vendas no Mercado Livre (Brasil). Responda SEMPRE em JSON válido, em português do Brasil. Use apenas as informações fornecidas: nunca invente características, medidas, marcas ou métricas do produto.";
 
+function geminiApiKey() {
+  return process.env["GEMINI_API_KEY"] || process.env["GOOGLE_API_KEY"] || null;
+}
+
 export function aiProviderStatus(): { configured: boolean; provider: AiProvider; model: string | null } {
   if (process.env["LOVABLE_API_KEY"]) return { configured: true, provider: "lovable", model: GATEWAY_MODEL };
-  if (process.env["GEMINI_API_KEY"]) return { configured: true, provider: "gemini", model: GEMINI_MODEL };
+  if (geminiApiKey()) return { configured: true, provider: "gemini", model: GEMINI_MODEL };
   return { configured: false, provider: "none", model: null };
 }
 
@@ -49,7 +53,7 @@ async function requestLovable<T>(prompt: string, apiKey: string): Promise<{ ok: 
     return { ok: false, reason: `A IA não respondeu corretamente (erro ${response.status}).` };
   }
   const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-  const content = payload.choices?.[0]?.message?.content;
+  const content = payload.choices?.[0]?.message?.content?.trim();
   if (!content) return { ok: false, reason: "Resposta vazia da IA." };
   try { return { ok: true, result: JSON.parse(content) as T }; }
   catch { return { ok: false, reason: "Não foi possível interpretar a resposta da IA." }; }
@@ -89,13 +93,20 @@ async function requestGemini<T>(prompt: string, apiKey: string): Promise<{ ok: t
   catch { return { ok: false, reason: "Não foi possível interpretar a resposta da IA." }; }
 }
 
-/** Chamada única com fallback de provedor. */
+/** Chamada única com fallback automático de provedor. */
 export async function aiJson<T>(prompt: string): Promise<{ ok: true; result: T } | AiFail> {
   const lovableKey = process.env["LOVABLE_API_KEY"];
-  if (lovableKey) return requestLovable<T>(prompt, lovableKey);
-  const geminiKey = process.env["GEMINI_API_KEY"];
-  if (geminiKey) return requestGemini<T>(prompt, geminiKey);
-  return { ok: false, reason: "IA não configurada no servidor. Cadastre LOVABLE_API_KEY ou GEMINI_API_KEY no ambiente de produção." };
+  const googleKey = geminiApiKey();
+
+  if (lovableKey) {
+    const primary = await requestLovable<T>(prompt, lovableKey);
+    if (primary.ok || !googleKey) return primary;
+    console.warn("Lovable AI indisponível; tentando Gemini direto.");
+  }
+
+  if (googleKey) return requestGemini<T>(prompt, googleKey);
+
+  return { ok: false, reason: "IA não configurada no servidor. Configure a chave de IA no ambiente de produção." };
 }
 
 export type TitleSuggestion = { title: string; score: number; keywords: string[] };
