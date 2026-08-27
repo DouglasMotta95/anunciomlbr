@@ -11,6 +11,13 @@ function httpsUrl(value: unknown): string | null {
   return value;
 }
 
+function maskClientId(value: string | undefined): string | null {
+  const clientId = value?.trim();
+  if (!clientId) return null;
+  if (clientId.length <= 6) return `${clientId.slice(0, 2)}••••`;
+  return `${clientId.slice(0, 4)}••••${clientId.slice(-4)}`;
+}
+
 export type MlItem = {
   id: string;
   title: string;
@@ -142,7 +149,7 @@ export const getMlAuthorizationUrl = createServerFn({ method: "POST" })
     return { configured: true as const, url: url.toString(), reason: null };
   });
 
-/** Estado da conexão do usuário com o Mercado Livre. */
+/** Estado da conexão do usuário com o Mercado Livre + diagnóstico OAuth não sensível. */
 export const getMlConnection = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -151,8 +158,19 @@ export const getMlConnection = createServerFn({ method: "GET" })
       .select("*")
       .eq("user_id", context.userId)
       .maybeSingle();
-    const configured = !!process.env["ML_CLIENT_ID"] && !!process.env["ML_CLIENT_SECRET"];
-    return { configured, connection: data ?? null };
+    const clientId = process.env["ML_CLIENT_ID"]?.trim();
+    const hasClientSecret = !!process.env["ML_CLIENT_SECRET"]?.trim();
+    const configured = !!clientId && hasClientSecret;
+    return {
+      configured,
+      connection: data ?? null,
+      diagnostics: {
+        callback: PUBLIC_CALLBACK,
+        clientIdMasked: maskClientId(clientId),
+        hasClientId: !!clientId,
+        hasClientSecret,
+      },
+    };
   });
 
 /** Dispara a sincronização dos anúncios da conta ML conectada. */
