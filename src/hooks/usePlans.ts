@@ -11,6 +11,7 @@ export function usePlans() {
         .from("plans")
         .select("*")
         .eq("active", true)
+        .neq("kind", "ad_package")
         .order("sort_order");
       if (error) throw error;
       return (data ?? []).map((p) => ({
