@@ -3,18 +3,19 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /**
- * Verificação de papel administrativo NO SERVIDOR.
+ * Verificação de acesso administrativo NO SERVIDOR.
  *
  * A autorização nunca depende de estado do frontend: o bearer token é
- * validado pelo middleware e a role é lida no banco via has_role().
+ * validado pelo middleware e a permissão é resolvida pelo RBAC central.
  */
 export const checkIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (error) return { isAdmin: false };
-    return { isAdmin: data === true };
+    try {
+      const { assertCapability } = await import("@/lib/permissions.server");
+      const role = await assertCapability(context, "admin.access");
+      return { isAdmin: true as const, role };
+    } catch {
+      return { isAdmin: false as const, role: "user" as const };
+    }
   });
