@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Activity, Calculator, Eye, Gift, Radar, Sparkles, Target, Trash2, TrendingUp } from "lucide-react";
+import { Activity, Bot, Calculator, Eye, Gift, Radar, Sparkles, Target, Trash2, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { formatBRL, formatNumber } from "@/lib/format";
+import { askSellerCopilot } from "@/lib/seller-copilot.functions";
 import {
   addCompetitorWatch,
   calculateSmartPrice,
@@ -34,6 +35,7 @@ function GrowthPage() {
   const addRadarFn = useServerFn(addCompetitorWatch);
   const removeRadarFn = useServerFn(removeCompetitorWatch);
   const calcFn = useServerFn(calculateSmartPrice);
+  const copilotFn = useServerFn(askSellerCopilot);
   const qc = useQueryClient();
 
   const { data: overview, isLoading } = useQuery({ queryKey: ["seller-growth"], queryFn: () => overviewFn() });
@@ -44,14 +46,17 @@ function GrowthPage() {
   const [cost, setCost] = useState("100");
   const [fees, setFees] = useState("16");
   const [margin, setMargin] = useState("20");
+  const [question, setQuestion] = useState("O que eu devo fazer hoje para melhorar minhas vendas?");
   const [priceResult, setPriceResult] = useState<null | { suggested_price_cents: number; estimated_fees_cents: number; estimated_profit_cents: number; estimated_margin_percent: number }>(null);
+  const [copilotResult, setCopilotResult] = useState<null | { headline: string; summary: string; priorities: Array<{ title: string; reason: string; action: string; impact: "alto" | "medio" | "baixo" }>; warning: string | null }>(null);
 
   const addRadar = useMutation({ mutationFn: () => addRadarFn({ data: { ml_item_id: mlb.trim().toUpperCase() } }), onSuccess: () => { setMlb(""); qc.invalidateQueries({ queryKey: ["competitor-watch"] }); toast.success("Anúncio adicionado ao radar"); }, onError: () => toast.error("Use um ID válido, como MLB123456789") });
   const removeRadar = useMutation({ mutationFn: (id: string) => removeRadarFn({ data: { id } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["competitor-watch"] }) });
   const calculate = useMutation({ mutationFn: () => calcFn({ data: { cost_cents: Math.round(Number(cost.replace(",", ".")) * 100), fees_percent: Number(fees.replace(",", ".")), fixed_fees_cents: 0, target_margin_percent: Number(margin.replace(",", ".")) } }), onSuccess: setPriceResult, onError: () => toast.error("Confira os valores da precificação") });
+  const copilot = useMutation({ mutationFn: () => copilotFn({ data: { question } }), onSuccess: (result) => { if (!result.ok) { toast.error(result.reason); return; } setCopilotResult(result.result); }, onError: () => toast.error("Não foi possível consultar o copiloto agora") });
 
   return (
-    <AppShell title="Central de crescimento" description="Prioridades, margem, concorrência e indicações para vender melhor no Mercado Livre.">
+    <AppShell title="Central de crescimento" description="Prioridades, margem, concorrência, indicações e IA para vender melhor no Mercado Livre.">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Metric label="Saúde da operação" value={isLoading ? "…" : `${overview?.score ?? 0}/100`} icon={Activity} />
         <Metric label="Vendas 30 dias" value={formatNumber(overview?.sales.orders ?? 0)} icon={TrendingUp} />
@@ -82,6 +87,14 @@ function GrowthPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-4 border-primary/20 bg-primary/[0.02]">
+        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Bot className="h-4 w-4 text-primary" /> Copiloto do vendedor</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row"><Input value={question} onChange={(e)=>setQuestion(e.target.value)} placeholder="Ex.: Onde estou perdendo margem?" /><Button onClick={()=>copilot.mutate()} disabled={copilot.isPending || question.trim().length < 3}><Sparkles className="mr-2 h-4 w-4" />Analisar meu negócio</Button></div>
+          {copilotResult && <div className="space-y-3 rounded-2xl border bg-background p-4"><div><p className="font-display text-lg font-bold">{copilotResult.headline}</p><p className="mt-1 text-sm text-muted-foreground">{copilotResult.summary}</p></div><div className="grid gap-2 md:grid-cols-2">{copilotResult.priorities.map((p, i)=><div key={`${p.title}-${i}`} className="rounded-xl border p-3"><div className="flex items-center justify-between gap-2"><p className="font-semibold">{p.title}</p><Badge variant={p.impact === "alto" ? "destructive" : p.impact === "medio" ? "secondary" : "outline"}>{p.impact}</Badge></div><p className="mt-1 text-xs text-muted-foreground">{p.reason}</p><p className="mt-2 text-sm font-medium">{p.action}</p></div>)}</div>{copilotResult.warning && <p className="text-xs text-muted-foreground">{copilotResult.warning}</p>}</div>}
+        </CardContent>
+      </Card>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
