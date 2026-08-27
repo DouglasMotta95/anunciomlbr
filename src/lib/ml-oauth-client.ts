@@ -1,28 +1,9 @@
 export function openMercadoLivreOAuthStart() {
   if (typeof window === "undefined") return;
 
-  let isFramed = true;
-  try {
-    isFramed = window.self !== window.top;
-  } catch {
-    isFramed = true;
-  }
-
-  if (!isFramed) {
-    window.location.assign("/ml-start");
-    return;
-  }
-
-  const popup = window.open(
-    "/ml-start",
-    "anuncio_ml_mercado_livre_oauth",
-    "popup,width=980,height=760,noopener,noreferrer",
-  );
-
-  if (popup) {
-    popup.focus();
-    return;
-  }
-
+  // Fluxo único e previsível: sai do ANÚNCIO ML, autoriza no Mercado Livre
+  // e retorna pelo callback oficial para /integracoes já com a conta conectada.
+  // Evitamos popup/iframe porque isso pode deixar o estado visual do app
+  // desatualizado ou bloquear o retorno em navegadores móveis/preview.
   window.location.assign("/ml-start");
 }
