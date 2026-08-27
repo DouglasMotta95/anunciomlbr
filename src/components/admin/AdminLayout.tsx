@@ -19,7 +19,7 @@ import {
   Users,
   Radar,
 } from "lucide-react";
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 
 import { Logo } from "@/components/brand";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsAdmin } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 /**
@@ -92,7 +93,14 @@ export function AdminLayout({
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { data: hasAdminAccess, isLoading: checkingAdminAccess } = useIsAdmin();
   const current = ALL_ITEMS.find((item) => item.section === activeSection);
+
+  useEffect(() => {
+    if (!checkingAdminAccess && hasAdminAccess !== true) {
+      navigate({ to: "/dashboard", replace: true });
+    }
+  }, [checkingAdminAccess, hasAdminAccess, navigate]);
 
   const signOut = async () => {
     await queryClient.cancelQueries();
@@ -100,6 +108,10 @@ export function AdminLayout({
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   };
+
+  // Defesa em profundidade: mesmo que o guard da rota falhe ou atrase,
+  // nenhum elemento administrativo é renderizado sem autorização confirmada.
+  if (checkingAdminAccess || hasAdminAccess !== true) return null;
 
   return (
     <div className="min-h-screen bg-background">
