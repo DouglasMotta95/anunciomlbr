@@ -147,12 +147,29 @@ async function processBulkJob(
   });
 }
 
+function normalizeHttps(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  return value.startsWith("http://") ? `https://${value.slice(7)}` : value;
+}
+
+function sourceImages(source: Record<string, unknown>): string[] {
+  const provided = Array.isArray(source["images"])
+    ? (source["images"] as unknown[])
+        .map(normalizeHttps)
+        .filter((value): value is string => !!value)
+    : [];
+  if (provided.length > 0) return Array.from(new Set(provided));
+  const thumbnail = normalizeHttps(source["thumbnail"]);
+  return thumbnail ? [thumbnail] : [];
+}
+
 async function runBulkItem(kind: BulkJobKind, userId: string, item: BulkJobItem) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   if (kind === "copy") {
     const source = (item.source ?? {}) as Record<string, unknown>;
     const priceCents = typeof source["price_cents"] === "number" ? (source["price_cents"] as number) : null;
+    const attributes = Array.isArray(source["attributes"]) ? source["attributes"] : [];
     const { error } = await supabaseAdmin.from("listings").insert({
       user_id: userId,
       title: String(source["title"] ?? item.label),
@@ -162,7 +179,8 @@ async function runBulkItem(kind: BulkJobKind, userId: string, item: BulkJobItem)
       status: "draft",
       source_ml_id: item.id,
       source_permalink: (source["permalink"] as string) ?? null,
-      images: (source["thumbnail"] ? [String(source["thumbnail"])] : []) as unknown as never,
+      images: sourceImages(source) as unknown as never,
+      attributes: attributes as unknown as never,
       stock: typeof source["available_quantity"] === "number" ? (source["available_quantity"] as number) : 1,
     });
     if (error) throw new Error(error.message);
@@ -214,14 +232,7 @@ async function runBulkItem(kind: BulkJobKind, userId: string, item: BulkJobItem)
           },
           {
             role: "user",
-            content: `Analise e otimize este anúncio.
-Título: ${listing.title}
-Descrição: ${listing.description ?? "(vazia)"}
-Categoria: ${listing.category ?? "(não informada)"}
-Preço (centavos): ${listing.price_cents ?? "(não informado)"}
-
-Retorne JSON com as chaves exatas:
-{"score_before":number(0-100),"score_after":number(0-100),"title":string(max 60 chars),"description":string,"keywords":string[],"attributes":string[],"improvements":string[]}`,
+            content: `Analise e otimize este anúncio.\nTítulo: ${listing.title}\nDescrição: ${listing.description ?? "(vazia)"}\nCategoria: ${listing.category ?? "(não informada)"}\nPreço (centavos): ${listing.price_cents ?? "(não informado)"}\n\nRetorne JSON com as chaves exatas:\n{"score_before":number(0-100),"score_after":number(0-100),"title":string(max 60 chars),"description":string,"keywords":string[],"attributes":string[],"improvements":string[]}`,
           },
         ],
         response_format: { type: "json_object" },
