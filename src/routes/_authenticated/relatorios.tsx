@@ -40,6 +40,7 @@ import { useListings } from "@/hooks/useLicense";
 import { formatBRL, formatDate, formatNumber } from "@/lib/format";
 import { getOrdersSummary } from "@/lib/orders.functions";
 import { resolvePeriodRange, type PeriodKey } from "@/lib/period";
+import { listingStatusLabel, orderStatusLabel } from "@/lib/status-labels";
 
 const title = "Relatórios — ANÚNCIO ML";
 const description = "Relatórios de vendas, anúncios, estoque e performance com exportação em CSV.";
@@ -56,13 +57,6 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
   }),
   component: RelatoriosPage,
 });
-
-const STATUS_LABEL: Record<string, string> = {
-  draft: "Rascunho",
-  active: "Ativo",
-  paused: "Pausado",
-  archived: "Arquivado",
-};
 
 const chartConfig = {
   faturamento_cents: { label: "Faturamento", color: "hsl(var(--primary))" },
@@ -111,12 +105,17 @@ function RelatoriosPage() {
   const { data: listings = [], isLoading: listingsLoading } = useListings();
 
   const notConnected = ordersData && !ordersData.ok && !ordersData.configured;
+  const ordersError = ordersData && !ordersData.ok && ordersData.configured ? ordersData.reason : null;
   const summary = ordersData && ordersData.ok ? ordersData.summary : null;
 
   const statusCounts = useMemo(() => {
     const map = new Map<string, number>();
     for (const l of listings) map.set(l.status, (map.get(l.status) ?? 0) + 1);
-    return Array.from(map.entries()).map(([status, count]) => ({ status, count }));
+    return Array.from(map.entries()).map(([status, count]) => ({
+      status,
+      label: listingStatusLabel(status),
+      count,
+    }));
   }, [listings]);
 
   const stockTotals = useMemo(() => {
@@ -151,7 +150,7 @@ function RelatoriosPage() {
         summary.recentOrders.map((o) => ({
           pedido: o.id,
           data: o.date_created,
-          status: o.status,
+          status: orderStatusLabel(o.status),
           comprador: o.buyer_nickname ?? "",
           itens: o.items_summary,
           total: (o.total_amount_cents / 100).toFixed(2),
@@ -160,7 +159,7 @@ function RelatoriosPage() {
     } else if (tab === "anuncios") {
       downloadCsv(
         "relatorio-anuncios-status.csv",
-        statusCounts.map((s) => ({ status: STATUS_LABEL[s.status] ?? s.status, quantidade: s.count })),
+        statusCounts.map((s) => ({ status: s.label, quantidade: s.count })),
       );
     } else if (tab === "estoque") {
       downloadCsv(
@@ -216,6 +215,17 @@ function RelatoriosPage() {
                   </Button>
                 }
               />
+            ) : ordersError ? (
+              <EmptyState
+                icon={FileWarning}
+                title="Não foi possível carregar as vendas"
+                text={ordersError}
+                action={
+                  <Button asChild size="sm" variant="outline">
+                    <Link to="/integracoes">Ver integração</Link>
+                  </Button>
+                }
+              />
             ) : !summary || summary.recentOrders.length === 0 ? (
               <EmptyState icon={FileWarning} title="Sem dados no período" text="Nenhuma venda encontrada para o período selecionado." />
             ) : (
@@ -256,7 +266,7 @@ function RelatoriosPage() {
                             <TableCell className="font-mono text-xs">{o.id}</TableCell>
                             <TableCell className="text-xs">{formatDate(o.date_created)}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{o.status}</Badge>
+                              <Badge variant="outline">{orderStatusLabel(o.status)}</Badge>
                             </TableCell>
                             <TableCell className="text-right font-semibold">{formatBRL(o.total_amount_cents)}</TableCell>
                           </TableRow>
@@ -281,7 +291,7 @@ function RelatoriosPage() {
                   <ChartContainer config={chartConfig} className="mx-auto h-[260px] w-full max-w-[320px]">
                     <PieChart>
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Pie data={statusCounts} dataKey="count" nameKey="status" innerRadius={50}>
+                      <Pie data={statusCounts} dataKey="count" nameKey="label" innerRadius={50}>
                         {statusCounts.map((_, i) => (
                           <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                         ))}
@@ -298,7 +308,7 @@ function RelatoriosPage() {
                     <TableBody>
                       {statusCounts.map((s) => (
                         <TableRow key={s.status}>
-                          <TableCell>{STATUS_LABEL[s.status] ?? s.status}</TableCell>
+                          <TableCell>{s.label}</TableCell>
                           <TableCell className="text-right">{formatNumber(s.count)}</TableCell>
                         </TableRow>
                       ))}
