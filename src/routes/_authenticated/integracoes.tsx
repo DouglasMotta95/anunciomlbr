@@ -48,6 +48,14 @@ const ML_RETURN_MESSAGES: Record<string, { type: "success" | "info" | "error"; t
     type: "error",
     text: "Sessão de conexão expirada ou inválida. Inicie a conexão novamente.",
   },
+  state_error: {
+    type: "error",
+    text: "Não foi possível validar a sessão segura do Mercado Livre. Tente conectar novamente.",
+  },
+  persist_error: {
+    type: "error",
+    text: "O Mercado Livre autorizou, mas não foi possível salvar a conexão. Tente novamente.",
+  },
   not_configured: { type: "error", text: "Integração indisponível no momento. Fale com o suporte." },
   token_error: {
     type: "error",
@@ -73,7 +81,6 @@ function IntegrationsPage() {
     queryFn: () => fetchConnection(),
   });
 
-  // Feedback do retorno OAuth (?ml=...) e limpeza da URL.
   useEffect(() => {
     if (!ml) return;
     const message = ML_RETURN_MESSAGES[ml];
@@ -147,9 +154,7 @@ function IntegrationsPage() {
               <div className="space-y-1.5 text-sm">
                 <p>
                   <span className="text-muted-foreground">Conta: </span>
-                  <span className="font-semibold">
-                    @{connection?.nickname ?? "vendedor"}
-                  </span>
+                  <span className="font-semibold">@{connection?.nickname ?? "vendedor"}</span>
                 </p>
                 {connection?.ml_user_id && (
                   <p className="text-muted-foreground">
@@ -162,9 +167,7 @@ function IntegrationsPage() {
                 {typeof connection?.listings_count === "number" && (
                   <p className="text-muted-foreground">
                     Anúncios importados:{" "}
-                    <span className="font-medium text-foreground">
-                      {connection.listings_count}
-                    </span>
+                    <span className="font-medium text-foreground">{connection.listings_count}</span>
                   </p>
                 )}
               </div>
@@ -208,11 +211,7 @@ function IntegrationsPage() {
                 Você será redirecionado ao site oficial do Mercado Livre para autorizar o acesso.
                 Nunca pedimos sua senha.
               </p>
-              <Button
-                size="sm"
-                className="font-semibold"
-                onClick={openMercadoLivreOAuthStart}
-              >
+              <Button size="sm" className="font-semibold" onClick={openMercadoLivreOAuthStart}>
                 <Link2 className="mr-2 h-3.5 w-3.5" />
                 Conectar Mercado Livre
               </Button>
