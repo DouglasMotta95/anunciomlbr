@@ -5,9 +5,9 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type BulkItemStatus = "queued" | "processing" | "done" | "error";
 export type BulkJobItem = { id:string; label:string; status:BulkItemStatus; message?:string|null; source?:Record<string,unknown>|null };
-export type BulkJobKind = "copy" | "optimize" | "pause" | "activate" | "delete";
+export type BulkJobKind = "copy" | "duplicate" | "optimize" | "pause" | "activate" | "delete";
 
-const startSchema=z.object({kind:z.enum(["copy","optimize","pause","activate","delete"]),items:z.array(z.object({id:z.string().min(1),label:z.string().min(1),source:z.record(z.string(),z.unknown()).optional().nullable()})).min(1).max(200)});
+const startSchema=z.object({kind:z.enum(["copy","duplicate","optimize","pause","activate","delete"]),items:z.array(z.object({id:z.string().min(1),label:z.string().min(1),source:z.record(z.string(),z.unknown()).optional().nullable()})).min(1).max(200)});
 
 export const startBulkJob=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).inputValidator((data:unknown)=>startSchema.parse(data)).handler(async({data,context})=>{
  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
@@ -39,13 +39,18 @@ async function runBulkItem(kind:BulkJobKind,userId:string,item:BulkJobItem){
   const source=(item.source??{}) as Record<string,unknown>;const priceCents=typeof source["price_cents"]==="number"?source["price_cents"] as number:null;const attributes=Array.isArray(source["attributes"])?source["attributes"]:[];
   const {error}=await supabaseAdmin.from("listings").insert({user_id:userId,title:String(source["title"]??item.label),price_cents:priceCents,category:source["category"] as string??null,condition:source["condition"] as string??null,status:"draft",source_ml_id:item.id,source_permalink:source["permalink"] as string??null,images:sourceImages(source) as unknown as never,attributes:attributes as unknown as never,stock:typeof source["available_quantity"]==="number"?source["available_quantity"] as number:1});if(error)throw new Error(error.message);return;
  }
+ if(kind==="duplicate"){
+  const {data:listing,error:fetchError}=await supabaseAdmin.from("listings").select("title,description,price_cents,stock,sku,category,condition,images,attributes,cost_cents,fees_cents,ai_score,source_permalink").eq("id",item.id).eq("user_id",userId).maybeSingle();if(fetchError||!listing)throw new Error("Anúncio não encontrado.");
+  const {error}=await supabaseAdmin.from("listings").insert({...listing,user_id:userId,status:"draft",title:String(listing.title??item.label).slice(0,60)});if(error)throw new Error(error.message);return;
+ }
  if(kind==="delete"){const {error}=await supabaseAdmin.from("listings").delete().eq("id",item.id).eq("user_id",userId);if(error)throw new Error(error.message);return}
  if(kind==="pause"||kind==="activate"){const {error}=await supabaseAdmin.from("listings").update({status:kind==="pause"?"paused":"active",updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(error)throw new Error(error.message);return}
  if(kind==="optimize"){
-  const {data:listing,error:fetchError}=await supabaseAdmin.from("listings").select("id,title,description,category,price_cents").eq("id",item.id).eq("user_id",userId).maybeSingle();if(fetchError||!listing)throw new Error("Anúncio não encontrado.");
+  const {data:listing,error:fetchError}=await supabaseAdmin.from("listings").select("id,title,description,category,price_cents,attributes").eq("id",item.id).eq("user_id",userId).maybeSingle();if(fetchError||!listing)throw new Error("Anúncio não encontrado.");
   const {aiJson}=await import("./ai.server");
-  const prompt=`Analise e otimize este anúncio do Mercado Livre.\nTítulo: ${listing.title}\nDescrição: ${listing.description??"(vazia)"}\nCategoria: ${listing.category??"(não informada)"}\nPreço (centavos): ${listing.price_cents??"(não informado)"}\n\nRetorne JSON com as chaves exatas:\n{"score_before":number(0-100),"score_after":number(0-100),"title":string(max 60 chars),"description":string,"keywords":string[],"attributes":string[],"improvements":string[]}`;
+  const prompt=`Você é especialista em anúncios do Mercado Livre Brasil. Reescreva de verdade este anúncio para melhorar clareza, busca e conversão, sem inventar características e sem usar termos como copy, cópia, versão, otimizado ou IA no título. Preserve marca, modelo, medida e especificações importantes. O novo título deve ser claramente melhor que o atual, natural, com até 60 caracteres e priorizar as palavras que um comprador realmente pesquisaria. A descrição deve ficar organizada, objetiva e comercial, sem promessas falsas.\n\nTítulo atual: ${listing.title}\nDescrição atual: ${listing.description??"(vazia)"}\nCategoria: ${listing.category??"(não informada)"}\nPreço (centavos): ${listing.price_cents??"(não informado)"}\nAtributos: ${JSON.stringify(listing.attributes??[])}\n\nRetorne SOMENTE JSON válido com as chaves exatas:\n{"score_before":number,"score_after":number,"title":string,"description":string,"keywords":string[],"improvements":string[]}`;
   const out=await aiJson<{title?:string;description?:string;score_after?:number}>(prompt);if(!out.ok)throw new Error(out.reason);const parsed=out.result;if(!parsed.title||!parsed.description)throw new Error("A IA não retornou título e descrição válidos.");
-  const {error:updateError}=await supabaseAdmin.from("listings").update({title:parsed.title.slice(0,60),description:parsed.description,ai_score:Number.isFinite(parsed.score_after)?parsed.score_after:null,updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(updateError)throw new Error(updateError.message);
+  const cleanTitle=parsed.title.replace(/\s*\((?:copy|cópia)\)\s*$/i,"").trim().slice(0,60);
+  const {error:updateError}=await supabaseAdmin.from("listings").update({title:cleanTitle,description:parsed.description,ai_score:Number.isFinite(parsed.score_after)?parsed.score_after:null,updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(updateError)throw new Error(updateError.message);
  }
 }
