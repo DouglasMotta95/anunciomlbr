@@ -51,6 +51,10 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
+    // A conexão precisa existir e possuir token válido para liberar a função de busca.
+    // A busca /sites/MLB/search em si é pública e não deve depender do access_token
+    // do vendedor, pois o endpoint pode responder 401/403 por política de escopo mesmo
+    // com a conta recém-conectada. Isso gerava o falso aviso de "autorização expirada".
     const tokenState = await getUserMlToken(context.userId);
     if (!tokenState.ok) {
       return {
@@ -66,22 +70,12 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
     )}&limit=${data.limit ?? 20}`;
 
     try {
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${tokenState.accessToken}`, Accept: "application/json" },
-      });
-      if (response.status === 401 || response.status === 403) {
-        return {
-          ok: false as const,
-          configured: true,
-          reason: "Sua autorização do Mercado Livre expirou. Reconecte sua conta.",
-          items: [] as MlItem[],
-        };
-      }
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
       if (!response.ok) {
         return {
           ok: false as const,
           configured: true,
-          reason: `A API do Mercado Livre respondeu ${response.status}.`,
+          reason: `A busca do Mercado Livre respondeu ${response.status}. Tente novamente.`,
           items: [] as MlItem[],
         };
       }
