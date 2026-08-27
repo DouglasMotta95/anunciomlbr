@@ -11,22 +11,21 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatBRL, formatDate } from "@/lib/format";
+import { adminUpdateReseller } from "@/lib/reseller.functions";
 import { adminCreateReseller, adminListResellers } from "@/lib/seller-growth.functions";
 
 export function ResellersTab() {
   const list = useServerFn(adminListResellers);
   const create = useServerFn(adminCreateReseller);
+  const update = useServerFn(adminUpdateReseller);
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [discount, setDiscount] = useState("20");
   const [wallet, setWallet] = useState("0");
   const { data: resellers = [], isLoading } = useQuery({ queryKey: ["admin-resellers"], queryFn: () => list() });
-  const mutation = useMutation({
-    mutationFn: () => create({ data: { name: name.trim(), email: email.trim(), discount_percent: Number(discount), wallet_cents: Math.round(Number(wallet.replace(",", ".")) * 100) } }),
-    onSuccess: () => { setName(""); setEmail(""); setWallet("0"); qc.invalidateQueries({ queryKey: ["admin-resellers"] }); toast.success("Revendedor criado"); },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao criar revendedor"),
-  });
+  const mutation = useMutation({ mutationFn: () => create({ data: { name: name.trim(), email: email.trim(), discount_percent: Number(discount), wallet_cents: Math.round(Number(wallet.replace(",", ".")) * 100) } }), onSuccess: () => { setName(""); setEmail(""); setWallet("0"); qc.invalidateQueries({ queryKey: ["admin-resellers"] }); toast.success("Revendedor criado"); }, onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao criar revendedor") });
+  const change = useMutation({ mutationFn: (data: { id:string; wallet_delta_cents?:number; status?:"active"|"suspended"|"closed" }) => update({ data: { id:data.id, wallet_delta_cents:data.wallet_delta_cents ?? 0, status:data.status } }), onSuccess:()=>{qc.invalidateQueries({queryKey:["admin-resellers"]}); toast.success("Revendedor atualizado");}, onError:(e)=>toast.error(e instanceof Error?e.message:"Falha ao atualizar") });
 
   return <div className="space-y-4">
     <div className="grid gap-4 xl:grid-cols-3">
@@ -34,16 +33,16 @@ export function ResellersTab() {
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Store className="h-4 w-4 text-primary"/> Novo revendedor</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div><Label>Nome</Label><Input value={name} onChange={(e)=>setName(e.target.value)} placeholder="Nome do parceiro" /></div>
-          <div><Label>E-mail</Label><Input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="parceiro@email.com" /></div>
+          <div><Label>E-mail da conta ANÚNCIO ML</Label><Input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} placeholder="parceiro@email.com" /></div>
           <div className="grid grid-cols-2 gap-3"><div><Label>Desconto (%)</Label><Input value={discount} onChange={(e)=>setDiscount(e.target.value)} /></div><div><Label>Saldo inicial (R$)</Label><Input value={wallet} onChange={(e)=>setWallet(e.target.value)} /></div></div>
           <Button className="w-full" disabled={mutation.isPending || name.trim().length < 2 || !email.includes("@")} onClick={()=>mutation.mutate()}>{mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Criar revendedor</Button>
-          <p className="text-xs text-muted-foreground">O revendedor fica isolado do painel administrativo. Desconto e saldo servem como base comercial para venda de licenças.</p>
+          <p className="text-xs text-muted-foreground">Se o e-mail já tiver conta, o acesso de revendedor é vinculado automaticamente. Ele recebe um painel próprio e nunca acessa o seu administrativo.</p>
         </CardContent>
       </Card>
       <Card className="xl:col-span-2">
         <CardHeader><CardTitle className="text-base">Rede de revendedores</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
-          {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : resellers.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum revendedor cadastrado.</p> : <Table><TableHeader><TableRow><TableHead>Revendedor</TableHead><TableHead>Status</TableHead><TableHead>Desconto</TableHead><TableHead>Saldo</TableHead><TableHead>Vendas</TableHead><TableHead>Comissão</TableHead><TableHead>Desde</TableHead></TableRow></TableHeader><TableBody>{resellers.map((r:any)=><TableRow key={r.id}><TableCell><div className="font-medium">{r.name}</div><div className="text-xs text-muted-foreground">{r.email}</div></TableCell><TableCell><Badge variant={r.status === "active" ? "default" : "outline"}>{r.status === "active" ? "Ativo" : r.status}</Badge></TableCell><TableCell>{Number(r.discount_percent)}%</TableCell><TableCell>{formatBRL(r.wallet_cents)}</TableCell><TableCell>{formatBRL(r.total_sales_cents)}</TableCell><TableCell>{formatBRL(r.total_commission_cents)}</TableCell><TableCell>{formatDate(r.created_at)}</TableCell></TableRow>)}</TableBody></Table>}
+          {isLoading ? <p className="text-sm text-muted-foreground">Carregando…</p> : resellers.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum revendedor cadastrado.</p> : <Table><TableHeader><TableRow><TableHead>Revendedor</TableHead><TableHead>Status</TableHead><TableHead>Desconto</TableHead><TableHead>Saldo</TableHead><TableHead>Vendas</TableHead><TableHead>Margem</TableHead><TableHead>Ações</TableHead></TableRow></TableHeader><TableBody>{resellers.map((r:any)=><TableRow key={r.id}><TableCell><div className="font-medium">{r.name}</div><div className="text-xs text-muted-foreground">{r.email}</div><div className="text-[10px] text-muted-foreground">desde {formatDate(r.created_at)}</div></TableCell><TableCell><Badge variant={r.status === "active" ? "default" : "outline"}>{r.status === "active" ? "Ativo" : r.status === "suspended" ? "Suspenso" : "Encerrado"}</Badge></TableCell><TableCell>{Number(r.discount_percent)}%</TableCell><TableCell>{formatBRL(r.wallet_cents)}</TableCell><TableCell>{formatBRL(r.total_sales_cents)}</TableCell><TableCell>{formatBRL(r.total_commission_cents)}</TableCell><TableCell><div className="flex flex-wrap gap-1"><Button size="sm" variant="outline" disabled={change.isPending} onClick={()=>change.mutate({id:r.id,wallet_delta_cents:10000})}>+ R$100</Button><Button size="sm" variant="outline" disabled={change.isPending} onClick={()=>change.mutate({id:r.id,status:r.status === "active"?"suspended":"active"})}>{r.status === "active"?"Suspender":"Ativar"}</Button></div></TableCell></TableRow>)}</TableBody></Table>}
         </CardContent>
       </Card>
     </div>
