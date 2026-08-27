@@ -139,6 +139,7 @@ function IntegrationsPage() {
 
   const connection = data?.connection ?? null;
   const connected = !!connection?.connected;
+  const diagnostics = data?.diagnostics;
 
   if (isLoading) {
     return (
@@ -226,6 +227,27 @@ function IntegrationsPage() {
               <p className="text-xs text-muted-foreground">
                 Você será redirecionado ao Mercado Livre para autorizar o acesso. Nunca pedimos sua senha.
               </p>
+
+              {diagnostics && (
+                <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs">
+                  <p className="mb-2 font-semibold text-foreground">Diagnóstico seguro da integração</p>
+                  <div className="space-y-1 text-muted-foreground">
+                    <p>
+                      Client ID: <span className="font-mono text-foreground">{diagnostics.clientIdMasked ?? "não configurado"}</span>
+                    </p>
+                    <p>
+                      Client Secret: <span className="font-medium text-foreground">{diagnostics.hasClientSecret ? "configurado" : "ausente"}</span>
+                    </p>
+                    <p className="break-all">
+                      Callback: <span className="font-mono text-foreground">{diagnostics.callback}</span>
+                    </p>
+                  </div>
+                  <p className="mt-2 text-muted-foreground">
+                    O callback acima precisa ser exatamente igual ao cadastrado na aplicação do Mercado Livre.
+                  </p>
+                </div>
+              )}
+
               <Button size="sm" className="font-semibold" onClick={openMercadoLivreOAuthStart}>
                 <Link2 className="mr-2 h-3.5 w-3.5" />
                 Conectar Mercado Livre
