@@ -74,6 +74,12 @@ function statusLabel(status: string | null) {
   return map[status] ?? status;
 }
 
+function getItemImages(item: MlItem): string[] {
+  const images = (item.images ?? []).filter((image): image is string => typeof image === "string" && image.length > 0);
+  if (images.length > 0) return Array.from(new Set(images));
+  return item.thumbnail ? [item.thumbnail] : [];
+}
+
 function SearchPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -132,14 +138,15 @@ function SearchPage() {
         status: "draft",
         source_ml_id: item.id,
         source_permalink: item.permalink,
-        images: item.thumbnail ? [item.thumbnail] : [],
+        images: getItemImages(item) as never,
+        attributes: (item.attributes ?? []) as never,
         stock: item.available_quantity ?? 1,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
-      toast.success("Anúncio copiado como rascunho");
+      toast.success("Anúncio copiado como rascunho com imagens e atributos");
     },
     onError: () => toast.error("Falha ao copiar anúncio."),
   });
@@ -153,14 +160,16 @@ function SearchPage() {
         category: item.category,
         condition: item.condition,
         status: "draft",
-        images: item.thumbnail ? [item.thumbnail] : [],
+        source_permalink: item.permalink,
+        images: getItemImages(item) as never,
+        attributes: (item.attributes ?? []) as never,
         stock: item.available_quantity ?? 1,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
-      toast.success("Anúncio duplicado como rascunho");
+      toast.success("Anúncio duplicado com imagens e atributos");
     },
     onError: () => toast.error("Falha ao duplicar anúncio."),
   });
@@ -186,7 +195,8 @@ function SearchPage() {
             status: "draft",
             source_ml_id: item.id,
             source_permalink: item.permalink,
-            images: item.thumbnail ? [item.thumbnail] : [],
+            images: getItemImages(item) as never,
+            attributes: (item.attributes ?? []) as never,
             stock: item.available_quantity ?? 1,
           })),
         )
@@ -208,6 +218,8 @@ function SearchPage() {
           condition: item.condition,
           permalink: item.permalink,
           thumbnail: item.thumbnail,
+          images: getItemImages(item),
+          attributes: item.attributes ?? [],
           available_quantity: item.available_quantity,
         },
       }));
