@@ -9,8 +9,14 @@ async function authState(userId: string) {
   const { getValidMlAccessToken } = await import("@/lib/ml.server");
   const token = await getValidMlAccessToken(userId);
   if (!token.ok) throw new Error("Reconecte sua conta do Mercado Livre.");
-  if (!token.mlUserId) throw new Error("Não foi possível identificar sua conta do Mercado Livre.");
-  return token;
+  let mlUserId = token.mlUserId;
+  if (!mlUserId) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: connection } = await supabaseAdmin.from("ml_connections").select("ml_user_id").eq("user_id", userId).maybeSingle();
+    mlUserId = connection?.ml_user_id ?? null;
+  }
+  if (!mlUserId) throw new Error("Não foi possível identificar sua conta do Mercado Livre.");
+  return { accessToken: token.accessToken, mlUserId };
 }
 
 export type MlQuestion = {
@@ -27,7 +33,7 @@ export const listSellerQuestions = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const token = await authState(context.userId);
     const url = new URL(`${ML_API}/questions/search`);
-    url.searchParams.set("seller_id", token.mlUserId!);
+    url.searchParams.set("seller_id", token.mlUserId);
     url.searchParams.set("api_version", "4");
     url.searchParams.set("sort_fields", "date_created");
     url.searchParams.set("sort_types", "DESC");
