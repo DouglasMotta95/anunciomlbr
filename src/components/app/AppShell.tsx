@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   BarChart3,
   Boxes,
+  HeartPulse,
   LayoutDashboard,
   LogOut,
   Plug,
@@ -14,7 +15,9 @@ import {
   Tag,
   Menu,
   MessageCircle,
+  MessageCircleQuestion,
   PackagePlus,
+  Target,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -35,12 +38,15 @@ const NAV_GROUPS = [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { to: "/buscar", label: "Buscar e copiar", icon: Search },
       { to: "/anuncios", label: "Meus anúncios", icon: Tag },
+      { to: "/saude-anuncios", label: "Saúde dos anúncios", icon: HeartPulse },
     ],
   },
   {
     label: "Gestão",
     items: [
+      { to: "/crescimento", label: "Central de crescimento", icon: Target },
       { to: "/vendas", label: "Vendas", icon: ShoppingBag },
+      { to: "/perguntas", label: "Perguntas e atendimento", icon: MessageCircleQuestion },
       { to: "/estoque", label: "Estoque e margem", icon: Boxes },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
     ],
@@ -59,7 +65,7 @@ const NAV_GROUPS = [
 
 const MOBILE_NAV = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
-  { to: "/buscar", label: "Buscar", icon: Search },
+  { to: "/crescimento", label: "Crescer", icon: Target },
   { to: "/anuncios", label: "Anúncios", icon: Tag },
   { to: "/vendas", label: "Vendas", icon: ShoppingBag },
 ] as const;
