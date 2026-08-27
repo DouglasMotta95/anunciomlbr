@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Link2, Loader2, RefreshCcw, ShoppingBag, Unlink } from "lucide-react";
+import { ArrowRight, Link2, Loader2, RefreshCcw, ShoppingBag, Unlink } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -91,19 +91,43 @@ function IntegrationsPage() {
 
   useEffect(() => {
     if (!ml) return;
-    const message = ML_RETURN_MESSAGES[ml];
-    if (message) {
-      const descriptionText =
-        ml === "connected" && syncResult && syncResult !== "ok"
-          ? `Conta conectada, mas a sincronização inicial retornou: ${syncResult}. Use “Sincronizar anúncios”.`
-          : undefined;
-      toast[message.type](message.text, { description: descriptionText });
+
+    let cancelled = false;
+
+    async function finalizeOAuthReturn() {
+      if (ml === "connected") {
+        // O callback salva a conexão antes de redirecionar. Mesmo assim,
+        // forçamos uma leitura nova do servidor antes de limpar a URL para
+        // garantir que o usuário já veja a conta como conectada ao retornar.
+        const refreshed = await refetch();
+        if (cancelled) return;
+
+        if (refreshed.data?.connection?.connected) {
+          const descriptionText =
+            syncResult && syncResult !== "ok"
+              ? `Conta conectada. A sincronização inicial retornou: ${syncResult}. Você pode sincronizar novamente abaixo.`
+              : "Autorização concluída. Sua conta já está pronta para os próximos passos.";
+          toast.success("Mercado Livre conectado com sucesso.", { description: descriptionText });
+        } else {
+          toast.error("A autorização retornou, mas a conta ainda não apareceu conectada.", {
+            description: "Atualize a página uma vez. Se continuar assim, a conexão não foi persistida no servidor.",
+          });
+        }
+      } else {
+        const message = ML_RETURN_MESSAGES[ml];
+        if (message) toast[message.type](message.text);
+      }
+
+      if (!cancelled) {
+        navigate({ to: "/integracoes", replace: true, search: {} });
+      }
     }
-    if (ml === "connected") {
-      void queryClient.refetchQueries({ queryKey: ["ml-connection"], type: "active" });
-    }
-    navigate({ to: "/integracoes", replace: true, search: {} });
-  }, [ml, syncResult, navigate, queryClient]);
+
+    void finalizeOAuthReturn();
+    return () => {
+      cancelled = true;
+    };
+  }, [ml, syncResult, navigate, refetch]);
 
   const syncMl = useMutation({
     mutationFn: () => sync(),
@@ -168,6 +192,13 @@ function IntegrationsPage() {
         <CardContent className="space-y-4">
           {connected ? (
             <>
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm">
+                <p className="font-semibold text-emerald-700">Conta conectada e pronta para uso</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  A autorização foi concluída. Agora você pode sincronizar seus anúncios ou seguir para a busca e cópia.
+                </p>
+              </div>
+
               <div className="space-y-1.5 text-sm">
                 <p>
                   <span className="text-muted-foreground">Conta: </span>
@@ -189,6 +220,10 @@ function IntegrationsPage() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => navigate({ to: "/buscar" })}>
+                  Continuar para buscar anúncios
+                  <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                </Button>
                 <Button
                   size="sm"
                   variant="outline"
