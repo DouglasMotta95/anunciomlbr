@@ -3,6 +3,14 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+const PUBLIC_CALLBACK = "https://anunciomlbr.lovable.app/api/public/ml/callback";
+
+function httpsUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  if (value.startsWith("http://")) return `https://${value.slice("http://".length)}`;
+  return value;
+}
+
 export type MlItem = {
   id: string;
   title: string;
@@ -15,40 +23,50 @@ export type MlItem = {
   available_quantity: number | null;
   sold_quantity: number | null;
   status: string | null;
+  images?: string[];
+  attributes?: unknown[];
 };
 
-/**
- * Busca anúncios usando a API pública oficial do Mercado Livre.
- * Quando a API exige credenciais e elas não estão configuradas,
- * devolvemos `configured: false` em vez de simular resultados.
- */
+async function getUserMlToken(userId: string) {
+  const { getValidMlAccessToken } = await import("@/lib/ml.server");
+  return getValidMlAccessToken(userId);
+}
+
+/** Busca anúncios usando a conexão Mercado Livre do próprio usuário. */
 export const searchMercadoLivre = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
     z
       .object({
-        query: z.string().min(1).max(120),
+        query: z.string().trim().min(1).max(120),
         limit: z.number().int().min(1).max(50).optional(),
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const { getAppAccessToken } = await import("@/lib/ml.server");
-    const token = process.env["ML_ACCESS_TOKEN"] ?? (await getAppAccessToken());
+  .handler(async ({ data, context }) => {
+    const tokenState = await getUserMlToken(context.userId);
+    if (!tokenState.ok) {
+      return {
+        ok: false as const,
+        configured: true,
+        reason: "Conecte sua conta do Mercado Livre antes de buscar anúncios.",
+        items: [] as MlItem[],
+      };
+    }
+
     const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(
       data.query,
     )}&limit=${data.limit ?? 20}`;
 
     try {
       const response = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${tokenState.accessToken}`, Accept: "application/json" },
       });
-
       if (response.status === 401 || response.status === 403) {
         return {
           ok: false as const,
-          configured: false,
-          reason:
-            "Configuração pendente: a busca oficial do Mercado Livre requer credenciais de aplicação.",
+          configured: true,
+          reason: "Sua autorização do Mercado Livre expirou. Reconecte sua conta.",
           items: [] as MlItem[],
         };
       }
@@ -61,10 +79,7 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
         };
       }
 
-      const payload = (await response.json()) as {
-        results?: Array<Record<string, unknown>>;
-      };
-
+      const payload = (await response.json()) as { results?: Array<Record<string, unknown>> };
       const items: MlItem[] = (payload.results ?? []).map((raw) => {
         const seller = raw["seller"] as { nickname?: string } | undefined;
         const price = typeof raw["price"] === "number" ? (raw["price"] as number) : null;
@@ -72,8 +87,8 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
           id: String(raw["id"] ?? ""),
           title: String(raw["title"] ?? ""),
           price_cents: price === null ? null : Math.round(price * 100),
-          thumbnail: (raw["thumbnail"] as string) ?? null,
-          permalink: (raw["permalink"] as string) ?? null,
+          thumbnail: httpsUrl(raw["thumbnail"]),
+          permalink: httpsUrl(raw["permalink"]),
           category: (raw["category_id"] as string) ?? null,
           seller: seller?.nickname ?? null,
           condition: (raw["condition"] as string) ?? null,
@@ -95,32 +110,18 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
     }
   });
 
-/**
- * Monta a URL de autorização OAuth oficial do Mercado Livre.
- * Gera um `state` aleatório de uso único, vinculado ao usuário autenticado
- * (anti-CSRF). O callback valida e consome esse state — states desconhecidos,
- * expirados ou reutilizados são rejeitados.
- */
+/** Monta a URL oficial de autorização OAuth do Mercado Livre. */
 export const getMlAuthorizationUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const clientId = process.env["ML_CLIENT_ID"];
-    const redirectUri = process.env["ML_REDIRECT_URI"];
-    if (!clientId || !redirectUri) {
-      console.warn("ML OAuth start blocked: missing required configuration", {
-        hasClientId: !!clientId,
-        hasRedirectUri: !!redirectUri,
-      });
+    const clientId = process.env["ML_CLIENT_ID"]?.trim();
+    if (!clientId) {
+      console.warn("ML OAuth start blocked: missing ML_CLIENT_ID");
       return { configured: false as const, url: null, reason: "not_configured" as const };
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    // Limpeza oportunista de states expirados.
-    await supabaseAdmin
-      .from("ml_oauth_states")
-      .delete()
-      .lt("expires_at", new Date().toISOString());
+    await supabaseAdmin.from("ml_oauth_states").delete().lt("expires_at", new Date().toISOString());
 
     const state = crypto.randomUUID();
     const { error } = await supabaseAdmin.from("ml_oauth_states").insert({
@@ -129,19 +130,15 @@ export const getMlAuthorizationUrl = createServerFn({ method: "POST" })
       expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     });
     if (error) {
-      console.error("ML OAuth state persist failed", {
-        code: error.code,
-        message: error.message,
-      });
+      console.error("ML OAuth state persist failed", { code: error.code, message: error.message });
       return { configured: true as const, url: null, reason: "state_error" as const };
     }
 
     const url = new URL("https://auth.mercadolivre.com.br/authorization");
     url.searchParams.set("response_type", "code");
     url.searchParams.set("client_id", clientId);
-    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("redirect_uri", PUBLIC_CALLBACK);
     url.searchParams.set("state", state);
-    console.info("ML OAuth authorization URL generated", { redirectUriHost: new URL(redirectUri).host });
     return { configured: true as const, url: url.toString(), reason: null };
   });
 
@@ -154,10 +151,7 @@ export const getMlConnection = createServerFn({ method: "GET" })
       .select("*")
       .eq("user_id", context.userId)
       .maybeSingle();
-    const configured =
-      !!process.env["ML_CLIENT_ID"] &&
-      !!process.env["ML_CLIENT_SECRET"] &&
-      !!process.env["ML_REDIRECT_URI"];
+    const configured = !!process.env["ML_CLIENT_ID"] && !!process.env["ML_CLIENT_SECRET"];
     return { configured, connection: data ?? null };
   });
 
@@ -182,33 +176,37 @@ export const disconnectMercadoLivre = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Busca um único anúncio pelo ID oficial (MLB...) usando a API pública do Mercado Livre. */
+/** Busca um anúncio pelo ID MLB usando a conexão do usuário. */
 export const getMercadoLivreItem = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
     z
       .object({
-        id: z
-          .string()
-          .trim()
-          .regex(/^MLB-?\d+$/i, "ID inválido. Use o formato MLB1234567890."),
+        id: z.string().trim().regex(/^MLB-?\d+$/i, "ID inválido. Use o formato MLB1234567890."),
       })
       .parse(data),
   )
-  .handler(async ({ data }) => {
-    const { getAppAccessToken } = await import("@/lib/ml.server");
-    const token = process.env["ML_ACCESS_TOKEN"] ?? (await getAppAccessToken());
-    const id = data.id.toUpperCase().replace("MLB-", "MLB");
+  .handler(async ({ data, context }) => {
+    const tokenState = await getUserMlToken(context.userId);
+    if (!tokenState.ok) {
+      return {
+        ok: false as const,
+        configured: true,
+        reason: "Conecte sua conta do Mercado Livre antes de buscar anúncios.",
+        items: [] as MlItem[],
+      };
+    }
 
+    const id = data.id.toUpperCase().replace("MLB-", "MLB");
     try {
       const response = await fetch(`https://api.mercadolibre.com/items/${id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${tokenState.accessToken}`, Accept: "application/json" },
       });
-
       if (response.status === 401 || response.status === 403) {
         return {
           ok: false as const,
-          configured: false,
-          reason: "Configuração pendente: a consulta por ID requer credenciais de aplicação.",
+          configured: true,
+          reason: "Sua autorização do Mercado Livre expirou. Reconecte sua conta.",
           items: [] as MlItem[],
         };
       }
@@ -225,23 +223,30 @@ export const getMercadoLivreItem = createServerFn({ method: "POST" })
       }
 
       const raw = (await response.json()) as Record<string, unknown>;
-      const seller = raw["seller_id"];
       const price = typeof raw["price"] === "number" ? (raw["price"] as number) : null;
       const pictures = Array.isArray(raw["pictures"])
         ? (raw["pictures"] as Array<{ secure_url?: string; url?: string }>)
         : [];
+      const images = pictures
+        .map((picture) => httpsUrl(picture.secure_url ?? picture.url))
+        .filter((value): value is string => !!value);
+      const thumbnail = httpsUrl(raw["thumbnail"]) ?? images[0] ?? null;
+      const attributes = Array.isArray(raw["attributes"]) ? (raw["attributes"] as unknown[]) : [];
+
       const item: MlItem = {
         id: String(raw["id"] ?? id),
         title: String(raw["title"] ?? ""),
         price_cents: price === null ? null : Math.round(price * 100),
-        thumbnail: (raw["thumbnail"] as string) ?? pictures[0]?.secure_url ?? pictures[0]?.url ?? null,
-        permalink: (raw["permalink"] as string) ?? null,
+        thumbnail,
+        permalink: httpsUrl(raw["permalink"]),
         category: (raw["category_id"] as string) ?? null,
-        seller: seller != null ? String(seller) : null,
+        seller: raw["seller_id"] != null ? String(raw["seller_id"]) : null,
         condition: (raw["condition"] as string) ?? null,
         available_quantity: (raw["available_quantity"] as number) ?? null,
         sold_quantity: (raw["sold_quantity"] as number) ?? null,
         status: (raw["status"] as string) ?? null,
+        images,
+        attributes,
       };
       return { ok: true as const, configured: true, items: [item], reason: null };
     } catch (error) {
