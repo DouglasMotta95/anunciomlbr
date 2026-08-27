@@ -15,7 +15,8 @@ export async function issueLicenseForPayment(paymentId: string): Promise<IssueRe
   if (!payment) return { ok: false, reason: "unknown_payment" };
   if (payment.status !== "approved") return { ok: false, reason: "not_approved" };
 
-  const { data: existing } = await supabaseAdmin.from("licenses").select("code").eq("note", `payment:${payment.id}`).maybeSingle();
+  const paymentNote = `payment:${payment.id}`;
+  const { data: existing } = await supabaseAdmin.from("licenses").select("code").eq("note", paymentNote).maybeSingle();
   if (existing) return { ok: true, license_code: existing.code, created: false };
 
   const isAddon = payment.plans?.kind === "ad_package";
@@ -35,26 +36,24 @@ export async function issueLicenseForPayment(paymentId: string): Promise<IssueRe
     activated_at: payment.user_id ? startsAt.toISOString() : null,
     starts_at: startsAt.toISOString(),
     expires_at: expiresAt.toISOString(),
-    note: `payment:${payment.id}`,
+    note: paymentNote,
   });
   if (licenseError) {
     if (licenseError.code === "23505") {
-      const { data: raced } = await supabaseAdmin.from("licenses").select("code").eq("note", `payment:${payment.id}`).maybeSingle();
+      const { data: raced } = await supabaseAdmin.from("licenses").select("code").eq("note", paymentNote).maybeSingle();
       if (raced) return { ok: true, license_code: raced.code, created: false };
     }
     console.error("License insert failed", licenseError.message);
     return { ok: false, reason: "license_failed" };
   }
 
-  // Upgrade/troca de plano: o novo plano principal substitui o anterior.
-  // Pacotes avulsos não mexem na assinatura principal e apenas somam cota.
   if (payment.user_id && !isAddon) {
     const { data: oldMain } = await supabaseAdmin
       .from("licenses")
-      .select("id, plans!inner(kind)")
+      .select("id, note, plans!inner(kind)")
       .eq("user_id", payment.user_id)
       .eq("status", "active")
-      .neq("id", payment.id)
+      .neq("note", paymentNote)
       .neq("plans.kind", "ad_package");
     const oldIds = (oldMain ?? []).map((row: { id: string }) => row.id).filter(Boolean);
     if (oldIds.length) await supabaseAdmin.from("licenses").update({ status: "cancelled" }).in("id", oldIds);
