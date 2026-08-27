@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/app/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
-import { getMlAuthorizationUrl } from "@/lib/ml.functions";
+import { getMlPkceAuthorizationUrl } from "@/lib/ml-pkce.functions";
 
 const title = "Conectando Mercado Livre — ANÚNCIO ML";
 const description = "Iniciando a autorização oficial do Mercado Livre.";
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/ml-start")({
 
 function MercadoLivreStartPage() {
   const navigate = useNavigate();
-  const getAuthUrl = useServerFn(getMlAuthorizationUrl);
+  const getAuthUrl = useServerFn(getMlPkceAuthorizationUrl);
   const started = useRef(false);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ function MercadoLivreStartPage() {
 
         window.location.replace(result.url);
       } catch (error) {
-        console.error("ML OAuth start failed", error);
+        console.error("ML OAuth PKCE start failed", error);
         toast.error("Não foi possível iniciar a conexão com o Mercado Livre.");
         navigate({ to: "/integracoes", replace: true, search: { ml: "start_error" } });
       }
@@ -63,7 +63,7 @@ function MercadoLivreStartPage() {
       <Card className="max-w-xl">
         <CardContent className="flex items-center gap-3 py-8 text-sm text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin text-primary" />
-          Redirecionando para a autorização oficial do Mercado Livre...
+          Redirecionando para a autorização oficial e segura do Mercado Livre...
         </CardContent>
       </Card>
     </AppShell>
