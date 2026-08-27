@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { SessionSplash } from "@/components/SessionSplash";
@@ -19,4 +19,4 @@ export const Route = createFileRoute("/")({head:()=>({meta:[{title},{name:"descr
 
 function LandingGate(){const {user,loading}=useAuth();const [mounted,setMounted]=useState(false);useEffect(()=>setMounted(true),[]);if(!mounted)return <Landing/>;if(user)return <Navigate to="/dashboard" replace/>;if(loading&&hasStoredSession()&&!hasAuthErrorInUrl())return <SessionSplash/>;return <Landing/>}
 
-function Landing(){return <div className="min-h-screen bg-background pb-20 md:pb-0"><VisitTracker path="/"/><LandingNav/><main><Hero/><TrustBar/><Reveal><HowItWorks/></Reveal><Reveal><VideoDemoSection/></Reveal><RadarSection/><DuplicationFlowSection/><AiTitlesSection/><StudioSection/><Reveal><DemoSection/></Reveal><Reveal><FeaturesGridSection/></Reveal><Reveal><ComparisonSection/></Reveal><Reveal><TestimonialsSection/></Reveal><Reveal><PricingSection/></Reveal><Reveal><PlanPeriodComparisonSection/></Reveal><Reveal><FaqSection/></Reveal><Reveal><FinalCta/></Reveal><Reveal><PartnerCta/></Reveal></main><LandingFooter/><MobileStickyCta/></div>}
+function Landing(){return <div className="min-h-screen bg-background pb-20 md:pb-0"><VisitTracker path="/"/><LandingNav/><main><Hero/><TrustBar/><Reveal><HowItWorks/></Reveal><Reveal><VideoDemoSection/></Reveal><RadarSection/><DuplicationFlowSection/><AiTitlesSection/><StudioSection/><Reveal><DemoSection/></Reveal><Reveal><FeaturesGridSection/></Reveal><Reveal><ComparisonSection/></Reveal><Reveal><TestimonialsSection/></Reveal><Reveal><PricingSection/></Reveal><Reveal><PlanPeriodComparisonSection/></Reveal><Reveal><FaqSection/></Reveal><Reveal><FinalCta/></Reveal><Reveal><PartnerCta/></Reveal></main><LandingFooter/><div className="border-t border-border/40 bg-background/95 px-4 py-2 text-center"><Link to="/admin/login" className="text-[10px] font-medium tracking-wide text-muted-foreground/35 transition-colors hover:text-muted-foreground">Área administrativa</Link></div><MobileStickyCta/></div>}
