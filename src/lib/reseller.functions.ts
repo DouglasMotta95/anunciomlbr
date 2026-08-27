@@ -7,7 +7,8 @@ export const resellerIssueLicense = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ plan_id: z.string().uuid(), period: z.enum(["monthly", "quarterly", "semiannual", "annual"]) }).parse(data))
   .handler(async ({ data, context }) => {
-    const { data: result, error } = await context.supabase.rpc("reseller_issue_license", { p_plan_id: data.plan_id, p_period: data.period });
+    const db = context.supabase as any;
+    const { data: result, error } = await db.rpc("reseller_issue_license", { p_plan_id: data.plan_id, p_period: data.period });
     if (error) {
       if (error.message.includes("insufficient_reseller_wallet")) throw new Error("Saldo insuficiente para emitir esta licença.");
       if (error.message.includes("reseller_not_active")) throw new Error("Seu cadastro de revendedor não está ativo.");
@@ -24,13 +25,14 @@ export const adminUpdateReseller = createServerFn({ method: "POST" })
     const { assertCapability, logAudit } = await import("@/lib/permissions.server");
     await assertCapability(context, "licenses.generate");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: current } = await supabaseAdmin.from("resellers").select("*").eq("id", data.id).maybeSingle();
+    const db = supabaseAdmin as any;
+    const { data: current } = await db.from("resellers").select("*").eq("id", data.id).maybeSingle();
     if (!current) throw new Error("Revendedor não encontrado.");
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (data.discount_percent !== undefined) patch.discount_percent = data.discount_percent;
     if (data.status !== undefined) patch.status = data.status;
     if (data.wallet_delta_cents !== 0) patch.wallet_cents = Math.max(0, Number(current.wallet_cents ?? 0) + data.wallet_delta_cents);
-    const { data: updated, error } = await supabaseAdmin.from("resellers").update(patch).eq("id", data.id).select("*").single();
+    const { data: updated, error } = await db.from("resellers").update(patch).eq("id", data.id).select("*").single();
     if (error) throw new Error("Não foi possível atualizar o revendedor.");
     await logAudit({ actorId: context.userId, action: "reseller.update", entity: "reseller", entityId: data.id, details: { wallet_delta_cents: data.wallet_delta_cents, discount_percent: data.discount_percent, status: data.status } });
     return updated;
