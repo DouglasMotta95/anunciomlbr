@@ -81,10 +81,99 @@ export type MlSyncResult =
   | { ok: true; imported: number; updated: number; total: number }
   | { ok: false; reason: string };
 
+/** Mensagens legíveis para os motivos técnicos de falha. */
+export function describeMlSyncReason(reason: string): string {
+  if (reason === "missing_token" || reason === "missing_refresh_token")
+    return "Sua autorização do Mercado Livre expirou. Clique em “Conectar Mercado Livre” para reconectar.";
+  if (reason.startsWith("refresh_failed"))
+    return "O Mercado Livre recusou a renovação do acesso. Reconecte sua conta.";
+  if (reason === "not_configured") return "Integração indisponível no momento. Fale com o suporte.";
+  if (reason === "missing_ml_user_id")
+    return "Não identificamos sua conta de vendedor. Reconecte o Mercado Livre.";
+  if (reason.startsWith("items_search_401") || reason.startsWith("items_fetch_401"))
+    return "Acesso expirado no Mercado Livre. Reconecte sua conta.";
+  if (reason.startsWith("items_search_403") || reason.startsWith("items_fetch_403"))
+    return "Sua conta autorizou o app sem permissão de leitura de anúncios. Reconecte concedendo todas as permissões.";
+  if (reason.startsWith("items_search_") || reason.startsWith("items_fetch_"))
+    return `A API do Mercado Livre respondeu ${reason.split("_").pop()}. Tente novamente em alguns minutos.`;
+  if (reason === "no_items")
+    return "Nenhum anúncio foi encontrado nesta conta do Mercado Livre.";
+  return "Não foi possível sincronizar agora. Tente novamente.";
+}
+
+type MlSearchPage = {
+  results?: string[];
+  paging?: { total?: number };
+  scroll_id?: string;
+};
+
 /**
- * Sincronização inicial: importa os anúncios do vendedor para `listings`.
+ * Lista TODOS os IDs de anúncios do vendedor.
+ * Usa paginação por offset até 1000 itens e `search_type=scan` (scroll)
+ * acima disso — limite oficial da API do Mercado Livre.
  */
-export async function syncUserListings(userId: string, limit = 50): Promise<MlSyncResult> {
+async function fetchAllItemIds(
+  mlUserId: string,
+  auth: Record<string, string>,
+  hardCap: number,
+): Promise<{ ok: true; ids: string[] } | { ok: false; reason: string }> {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const pageSize = 100;
+
+  const push = (results: string[]) => {
+    for (const id of results) {
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+    }
+  };
+
+  // Fase 1: offset até o limite oficial de 1000.
+  for (let offset = 0; offset < Math.min(hardCap, 1000); offset += pageSize) {
+    const response = await fetch(
+      `${ML_API}/users/${mlUserId}/items/search?limit=${pageSize}&offset=${offset}`,
+      { headers: auth },
+    );
+    if (!response.ok) {
+      if (ids.length > 0) break;
+      return { ok: false, reason: `items_search_${response.status}` };
+    }
+    const page = (await response.json()) as MlSearchPage;
+    const results = page.results ?? [];
+    push(results);
+    const total = page.paging?.total ?? ids.length;
+    if (results.length < pageSize || ids.length >= total || ids.length >= hardCap) {
+      return { ok: true, ids: ids.slice(0, hardCap) };
+    }
+  }
+
+  // Fase 2: scroll (scan) para contas com mais de 1000 anúncios.
+  let scrollId: string | null = null;
+  while (ids.length < hardCap) {
+    const url = new URL(`${ML_API}/users/${mlUserId}/items/search`);
+    url.searchParams.set("search_type", "scan");
+    url.searchParams.set("limit", String(pageSize));
+    if (scrollId) url.searchParams.set("scroll_id", scrollId);
+
+    const response = await fetch(url.toString(), { headers: auth });
+    if (!response.ok) break;
+    const page = (await response.json()) as MlSearchPage;
+    const results = page.results ?? [];
+    const before = ids.length;
+    push(results);
+    scrollId = page.scroll_id ?? null;
+    if (!scrollId || results.length === 0 || ids.length === before) break;
+  }
+
+  return { ok: true, ids: ids.slice(0, hardCap) };
+}
+
+/**
+ * Sincroniza os anúncios do vendedor para `listings`.
+ * Importa a conta inteira (até `limit`) e atualiza o que já existe.
+ */
+export async function syncUserListings(userId: string, limit = 1000): Promise<MlSyncResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   const tokenState = await getValidMlAccessToken(userId);
@@ -96,52 +185,79 @@ export async function syncUserListings(userId: string, limit = 50): Promise<MlSy
     .eq("user_id", userId)
     .maybeSingle();
 
-  const mlUserId = connection?.ml_user_id ?? tokenState.mlUserId;
-  if (!mlUserId) return { ok: false, reason: "missing_ml_user_id" };
-
   const auth = { Authorization: `Bearer ${tokenState.accessToken}`, Accept: "application/json" };
 
-  const pageSize = Math.min(Math.max(limit, 1), 50);
-  const maxItems = Math.max(limit, 1);
-  const ids: string[] = [];
-
-  for (let offset = 0; ids.length < maxItems; offset += pageSize) {
-    const searchResponse = await fetch(
-      `${ML_API}/users/${mlUserId}/items/search?limit=${pageSize}&offset=${offset}`,
-      { headers: auth },
-    );
-    if (!searchResponse.ok) return { ok: false, reason: `items_search_${searchResponse.status}` };
-
-    const page = (await searchResponse.json()) as { results?: string[]; paging?: { total?: number } };
-    const results = page.results ?? [];
-    ids.push(...results.slice(0, maxItems - ids.length));
-    const total = page.paging?.total ?? ids.length;
-    if (results.length < pageSize || ids.length >= total) break;
+  // Identifica a conta pelo próprio token quando a conexão não tem o ID salvo.
+  let mlUserId = connection?.ml_user_id ?? tokenState.mlUserId;
+  if (!mlUserId) {
+    const me = await fetch(`${ML_API}/users/me`, { headers: auth });
+    if (me.ok) {
+      const profile = (await me.json()) as { id?: number | string; nickname?: string };
+      mlUserId = profile.id != null ? String(profile.id) : null;
+      if (mlUserId) {
+        await supabaseAdmin.from("ml_connections").upsert(
+          {
+            user_id: userId,
+            connected: true,
+            ml_user_id: mlUserId,
+            nickname: profile.nickname ?? null,
+          },
+          { onConflict: "user_id" },
+        );
+      }
+    }
   }
+  if (!mlUserId) return { ok: false, reason: "missing_ml_user_id" };
+
+  const found = await fetchAllItemIds(mlUserId, auth, Math.max(limit, 1));
+  if (!found.ok) return { ok: false, reason: found.reason };
+  const ids = found.ids;
 
   if (ids.length === 0) {
     await supabaseAdmin
       .from("ml_connections")
       .update({ listings_count: 0, last_sync_at: new Date().toISOString() })
       .eq("user_id", userId);
-    return { ok: true, imported: 0, updated: 0, total: 0 };
+    return { ok: false, reason: "no_items" };
   }
 
   let imported = 0;
   let updated = 0;
+  let lastError: string | null = null;
 
   for (let i = 0; i < ids.length; i += 20) {
     const chunk = ids.slice(i, i + 20);
     const itemsResponse = await fetch(
-      `${ML_API}/items?ids=${chunk.join(",")}&attributes=id,title,price,available_quantity,permalink,category_id,condition,pictures,status`,
+      `${ML_API}/items?ids=${chunk.join(",")}&attributes=id,title,price,available_quantity,sold_quantity,permalink,category_id,condition,pictures,thumbnail,status,sub_status`,
       { headers: auth },
     );
-    if (!itemsResponse.ok) return { ok: false, reason: `items_fetch_${itemsResponse.status}` };
+    if (!itemsResponse.ok) {
+      if (i === 0) return { ok: false, reason: `items_fetch_${itemsResponse.status}` };
+      lastError = `items_fetch_${itemsResponse.status}`;
+      break;
+    }
 
     const batch = (await itemsResponse.json()) as Array<{
       code?: number;
       body?: Record<string, unknown>;
     }>;
+
+    // Descobre em UMA consulta quais anúncios do lote já existem.
+    const chunkIds = batch
+      .map((entry) => (entry.code === 200 ? String(entry.body?.["id"] ?? "") : ""))
+      .filter(Boolean);
+    const { data: existingRows } = await supabaseAdmin
+      .from("listings")
+      .select("id, source_ml_id")
+      .eq("user_id", userId)
+      .in("source_ml_id", chunkIds.length > 0 ? chunkIds : ["__none__"]);
+    const existingByMlId = new Map(
+      (existingRows ?? [])
+        .filter((row) => !!row.source_ml_id)
+        .map((row) => [row.source_ml_id as string, row.id]),
+    );
+
+    const toInsert: Record<string, unknown>[] = [];
 
     for (const entry of batch) {
       const item = entry.body;
@@ -156,48 +272,76 @@ export async function syncUserListings(userId: string, limit = 50): Promise<MlSy
             .map((p) => p.secure_url ?? p.url)
             .filter((u): u is string => !!u)
         : [];
+      const thumbnail = typeof item["thumbnail"] === "string" ? (item["thumbnail"] as string) : null;
+      const images = pictures.length > 0 ? pictures : thumbnail ? [thumbnail] : [];
+      const mlStatus = String(item["status"] ?? "");
 
       const values = {
         user_id: userId,
         title: String(item["title"] ?? "Anúncio sem título"),
         price_cents: price === null ? null : Math.round(price * 100),
-        stock: typeof item["available_quantity"] === "number" ? (item["available_quantity"] as number) : 0,
+        stock:
+          typeof item["available_quantity"] === "number" ? (item["available_quantity"] as number) : 0,
         category: (item["category_id"] as string) ?? null,
         condition: (item["condition"] as string) ?? null,
         source_ml_id: mlId,
         source_permalink: (item["permalink"] as string) ?? null,
-        images: pictures as never,
+        published_ml_id: mlId,
+        status: (mlStatus === "paused" ? "paused" : mlStatus === "active" ? "active" : "draft") as never,
+        images: images as never,
         updated_at: new Date().toISOString(),
       };
 
-      const { data: existing } = await supabaseAdmin
-        .from("listings")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("source_ml_id", mlId)
-        .maybeSingle();
-
-      if (existing) {
-        await supabaseAdmin.from("listings").update(values as never).eq("id", existing.id);
-        updated += 1;
+      const existingId = existingByMlId.get(mlId);
+      if (existingId) {
+        const { error } = await supabaseAdmin
+          .from("listings")
+          .update(values as never)
+          .eq("id", existingId);
+        if (error) lastError = error.message;
+        else updated += 1;
       } else {
-        await supabaseAdmin.from("listings").insert(values as never);
-        imported += 1;
+        toInsert.push(values);
+      }
+    }
+
+    if (toInsert.length > 0) {
+      const { error } = await supabaseAdmin.from("listings").insert(toInsert as never);
+      if (error) {
+        lastError = error.message;
+        console.error("ML sync insert failed", error.message);
+      } else {
+        imported += toInsert.length;
       }
     }
   }
 
+  const { count } = await supabaseAdmin
+    .from("listings")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .not("source_ml_id", "is", null);
+
   await supabaseAdmin
     .from("ml_connections")
-    .update({ listings_count: ids.length, last_sync_at: new Date().toISOString() })
+    .update({
+      connected: true,
+      listings_count: count ?? ids.length,
+      last_sync_at: new Date().toISOString(),
+    })
     .eq("user_id", userId);
 
   await supabaseAdmin.from("activity_events").insert({
     user_id: userId,
     kind: "ml_sync",
-    message: `Sincronização inicial: ${imported} novos e ${updated} atualizados`,
-    meta: { imported, updated, total: ids.length },
+    message: `Sincronização: ${imported} novos e ${updated} atualizados`,
+    meta: { imported, updated, total: ids.length, error: lastError },
   });
+
+  if (imported === 0 && updated === 0 && lastError) {
+    return { ok: false, reason: lastError };
+  }
+
 
   return { ok: true, imported, updated, total: ids.length };
 }
