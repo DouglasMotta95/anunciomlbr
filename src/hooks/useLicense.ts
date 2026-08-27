@@ -22,10 +22,11 @@ export function useLicense() {
       const { data, error } = await supabase
         .from("licenses")
         .select(
-          "id, code, status, period, starts_at, expires_at, plans(id, code, name, listing_limit, ai_credits)",
+          "id, code, status, period, starts_at, expires_at, plans!inner(id, code, name, listing_limit, ai_credits, kind)",
         )
         .eq("user_id", user!.id)
         .eq("status", "active")
+        .neq("plans.kind", "ad_package")
         .order("expires_at", { ascending: false })
         .limit(1)
         .maybeSingle();
