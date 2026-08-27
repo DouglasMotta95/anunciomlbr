@@ -4,6 +4,7 @@ import {
   BadgeCheck,
   BarChart3,
   Boxes,
+  HeartPulse,
   LayoutDashboard,
   LogOut,
   Plug,
@@ -37,6 +38,7 @@ const NAV_GROUPS = [
       { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       { to: "/buscar", label: "Buscar e copiar", icon: Search },
       { to: "/anuncios", label: "Meus anúncios", icon: Tag },
+      { to: "/saude-anuncios", label: "Saúde dos anúncios", icon: HeartPulse },
     ],
   },
   {
