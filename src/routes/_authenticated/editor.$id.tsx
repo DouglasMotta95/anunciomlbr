@@ -75,16 +75,25 @@ function EditorPage() {
     setScore(row.ai_score ?? null);
   }, [listing.data]);
 
+  function parsedValues() {
+    const price = form.price ? Math.round(Number(form.price.replace(",", ".")) * 100) : null;
+    const stock = Number(form.stock);
+    if (form.title.trim().length < 3) throw new Error("Informe um título válido.");
+    if (form.title.trim().length > 60) throw new Error("O título deve ter no máximo 60 caracteres.");
+    if (price !== null && (!Number.isFinite(price) || price <= 0)) throw new Error("Informe um preço válido maior que zero.");
+    if (!Number.isFinite(stock) || stock < 0 || !Number.isInteger(stock)) throw new Error("Informe um estoque válido.");
+    return { price, stock };
+  }
+
   const save = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sessão expirada.");
-      if (form.title.trim().length < 3) throw new Error("Informe um título válido.");
-      const price = form.price ? Math.round(Number(form.price.replace(",", ".")) * 100) : null;
+      const { price, stock } = parsedValues();
       const patch = {
         title: form.title.trim(),
         description: form.description || null,
-        price_cents: Number.isFinite(price) ? price : null,
-        stock: Number(form.stock) || 0,
+        price_cents: price,
+        stock,
         sku: form.sku || null,
         category: form.category || null,
         ai_score: score,
@@ -113,17 +122,30 @@ function EditorPage() {
   const duplicate = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Sessão expirada.");
-      const price = form.price ? Math.round(Number(form.price.replace(",", ".")) * 100) : null;
+      if (!listing.data) throw new Error("Carregue o anúncio antes de duplicar.");
+      const { price, stock } = parsedValues();
+      const original = listing.data;
+      const copyTitle = `${form.title.trim()} (cópia)`;
+      const title = copyTitle.length <= 60 ? copyTitle : form.title.trim().slice(0, 60);
+
       const { data, error } = await supabase
         .from("listings")
         .insert({
           user_id: user.id,
           status: "draft",
-          title: `${form.title} (cópia)`,
+          title,
           description: form.description || null,
-          price_cents: Number.isFinite(price) ? price : null,
-          stock: Number(form.stock) || 0,
+          price_cents: price,
+          stock,
+          sku: form.sku || null,
           category: form.category || null,
+          condition: original.condition ?? null,
+          images: original.images ?? [],
+          attributes: original.attributes ?? [],
+          cost_cents: original.cost_cents ?? null,
+          fees_cents: original.fees_cents ?? null,
+          ai_score: score,
+          source_permalink: original.source_permalink ?? null,
         })
         .select("id")
         .single();
@@ -132,10 +154,11 @@ function EditorPage() {
     },
     onSuccess: async (newId) => {
       await queryClient.invalidateQueries({ queryKey: ["listings"] });
-      toast.success("Cópia criada");
+      toast.success("Cópia criada com imagens e atributos");
       navigate({ to: "/editor/$id", params: { id: newId } });
     },
-    onError: () => toast.error("Não foi possível duplicar."),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Não foi possível duplicar."),
   });
 
   const set = (key: keyof Form) => (value: string) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -147,16 +170,16 @@ function EditorPage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
         </Button>
         {!isNew && (
-          <Button variant="outline" size="sm" onClick={() => duplicate.mutate()} disabled={duplicate.isPending}>
+          <Button variant="outline" size="sm" onClick={() => duplicate.mutate()} disabled={duplicate.isPending || listing.isLoading}>
             <Copy className="mr-2 h-4 w-4" /> Duplicar
           </Button>
         )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-        {!isNew && <PublishButton listingId={id} disabled={save.isPending} />}
-        <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-          Salvar
-        </Button>
+          {!isNew && <PublishButton listingId={id} disabled={save.isPending} />}
+          <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Salvar
+          </Button>
         </div>
       </div>
 
@@ -173,8 +196,8 @@ function EditorPage() {
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="title">Título</Label>
-                <Input id="title" value={form.title} onChange={(e) => set("title")(e.target.value)} maxLength={120} />
-                <p className="text-xs text-muted-foreground">{form.title.length}/60 caracteres recomendados</p>
+                <Input id="title" value={form.title} onChange={(e) => set("title")(e.target.value)} maxLength={60} />
+                <p className="text-xs text-muted-foreground">{form.title.length}/60 caracteres</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="description">Descrição</Label>
@@ -216,7 +239,7 @@ function EditorPage() {
                   <img
                     src={productImage}
                     alt={form.title || "Imagem do produto"}
-                    className="aspect-square w-full rounded-md object-contain bg-muted"
+                    className="aspect-square w-full rounded-md bg-muted object-contain"
                   />
                 ) : (
                   <div className="flex aspect-square w-full items-center justify-center rounded-md bg-muted text-sm text-muted-foreground">
@@ -240,7 +263,7 @@ function EditorPage() {
 
             <TitleStudio
               ctx={{ title: form.title, description: form.description, category: form.category }}
-              onPick={(picked) => setForm((prev) => ({ ...prev, title: picked }))}
+              onPick={(picked) => setForm((prev) => ({ ...prev, title: picked.slice(0, 60) }))}
             />
 
             <DescriptionStudio
@@ -265,7 +288,7 @@ function EditorPage() {
               priceCents={form.price ? Math.round(Number(form.price.replace(",", ".")) * 100) : null}
               currentScore={score}
               onApply={(result) => {
-                setForm((prev) => ({ ...prev, title: result.title, description: result.description }));
+                setForm((prev) => ({ ...prev, title: result.title.slice(0, 60), description: result.description }));
                 setScore(result.score_after);
                 toast.success("Sugestões aplicadas", { description: "Revise e salve para confirmar." });
               }}

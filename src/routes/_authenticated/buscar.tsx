@@ -32,9 +32,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { startBulkJob } from "@/lib/bulk.functions";
-import { formatBRL, formatNumber } from "@/lib/format";
+import { formatBRL } from "@/lib/format";
 import { getMercadoLivreItem, searchMercadoLivre, type MlItem } from "@/lib/ml.functions";
 import { getProductImage } from "@/lib/product-image";
+import { listingStatusLabel } from "@/lib/status-labels";
 
 const title = "Buscar e copiar anúncios — ANÚNCIO ML";
 const description =
@@ -60,7 +61,7 @@ const MODE_OPTIONS: { value: Mode; label: string; placeholder: string }[] = [
   { value: "produto", label: "Produto", placeholder: "Ex.: iPhone 15 128GB" },
   { value: "id", label: "ID do anúncio", placeholder: "Ex.: MLB1234567890" },
   { value: "link", label: "Link do anúncio", placeholder: "Cole o link do anúncio no Mercado Livre" },
-  { value: "vendedor", label: "Vendedor", placeholder: "Nickname do vendedor" },
+  { value: "vendedor", label: "Vendedor", placeholder: "Nome do vendedor" },
 ];
 
 function extractMlbId(input: string): string | null {
@@ -68,16 +69,38 @@ function extractMlbId(input: string): string | null {
   return match ? match[0].replace("-", "") : null;
 }
 
-function statusLabel(status: string | null) {
-  if (!status) return null;
-  const map: Record<string, string> = { active: "ativo", paused: "pausado", closed: "encerrado" };
-  return map[status] ?? status;
+function conditionLabel(condition: string | null): string | null {
+  if (!condition) return null;
+  const map: Record<string, string> = {
+    new: "Novo",
+    used: "Usado",
+    refurbished: "Recondicionado",
+  };
+  return map[condition] ?? condition;
 }
 
 function getItemImages(item: MlItem): string[] {
-  const images = (item.images ?? []).filter((image): image is string => typeof image === "string" && image.length > 0);
+  const images = (item.images ?? []).filter(
+    (image): image is string => typeof image === "string" && image.length > 0,
+  );
   if (images.length > 0) return Array.from(new Set(images));
   return item.thumbnail ? [item.thumbnail] : [];
+}
+
+function draftPayload(item: MlItem, userId: string) {
+  return {
+    user_id: userId,
+    title: item.title.slice(0, 60),
+    price_cents: item.price_cents,
+    category: item.category,
+    condition: item.condition,
+    status: "draft" as const,
+    source_ml_id: item.id,
+    source_permalink: item.permalink,
+    images: getItemImages(item) as never,
+    attributes: (item.attributes ?? []) as never,
+    stock: item.available_quantity ?? 1,
+  };
 }
 
 function SearchPage() {
@@ -100,7 +123,13 @@ function SearchPage() {
     mutationFn: async (term: string) => {
       if (mode === "id" || mode === "link") {
         const id = mode === "id" ? term.toUpperCase() : extractMlbId(term);
-        if (!id) return { ok: false as const, configured: true, reason: "Não foi possível identificar o ID (MLB...) informado.", items: [] as MlItem[] };
+        if (!id)
+          return {
+            ok: false as const,
+            configured: true,
+            reason: "Não foi possível identificar o ID (MLB...) informado.",
+            items: [] as MlItem[],
+          };
         return lookupById({ data: { id } });
       }
       return search({ data: { query: term, limit: 24 } });
@@ -112,7 +141,8 @@ function SearchPage() {
       setNotice(result.ok ? null : result.reason);
       if (mode === "vendedor" && result.ok && result.items.length > 0) {
         toast.info("Busca por vendedor", {
-          description: "A API pública filtra por texto — refine com o nickname exato se necessário.",
+          description:
+            "Os resultados são retornados pela busca oficial do Mercado Livre. Confira o nome do vendedor exibido em cada anúncio.",
         });
       }
     },
@@ -129,33 +159,66 @@ function SearchPage() {
 
   const copyOne = useMutation({
     mutationFn: async (item: MlItem) => {
-      const { error } = await supabase.from("listings").insert({
-        user_id: user!.id,
-        title: item.title,
-        price_cents: item.price_cents,
-        category: item.category,
-        condition: item.condition,
-        status: "draft",
-        source_ml_id: item.id,
-        source_permalink: item.permalink,
-        images: getItemImages(item) as never,
-        attributes: (item.attributes ?? []) as never,
-        stock: item.available_quantity ?? 1,
-      });
+      if (!user) throw new Error("Sessão expirada.");
+      const { data: existing } = await supabase
+        .from("listings")
+        .select("id")
+        .eq("source_ml_id", item.id)
+        .maybeSingle();
+      if (existing?.id) return { id: existing.id, existed: true };
+
+      const { data, error } = await supabase
+        .from("listings")
+        .insert(draftPayload(item, user.id))
+        .select("id")
+        .single();
       if (error) throw error;
+      return { id: data.id, existed: false };
     },
-    onSuccess: () => {
+    onSuccess: ({ existed }) => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
-      toast.success("Anúncio copiado como rascunho com imagens e atributos");
+      toast.success(
+        existed
+          ? "Esse anúncio já estava copiado nos seus rascunhos"
+          : "Anúncio copiado como rascunho com imagens e atributos",
+      );
     },
     onError: () => toast.error("Falha ao copiar anúncio."),
   });
 
+  const editOne = useMutation({
+    mutationFn: async (item: MlItem) => {
+      if (!user) throw new Error("Sessão expirada.");
+      const { data: existing } = await supabase
+        .from("listings")
+        .select("id")
+        .eq("source_ml_id", item.id)
+        .maybeSingle();
+      if (existing?.id) return existing.id;
+
+      const { data, error } = await supabase
+        .from("listings")
+        .insert(draftPayload(item, user.id))
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data.id;
+    },
+    onSuccess: async (id) => {
+      await queryClient.invalidateQueries({ queryKey: ["listings"] });
+      navigate({ to: "/editor/$id", params: { id } });
+    },
+    onError: () => toast.error("Não foi possível abrir o anúncio para edição."),
+  });
+
   const duplicateOne = useMutation({
     mutationFn: async (item: MlItem) => {
+      if (!user) throw new Error("Sessão expirada.");
+      const suffix = " (cópia)";
+      const base = item.title.slice(0, Math.max(3, 60 - suffix.length));
       const { error } = await supabase.from("listings").insert({
-        user_id: user!.id,
-        title: `${item.title} (cópia)`,
+        user_id: user.id,
+        title: `${base}${suffix}`,
         price_cents: item.price_cents,
         category: item.category,
         condition: item.condition,
@@ -175,37 +238,50 @@ function SearchPage() {
   });
 
   const startBulk = async (kind: "copy" | "optimize", scope: MlItem[]) => {
-    if (!scope.length) return;
+    if (!scope.length || !user) return;
 
-    // A otimização por IA trabalha em cima de anúncios já salvos (tabela
-    // listings). Resultados de busca ainda não existem lá, então primeiro
-    // copiamos como rascunho e só então enfileiramos a otimização pelos IDs
-    // reais — evita que o job falhe 100% das vezes procurando o id do ML.
     let jobItems: { id: string; label: string; source?: Record<string, unknown> }[];
     if (kind === "optimize") {
-      const { data: inserted, error } = await supabase
+      const mlIds = scope.map((item) => item.id);
+      const { data: existing, error: existingError } = await supabase
         .from("listings")
-        .insert(
-          scope.map((item) => ({
-            user_id: user!.id,
-            title: item.title,
-            price_cents: item.price_cents,
-            category: item.category,
-            condition: item.condition,
-            status: "draft",
-            source_ml_id: item.id,
-            source_permalink: item.permalink,
-            images: getItemImages(item) as never,
-            attributes: (item.attributes ?? []) as never,
-            stock: item.available_quantity ?? 1,
-          })),
-        )
-        .select("id, title");
-      if (error || !inserted) {
-        toast.error("Não foi possível preparar os anúncios para otimização.");
+        .select("id, title, source_ml_id")
+        .in("source_ml_id", mlIds);
+      if (existingError) {
+        toast.error("Não foi possível verificar os anúncios já copiados.");
         return;
       }
-      jobItems = inserted.map((row) => ({ id: row.id, label: row.title }));
+
+      const existingByMlId = new Map(
+        (existing ?? [])
+          .filter((row) => !!row.source_ml_id)
+          .map((row) => [row.source_ml_id as string, { id: row.id, title: row.title }]),
+      );
+      const missing = scope.filter((item) => !existingByMlId.has(item.id));
+
+      if (missing.length > 0) {
+        const { data: inserted, error } = await supabase
+          .from("listings")
+          .insert(missing.map((item) => draftPayload(item, user.id)))
+          .select("id, title, source_ml_id");
+        if (error || !inserted) {
+          toast.error("Não foi possível preparar os anúncios para otimização.");
+          return;
+        }
+        for (const row of inserted) {
+          if (row.source_ml_id) {
+            existingByMlId.set(row.source_ml_id, { id: row.id, title: row.title });
+          }
+        }
+      }
+
+      jobItems = scope
+        .map((item) => {
+          const row = existingByMlId.get(item.id);
+          return row ? { id: row.id, label: row.title } : null;
+        })
+        .filter((item): item is { id: string; label: string } => !!item);
+
       queryClient.invalidateQueries({ queryKey: ["listings"] });
     } else {
       jobItems = scope.map((item) => ({
@@ -225,6 +301,11 @@ function SearchPage() {
       }));
     }
 
+    if (jobItems.length === 0) {
+      toast.error("Nenhum anúncio válido foi preparado para o processamento.");
+      return;
+    }
+
     const result = await startJob({ data: { kind, items: jobItems } });
     if (!result.ok) {
       toast.error(result.reason);
@@ -242,7 +323,14 @@ function SearchPage() {
     const header = "id,titulo,preco,categoria,vendedor,condicao\n";
     const rows = selectedItems
       .map((item) =>
-        [item.id, item.title.replace(/,/g, " "), item.price_cents ?? "", item.category ?? "", item.seller ?? "", item.condition ?? ""].join(","),
+        [
+          item.id,
+          item.title.replace(/,/g, " "),
+          item.price_cents ?? "",
+          item.category ?? "",
+          item.seller ?? "",
+          conditionLabel(item.condition) ?? "",
+        ].join(","),
       )
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8" });
@@ -332,9 +420,7 @@ function SearchPage() {
             <Checkbox
               checked={selectedIds.length === items.length}
               onCheckedChange={(checked) =>
-                setSelected(
-                  checked ? Object.fromEntries(items.map((item) => [item.id, true])) : {},
-                )
+                setSelected(checked ? Object.fromEntries(items.map((item) => [item.id, true])) : {})
               }
               id="select-all"
             />
@@ -382,14 +468,14 @@ function SearchPage() {
                           {item.seller}
                         </Badge>
                       )}
-                      {item.condition && (
+                      {conditionLabel(item.condition) && (
                         <Badge variant="secondary" className="text-[10px]">
-                          {item.condition === "new" ? "novo" : item.condition}
+                          {conditionLabel(item.condition)}
                         </Badge>
                       )}
-                      {statusLabel(item.status) && (
+                      {item.status && (
                         <Badge variant="secondary" className="text-[10px]">
-                          {statusLabel(item.status)}
+                          {listingStatusLabel(item.status)}
                         </Badge>
                       )}
                     </div>
@@ -411,7 +497,8 @@ function SearchPage() {
                         size="sm"
                         variant="ghost"
                         className="h-7 px-2 text-xs"
-                        onClick={() => navigate({ to: "/anuncios" })}
+                        disabled={editOne.isPending}
+                        onClick={() => editOne.mutate(item)}
                       >
                         <Edit className="mr-1 h-3 w-3" /> Editar
                       </Button>

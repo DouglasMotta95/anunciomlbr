@@ -2,6 +2,7 @@
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const MODEL = "google/gemini-3.5-flash";
+const AI_TIMEOUT_MS = 30_000;
 
 export type AiFail = { ok: false; reason: string };
 
@@ -13,10 +14,14 @@ export async function aiJson<T>(prompt: string): Promise<{ ok: true; result: T }
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) return { ok: false, reason: "Configuração pendente: chave de IA ausente." };
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+
   let response: Response;
   try {
     response = await fetch(GATEWAY, {
       method: "POST",
+      signal: controller.signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: MODEL,
@@ -28,14 +33,22 @@ export async function aiJson<T>(prompt: string): Promise<{ ok: true; result: T }
       }),
     });
   } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return { ok: false, reason: "A IA demorou demais para responder. Tente novamente." };
+    }
     console.error("ai gateway fetch failed", error);
     return { ok: false, reason: "Não foi possível falar com a IA agora." };
+  } finally {
+    clearTimeout(timer);
   }
 
-  if (response.status === 429) return { ok: false, reason: "Limite de uso da IA atingido. Tente novamente em instantes." };
-  if (response.status === 402) return { ok: false, reason: "Créditos de IA esgotados no workspace." };
+  if (response.status === 429)
+    return { ok: false, reason: "Limite de uso da IA atingido. Tente novamente em instantes." };
+  if (response.status === 402)
+    return { ok: false, reason: "Créditos de IA esgotados no workspace." };
   if (!response.ok) {
-    console.error("ai gateway error", response.status, await response.text());
+    const body = await response.text().catch(() => "");
+    console.error("ai gateway error", response.status, body.slice(0, 500));
     return { ok: false, reason: "A IA não respondeu. Tente novamente." };
   }
 
