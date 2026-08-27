@@ -30,6 +30,28 @@ const inputSchema = z.object({
   toISO: z.string(),
 });
 
+function describeOrdersError(reason: string): string {
+  if (reason === "missing_token" || reason === "missing_refresh_token") {
+    return "A conexão com o Mercado Livre precisa ser renovada. Reconecte a conta na Central de integrações.";
+  }
+  if (reason === "not_configured") {
+    return "A integração do Mercado Livre ainda não está configurada no servidor.";
+  }
+  if (reason === "missing_ml_user_id") {
+    return "Não foi possível identificar a conta vendedora conectada ao Mercado Livre.";
+  }
+  if (reason === "orders_search_401") {
+    return "O Mercado Livre recusou o acesso aos pedidos porque a autorização não é mais válida. Reconecte a conta.";
+  }
+  if (reason === "orders_search_403") {
+    return "A conta está conectada, mas o aplicativo não tem permissão para consultar vendas e pedidos. No Mercado Livre Developers, habilite acesso de leitura em ‘Venda e envios de um produto’ e depois reconecte a conta.";
+  }
+  if (reason.startsWith("orders_search_")) {
+    return `O Mercado Livre recusou a consulta de vendas (código ${reason.split("_").pop()}). Tente novamente em alguns minutos.`;
+  }
+  return "Não foi possível consultar as vendas no Mercado Livre agora.";
+}
+
 /** Busca e agrega os pedidos reais do vendedor no Mercado Livre para o período informado. */
 export const getOrdersSummary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -44,7 +66,7 @@ export const getOrdersSummary = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (!connection?.connected) {
-      return { ok: false, configured: false, reason: "not_connected" };
+      return { ok: false, configured: false, reason: "Conta do Mercado Livre não conectada." };
     }
 
     const { fetchSellerOrders } = await import("@/lib/orders.server");
@@ -52,7 +74,7 @@ export const getOrdersSummary = createServerFn({ method: "POST" })
 
     if (!result.ok) {
       const configured = result.reason !== "missing_token" && result.reason !== "not_configured";
-      return { ok: false, configured, reason: result.reason };
+      return { ok: false, configured, reason: describeOrdersError(result.reason) };
     }
 
     const orders = result.orders;
