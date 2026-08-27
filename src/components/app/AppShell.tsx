@@ -15,6 +15,7 @@ import {
   Menu,
   MessageCircle,
   PackagePlus,
+  Target,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -40,6 +41,7 @@ const NAV_GROUPS = [
   {
     label: "Gestão",
     items: [
+      { to: "/crescimento", label: "Central de crescimento", icon: Target },
       { to: "/vendas", label: "Vendas", icon: ShoppingBag },
       { to: "/estoque", label: "Estoque e margem", icon: Boxes },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
@@ -59,7 +61,7 @@ const NAV_GROUPS = [
 
 const MOBILE_NAV = [
   { to: "/dashboard", label: "Início", icon: LayoutDashboard },
-  { to: "/buscar", label: "Buscar", icon: Search },
+  { to: "/crescimento", label: "Crescer", icon: Target },
   { to: "/anuncios", label: "Anúncios", icon: Tag },
   { to: "/vendas", label: "Vendas", icon: ShoppingBag },
 ] as const;
