@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Copy, Download, Loader2, Pause, Play, PlusCircle, Sparkles, Tag, Trash2 } from "lucide-react";
+import { Copy, Download, Pause, Play, PlusCircle, Sparkles, Tag, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -48,6 +48,16 @@ const TABS = [
   { value: "low_stock", label: "Estoque baixo" },
   { value: "low_score", label: "Baixa performance" },
 ] as const;
+
+const STATUS_LABEL: Record<string, string> = {
+  active: "Ativo",
+  paused: "Pausado",
+  draft: "Rascunho",
+  error: "Erro",
+  closed: "Encerrado",
+  under_review: "Em análise",
+  inactive: "Inativo",
+};
 
 function ListingsPage() {
   const queryClient = useQueryClient();
@@ -110,7 +120,7 @@ function ListingsPage() {
   const exportCsv = () => {
     const header = "id,titulo,preco,status,estoque,score\n";
     const rows = selectedListings
-      .map((l) => [l.id, String(l.title).replace(/,/g, " "), l.price_cents ?? "", l.status, l.stock, l.ai_score ?? ""].join(","))
+      .map((l) => [l.id, String(l.title).replace(/,/g, " "), l.price_cents ?? "", STATUS_LABEL[l.status] ?? l.status, l.stock, l.ai_score ?? ""].join(","))
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -226,14 +236,14 @@ function ListingsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-semibold">{listing.title}</span>
                         <Badge variant={listing.status === "active" ? "default" : "outline"}>
-                          {listing.status === "draft" ? "rascunho" : listing.status}
+                          {STATUS_LABEL[listing.status] ?? "Status desconhecido"}
                         </Badge>
                         {listing.ai_score != null && (
                           <Badge variant={listing.ai_score < 50 ? "destructive" : "secondary"}>
-                            score {listing.ai_score}
+                            Pontuação IA {listing.ai_score}
                           </Badge>
                         )}
-                        {listing.stock <= 2 && <Badge variant="destructive">estoque baixo</Badge>}
+                        {listing.stock <= 2 && <Badge variant="destructive">Estoque baixo</Badge>}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {formatBRL(listing.price_cents)} · estoque {listing.stock} · criado em{" "}
