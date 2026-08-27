@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { useEffect } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -54,7 +55,9 @@ export function BulkJobDialog({
   const items = (job?.payload as { items?: BulkJobItem[] } | null)?.items ?? [];
   const finished = job?.status === "done" || job?.status === "error";
 
-  if (finished && onFinished) onFinished();
+  useEffect(() => {
+    if (finished) onFinished?.();
+  }, [finished, onFinished]);
 
   return (
     <Dialog open={!!jobId} onOpenChange={onOpenChange}>
@@ -62,14 +65,13 @@ export function BulkJobDialog({
         <DialogHeader>
           <DialogTitle>{job ? KIND_LABEL[job.kind] ?? "Processando" : "Processando"}</DialogTitle>
           <DialogDescription>
-            Progresso real acompanhado direto do backend — nada é marcado como concluído até a
-            confirmação do servidor.
+            O progresso é confirmado pelo servidor. Se ocorrer uma falha, ela será exibida aqui em vez de deixar o processo parado indefinidamente.
           </DialogDescription>
         </DialogHeader>
 
         {!job ? (
           <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Carregando status do job…
+            <Loader2 className="h-4 w-4 animate-spin" /> Carregando andamento…
           </div>
         ) : (
           <div className="space-y-4">
@@ -79,10 +81,10 @@ export function BulkJobDialog({
                   {job.processed + job.failed}/{job.total} processados
                 </span>
                 <Badge variant={finished ? (job.failed > 0 ? "destructive" : "default") : "secondary"}>
-                  {job.status === "queued" && "na fila"}
-                  {job.status === "processing" && "processando"}
-                  {job.status === "done" && "concluído"}
-                  {job.status === "error" && "concluído com erros"}
+                  {job.status === "queued" && "Na fila"}
+                  {job.status === "processing" && "Processando"}
+                  {job.status === "done" && "Concluído"}
+                  {job.status === "error" && "Concluído com erros"}
                 </Badge>
               </div>
               <Progress value={job.total ? ((job.processed + job.failed) / job.total) * 100 : 0} className="mt-2" />
@@ -91,14 +93,19 @@ export function BulkJobDialog({
             <ScrollArea className="h-64 rounded-xl border border-border">
               <div className="divide-y divide-border">
                 {items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                    <span className="truncate">{item.label}</span>
-                    <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                      {item.status === "processing" && <Loader2 className="h-3 w-3 animate-spin" />}
-                      {item.status === "done" && <CheckCircle2 className="h-3 w-3 text-primary" />}
-                      {item.status === "error" && <AlertCircle className="h-3 w-3 text-destructive" />}
-                      {STATUS_LABEL[item.status]}
-                    </span>
+                  <div key={item.id} className="px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate">{item.label}</span>
+                      <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                        {item.status === "processing" && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {item.status === "done" && <CheckCircle2 className="h-3 w-3 text-primary" />}
+                        {item.status === "error" && <AlertCircle className="h-3 w-3 text-destructive" />}
+                        {STATUS_LABEL[item.status]}
+                      </span>
+                    </div>
+                    {item.status === "error" && item.message && (
+                      <p className="mt-1 text-xs text-destructive">{item.message}</p>
+                    )}
                   </div>
                 ))}
               </div>
