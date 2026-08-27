@@ -51,16 +51,12 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) => {
-    // A conexão precisa existir e possuir token válido para liberar a função de busca.
-    // A busca /sites/MLB/search em si é pública e não deve depender do access_token
-    // do vendedor, pois o endpoint pode responder 401/403 por política de escopo mesmo
-    // com a conta recém-conectada. Isso gerava o falso aviso de "autorização expirada".
     const tokenState = await getUserMlToken(context.userId);
     if (!tokenState.ok) {
       return {
         ok: false as const,
         configured: true,
-        reason: "Conecte sua conta do Mercado Livre antes de buscar anúncios.",
+        reason: "Conecte novamente sua conta do Mercado Livre para usar a busca.",
         items: [] as MlItem[],
       };
     }
@@ -70,12 +66,27 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
     )}&limit=${data.limit ?? 20}`;
 
     try {
-      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      const headers = {
+        Accept: "application/json",
+        Authorization: `Bearer ${tokenState.accessToken}`,
+        "User-Agent": "ANUNCIO-ML/1.0",
+      };
+      let response = await fetch(url, { headers });
+      if (response.status === 401 || response.status === 403) {
+        // Uma conta pode ter sido autorizada antes da inclusão dos novos escopos.
+        // Nesse caso não mascaramos o problema como erro genérico de busca.
+        return {
+          ok: false as const,
+          configured: true,
+          reason: "O Mercado Livre recusou a autorização da busca. Reconecte sua conta para atualizar as permissões.",
+          items: [] as MlItem[],
+        };
+      }
       if (!response.ok) {
         return {
           ok: false as const,
           configured: true,
-          reason: `A busca do Mercado Livre respondeu ${response.status}. Tente novamente.`,
+          reason: `Não foi possível buscar no Mercado Livre agora (código ${response.status}).`,
           items: [] as MlItem[],
         };
       }
