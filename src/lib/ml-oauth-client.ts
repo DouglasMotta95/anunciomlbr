@@ -1,28 +1,8 @@
 export function openMercadoLivreOAuthStart() {
   if (typeof window === "undefined") return;
 
-  let isFramed = true;
-  try {
-    isFramed = window.self !== window.top;
-  } catch {
-    isFramed = true;
-  }
-
-  if (!isFramed) {
-    window.location.assign("/ml-start");
-    return;
-  }
-
-  const popup = window.open(
-    "/ml-start",
-    "anuncio_ml_mercado_livre_oauth",
-    "popup,width=980,height=760,noopener,noreferrer",
-  );
-
-  if (popup) {
-    popup.focus();
-    return;
-  }
-
+  // Sempre inicia o OAuth na mesma janela. Isso evita perda de sessão/estado
+  // em previews, popups bloqueados e retornos que não atualizam a conta conectada.
+  // Fluxo esperado: ANÚNCIO ML -> Mercado Livre -> callback -> /integracoes.
   window.location.assign("/ml-start");
 }
