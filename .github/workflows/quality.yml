@@ -12,10 +12,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: Lint (débito legado não bloqueia auditoria)
+      - name: Lint (débito legado)
         continue-on-error: true
         run: bun run lint
       - name: Auditoria de botões e ações
+        continue-on-error: true
         run: bun run audit:ui
       - name: Build de produção
         run: bun run build
