@@ -14,7 +14,7 @@ function safeMlError(payload: unknown) {
   };
 }
 
-/** Callback OAuth oficial do Mercado Livre. */
+/** Callback OAuth oficial do Mercado Livre com PKCE S256. */
 export const Route = createFileRoute("/api/public/ml/callback")({
   server: {
     handlers: {
@@ -34,6 +34,7 @@ export const Route = createFileRoute("/api/public/ml/callback")({
         if (!clientId || !clientSecret) return fail("not_configured");
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { deriveMlPkce } = await import("@/lib/ml-pkce.server");
 
         // Consome o state de forma atômica: se já tiver sido usado, não retorna linha.
         const { data: oauthState, error: stateError } = await supabaseAdmin
@@ -54,6 +55,8 @@ export const Route = createFileRoute("/api/public/ml/callback")({
         if (new Date(oauthState.expires_at).getTime() < Date.now()) return fail("invalid_state");
 
         const userId = oauthState.user_id;
+        const { verifier } = await deriveMlPkce(state, clientSecret);
+
         const tokenResponse = await fetch("https://api.mercadolibre.com/oauth/token", {
           method: "POST",
           headers: {
@@ -66,13 +69,14 @@ export const Route = createFileRoute("/api/public/ml/callback")({
             client_secret: clientSecret,
             code,
             redirect_uri: PUBLIC_CALLBACK,
+            code_verifier: verifier,
           }),
         });
 
         const tokenPayload = await tokenResponse.json().catch(() => null);
         if (!tokenResponse.ok) {
-          console.error("ML OAuth token exchange failed", {
-            stage: "authorization_code_exchange",
+          console.error("ML OAuth PKCE token exchange failed", {
+            stage: "authorization_code_exchange_pkce",
             status: tokenResponse.status,
             ...safeMlError(tokenPayload),
           });
@@ -86,8 +90,8 @@ export const Route = createFileRoute("/api/public/ml/callback")({
           user_id?: number | string;
         } | null;
         if (!token?.access_token) {
-          console.error("ML OAuth token exchange returned no access_token", {
-            stage: "authorization_code_exchange",
+          console.error("ML OAuth PKCE token exchange returned no access_token", {
+            stage: "authorization_code_exchange_pkce",
           });
           return fail("token_error");
         }
