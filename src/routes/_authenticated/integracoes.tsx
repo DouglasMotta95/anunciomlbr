@@ -48,18 +48,19 @@ const ML_RETURN_MESSAGES: Record<string, { type: "success" | "info" | "error"; t
     type: "error",
     text: "Sessão de conexão expirada ou inválida. Inicie a conexão novamente.",
   },
-  state_error: {
-    type: "error",
-    text: "Não foi possível validar a sessão segura do Mercado Livre. Tente conectar novamente.",
-  },
-  persist_error: {
-    type: "error",
-    text: "O Mercado Livre autorizou, mas não foi possível salvar a conexão. Tente novamente.",
-  },
+  state_error: { type: "error", text: "Não foi possível validar a sessão de conexão." },
   not_configured: { type: "error", text: "Integração indisponível no momento. Fale com o suporte." },
   token_error: {
     type: "error",
-    text: "Não foi possível concluir a autorização no Mercado Livre. Tente novamente.",
+    text: "O Mercado Livre autorizou, mas a troca do código pelo acesso falhou. Tente reconectar.",
+  },
+  identity_error: {
+    type: "error",
+    text: "A autorização foi recebida, mas não foi possível identificar a conta do Mercado Livre.",
+  },
+  persist_error: {
+    type: "error",
+    text: "A autorização foi recebida, mas não foi possível salvar a conexão. Tente novamente.",
   },
   start_error: {
     type: "error",
@@ -76,23 +77,30 @@ function IntegrationsPage() {
   const sync = useServerFn(syncMlListings);
   const disconnect = useServerFn(disconnectMercadoLivre);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ["ml-connection"],
     queryFn: () => fetchConnection(),
+    refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    const onFocus = () => void refetch();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refetch]);
 
   useEffect(() => {
     if (!ml) return;
     const message = ML_RETURN_MESSAGES[ml];
     if (message) {
-      const description =
+      const descriptionText =
         ml === "connected" && syncResult && syncResult !== "ok"
-          ? `Conectado, mas a sincronização inicial retornou: ${syncResult}. Use “Sincronizar anúncios”.`
+          ? `Conta conectada, mas a sincronização inicial retornou: ${syncResult}. Use “Sincronizar anúncios”.`
           : undefined;
-      toast[message.type](message.text, { description });
+      toast[message.type](message.text, { description: descriptionText });
     }
     if (ml === "connected") {
-      queryClient.invalidateQueries({ queryKey: ["ml-connection"] });
+      void queryClient.refetchQueries({ queryKey: ["ml-connection"], type: "active" });
     }
     navigate({ to: "/integracoes", replace: true, search: {} });
   }, [ml, syncResult, navigate, queryClient]);
@@ -105,9 +113,17 @@ function IntegrationsPage() {
           `Sincronizado: ${result.imported} novos, ${result.updated} atualizados (${result.total} anúncios).`,
         );
       } else {
-        toast.error("Não foi possível sincronizar.", { description: result.reason });
+        const reconnect =
+          result.reason === "missing_token" ||
+          result.reason === "missing_refresh_token" ||
+          result.reason.startsWith("refresh_failed");
+        toast.error("Não foi possível sincronizar.", {
+          description: reconnect
+            ? "Sua autorização expirou ou foi revogada. Reconecte sua conta do Mercado Livre."
+            : result.reason,
+        });
       }
-      queryClient.invalidateQueries({ queryKey: ["ml-connection"] });
+      void queryClient.refetchQueries({ queryKey: ["ml-connection"] });
     },
     onError: () => toast.error("Falha ao sincronizar anúncios."),
   });
@@ -115,7 +131,7 @@ function IntegrationsPage() {
   const disconnectMl = useMutation({
     mutationFn: () => disconnect(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ml-connection"] });
+      void queryClient.refetchQueries({ queryKey: ["ml-connection"] });
       toast.success("Conta do Mercado Livre desconectada.");
     },
     onError: () => toast.error("Falha ao desconectar."),
@@ -205,11 +221,10 @@ function IntegrationsPage() {
             <>
               <p className="text-sm text-muted-foreground">
                 Conecte sua conta do Mercado Livre com autorização oficial (OAuth) para importar
-                seus anúncios, sincronizar estoque e acompanhar vendas direto da plataforma.
+                seus anúncios, sincronizar estoque e usar a busca da plataforma.
               </p>
               <p className="text-xs text-muted-foreground">
-                Você será redirecionado ao site oficial do Mercado Livre para autorizar o acesso.
-                Nunca pedimos sua senha.
+                Você será redirecionado ao Mercado Livre para autorizar o acesso. Nunca pedimos sua senha.
               </p>
               <Button size="sm" className="font-semibold" onClick={openMercadoLivreOAuthStart}>
                 <Link2 className="mr-2 h-3.5 w-3.5" />
