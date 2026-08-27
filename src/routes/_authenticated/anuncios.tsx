@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Copy, Download, Pause, Play, PlusCircle, Sparkles, Tag, Trash2 } from "lucide-react";
+import { Copy, Download, Files, Pause, Play, PlusCircle, Sparkles, Tag, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -96,7 +96,7 @@ function ListingsPage() {
     onError: () => toast.error("Não foi possível excluir."),
   });
 
-  const startBulk = async (kind: "pause" | "activate" | "delete" | "optimize") => {
+  const startBulk = async (kind: "pause" | "activate" | "delete" | "duplicate" | "optimize") => {
     if (!selectedListings.length) return;
     const result = await startJob({
       data: {
@@ -140,7 +140,7 @@ function ListingsPage() {
         <>
           <Button asChild variant="outline" size="sm">
             <Link to="/buscar">
-              <Tag className="mr-1.5 h-3.5 w-3.5" /> Copiar do ML
+              <Tag className="mr-1.5 h-3.5 w-3.5" /> Buscar no ML
             </Link>
           </Button>
           <Button asChild size="sm">
@@ -292,14 +292,17 @@ function ListingsPage() {
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
             <p className="text-sm font-semibold">{selectedIds.length} anúncios selecionados</p>
             <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => startBulk("duplicate")}>
+                <Files className="mr-1.5 h-3.5 w-3.5" /> Duplicar selecionados
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => startBulk("optimize")}>
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Otimizar com IA
+              </Button>
               <Button size="sm" variant="outline" onClick={() => startBulk("activate")}>
                 <Play className="mr-1.5 h-3.5 w-3.5" /> Ativar
               </Button>
               <Button size="sm" variant="outline" onClick={() => startBulk("pause")}>
                 <Pause className="mr-1.5 h-3.5 w-3.5" /> Pausar
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => startBulk("optimize")}>
-                <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Otimizar com IA
               </Button>
               <Button size="sm" variant="outline" onClick={copyCodes}>
                 <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar códigos
