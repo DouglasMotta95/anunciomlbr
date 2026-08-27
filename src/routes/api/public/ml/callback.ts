@@ -1,5 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+const PUBLIC_APP_ORIGIN = "https://anunciomlbr.lovable.app";
+
+function resolveAppOrigin(requestOrigin: string) {
+  const configured = process.env["APP_PUBLIC_URL"]?.trim();
+  if (configured) {
+    try {
+      const parsed = new URL(configured);
+      if (!parsed.hostname.startsWith("id-preview--")) return parsed.origin;
+    } catch {
+      // fallback seguro abaixo
+    }
+  }
+
+  try {
+    const parsedRequest = new URL(requestOrigin);
+    if (!parsedRequest.hostname.startsWith("id-preview--")) return parsedRequest.origin;
+  } catch {
+    // fallback fixo abaixo
+  }
+
+  return PUBLIC_APP_ORIGIN;
+}
+
 /**
  * Callback OAuth oficial do Mercado Livre.
  *
@@ -15,11 +38,10 @@ export const Route = createFileRoute("/api/public/ml/callback")({
     handlers: {
       GET: async ({ request }) => {
         const url = new URL(request.url);
-        const appOrigin = process.env["APP_PUBLIC_URL"] ?? url.origin;
+        const appOrigin = resolveAppOrigin(url.origin);
         const fail = (reason: string) =>
           Response.redirect(`${appOrigin}/integracoes?ml=${encodeURIComponent(reason)}`, 302);
 
-        // Usuário cancelou ou o ML recusou a autorização.
         if (url.searchParams.get("error")) return fail("cancelled");
 
         const code = url.searchParams.get("code");
@@ -33,23 +55,35 @@ export const Route = createFileRoute("/api/public/ml/callback")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        // Valida o state: precisa existir, estar dentro da validade e ser de uso único.
-        const { data: oauthState } = await supabaseAdmin
+        const { data: oauthState, error: stateReadError } = await supabaseAdmin
           .from("ml_oauth_states")
           .select("user_id, expires_at")
           .eq("state", state)
           .maybeSingle();
+        if (stateReadError) {
+          console.error("ML OAuth state read failed", stateReadError.message);
+          return fail("state_error");
+        }
         if (!oauthState) return fail("invalid_state");
 
-        // Consome o state imediatamente (uso único), mesmo se expirado.
-        await supabaseAdmin.from("ml_oauth_states").delete().eq("state", state);
+        const { error: stateDeleteError } = await supabaseAdmin
+          .from("ml_oauth_states")
+          .delete()
+          .eq("state", state);
+        if (stateDeleteError) {
+          console.error("ML OAuth state delete failed", stateDeleteError.message);
+          return fail("state_error");
+        }
         if (new Date(oauthState.expires_at).getTime() < Date.now()) return fail("invalid_state");
 
         const userId = oauthState.user_id;
 
         const tokenResponse = await fetch("https://api.mercadolibre.com/oauth/token", {
           method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Accept: "application/json",
+          },
           body: new URLSearchParams({
             grant_type: "authorization_code",
             client_id: clientId,
@@ -60,16 +94,21 @@ export const Route = createFileRoute("/api/public/ml/callback")({
         });
 
         if (!tokenResponse.ok) {
-          console.error("ML token exchange failed", tokenResponse.status);
+          const body = await tokenResponse.text().catch(() => "");
+          console.error("ML token exchange failed", tokenResponse.status, body.slice(0, 300));
           return fail("token_error");
         }
 
         const token = (await tokenResponse.json()) as {
-          access_token: string;
+          access_token?: string;
           refresh_token?: string;
           expires_in?: number;
           user_id?: number | string;
         };
+        if (!token.access_token) {
+          console.error("ML token response missing access_token");
+          return fail("token_error");
+        }
 
         let nickname: string | null = null;
         try {
@@ -81,7 +120,7 @@ export const Route = createFileRoute("/api/public/ml/callback")({
           console.error("ML profile fetch failed", error);
         }
 
-        await supabaseAdmin.from("ml_tokens").upsert(
+        const { error: tokenSaveError } = await supabaseAdmin.from("ml_tokens").upsert(
           {
             user_id: userId,
             access_token: token.access_token,
@@ -90,8 +129,12 @@ export const Route = createFileRoute("/api/public/ml/callback")({
           },
           { onConflict: "user_id" },
         );
+        if (tokenSaveError) {
+          console.error("ML token persist failed", tokenSaveError.message);
+          return fail("persist_error");
+        }
 
-        await supabaseAdmin.from("ml_connections").upsert(
+        const { error: connectionSaveError } = await supabaseAdmin.from("ml_connections").upsert(
           {
             user_id: userId,
             connected: true,
@@ -101,15 +144,22 @@ export const Route = createFileRoute("/api/public/ml/callback")({
           },
           { onConflict: "user_id" },
         );
+        if (connectionSaveError) {
+          console.error("ML connection persist failed", connectionSaveError.message);
+          await supabaseAdmin.from("ml_tokens").delete().eq("user_id", userId);
+          return fail("persist_error");
+        }
 
-        await supabaseAdmin.from("activity_events").insert({
+        const { error: activityError } = await supabaseAdmin.from("activity_events").insert({
           user_id: userId,
           kind: "ml_connected",
           message: "Conta do Mercado Livre conectada",
           meta: { nickname },
         });
+        if (activityError) {
+          console.warn("ML activity log failed", activityError.message);
+        }
 
-        // Sincronização inicial dos anúncios do vendedor.
         let sync = "skipped";
         try {
           const { syncUserListings } = await import("@/lib/ml.server");
