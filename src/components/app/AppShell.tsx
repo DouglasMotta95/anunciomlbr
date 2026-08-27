@@ -14,6 +14,7 @@ import {
   Tag,
   Menu,
   MessageCircle,
+  MessageCircleQuestion,
   PackagePlus,
   Target,
 } from "lucide-react";
@@ -43,6 +44,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/crescimento", label: "Central de crescimento", icon: Target },
       { to: "/vendas", label: "Vendas", icon: ShoppingBag },
+      { to: "/perguntas", label: "Perguntas e atendimento", icon: MessageCircleQuestion },
       { to: "/estoque", label: "Estoque e margem", icon: Boxes },
       { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
     ],
