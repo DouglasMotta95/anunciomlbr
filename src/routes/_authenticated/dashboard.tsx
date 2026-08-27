@@ -21,6 +21,7 @@ import { useActivity, useLicense, useListings } from "@/hooks/useLicense";
 import { supabase } from "@/integrations/supabase/client";
 import { daysUntil, formatBRL, formatDate, relativeTime } from "@/lib/format";
 import { getProductImage } from "@/lib/product-image";
+import { licenseStatusLabel, listingStatusLabel } from "@/lib/status-labels";
 
 const title = "Dashboard — ANÚNCIO ML";
 const description = "Acompanhe anúncios, licença, integrações e otimizações de IA em um só painel.";
@@ -56,9 +57,7 @@ function DashboardPage() {
   const published = listings.filter((l) => l.status === "active").length;
   const optimized = listings.filter((l) => (l.ai_score ?? 0) > 0).length;
   const avgScore = optimized
-    ? Math.round(
-        listings.reduce((sum, l) => sum + (l.ai_score ?? 0), 0) / optimized,
-      )
+    ? Math.round(listings.reduce((sum, l) => sum + (l.ai_score ?? 0), 0) / optimized)
     : 0;
   const potential = listings.reduce((sum, l) => sum + (l.price_cents ?? 0), 0);
 
@@ -69,7 +68,7 @@ function DashboardPage() {
   return (
     <AppShell
       title={`Olá, ${profile?.full_name?.split(" ")[0] ?? "vendedor"} 👋`}
-      description="Como estão suas vendas hoje?"
+      description="Acompanhe seus anúncios e integrações em um só lugar."
       actions={
         <>
           <Button asChild variant="outline" size="sm">
@@ -154,12 +153,11 @@ function DashboardPage() {
         </Card>
       </div>
 
-
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Próximos passos</CardTitle>
-            <Badge variant="outline">Onboarding</Badge>
+            <Badge variant="outline">Configuração inicial</Badge>
           </CardHeader>
           <CardContent className="space-y-3">
             <StepRow
@@ -209,7 +207,7 @@ function DashboardPage() {
               <>
                 <div className="flex items-center justify-between">
                   <span className="font-display text-lg font-bold">{license.plan.name}</span>
-                  <Badge>{license.status === "active" ? "Ativa" : license.status}</Badge>
+                  <Badge>{licenseStatusLabel(license.status)}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">Chave {license.code}</p>
                 <p className="text-sm text-muted-foreground">
@@ -283,7 +281,7 @@ function DashboardPage() {
                         {formatBRL(l.price_cents ?? 0)}
                       </p>
                       <Badge variant="outline" className="text-[10px]">
-                        {l.status}
+                        {listingStatusLabel(l.status)}
                       </Badge>
                     </div>
                   </div>
