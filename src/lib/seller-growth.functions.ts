@@ -15,10 +15,11 @@ type Opportunity = {
 export const getSellerGrowthOverview = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const db = context.supabase as any;
     const [{ data: listings }, { data: connection }, { data: quota }] = await Promise.all([
-      context.supabase.from("listings").select("id,title,status,stock,price_cents,cost_cents,fees_cents,ai_score,images,attributes,updated_at"),
-      context.supabase.from("ml_connections").select("connected,last_sync_at,listings_count").maybeSingle(),
-      context.supabase.rpc("my_ad_quota"),
+      db.from("listings").select("id,title,status,stock,price_cents,cost_cents,fees_cents,ai_score,images,attributes,updated_at"),
+      db.from("ml_connections").select("connected,last_sync_at,listings_count").maybeSingle(),
+      db.rpc("my_ad_quota"),
     ]);
 
     const rows = listings ?? [];
@@ -62,8 +63,9 @@ export const getSellerGrowthOverview = createServerFn({ method: "GET" })
     }
 
     const q = Array.isArray(quota) ? quota[0] : quota;
+    const weight = { high: 0, medium: 1, low: 2 } as const;
     return {
-      opportunities: opportunities.sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.severity] - ({ high: 0, medium: 1, low: 2 }[b.severity])),
+      opportunities: opportunities.sort((a, b) => weight[a.severity] - weight[b.severity]),
       score: Math.max(0, 100 - opportunities.reduce((sum, o) => sum + (o.severity === "high" ? 18 : o.severity === "medium" ? 9 : 4), 0)),
       sales,
       catalog: { total: rows.length, active: rows.filter((r: any) => r.status === "active").length, value_cents: rows.reduce((sum: number, r: any) => sum + Number(r.price_cents ?? 0), 0) },
@@ -89,16 +91,18 @@ export const calculateSmartPrice = createServerFn({ method: "POST" })
 export const getReferralSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: code, error } = await context.supabase.rpc("ensure_referral_code");
+    const db = context.supabase as any;
+    const { data: code, error } = await db.rpc("ensure_referral_code");
     if (error) throw new Error("Não foi possível gerar seu código de indicação.");
-    const { data: referrals } = await context.supabase.from("referrals").select("id,status,reward_ads,created_at").eq("referrer_user_id", context.userId).order("created_at", { ascending: false });
+    const { data: referrals } = await db.from("referrals").select("id,status,reward_ads,created_at").eq("referrer_user_id", context.userId).order("created_at", { ascending: false });
     return { code: String(code), total: referrals?.length ?? 0, converted: (referrals ?? []).filter((r: any) => ["converted", "rewarded"].includes(r.status)).length, rewarded_ads: (referrals ?? []).filter((r: any) => r.status === "rewarded").reduce((sum: number, r: any) => sum + Number(r.reward_ads ?? 0), 0), referrals: referrals ?? [] };
   });
 
 export const listCompetitorWatch = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.from("competitor_watch").select("*").order("created_at", { ascending: false });
+    const db = context.supabase as any;
+    const { data, error } = await db.from("competitor_watch").select("*").order("created_at", { ascending: false });
     if (error) throw new Error("Não foi possível carregar o radar.");
     return data ?? [];
   });
@@ -107,17 +111,41 @@ export const addCompetitorWatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ ml_item_id: z.string().trim().regex(/^MLB\d+$/i), title: z.string().max(200).nullish(), permalink: z.string().url().nullish() }).parse(data))
   .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
     const itemId = data.ml_item_id.toUpperCase();
-    const { data: row, error } = await context.supabase.from("competitor_watch").upsert({ user_id: context.userId, ml_item_id: itemId, title: data.title ?? null, permalink: data.permalink ?? null }, { onConflict: "user_id,ml_item_id" }).select("*").single();
+    const { data: row, error } = await db.from("competitor_watch").upsert({ user_id: context.userId, ml_item_id: itemId, title: data.title ?? null, permalink: data.permalink ?? null }, { onConflict: "user_id,ml_item_id" }).select("*").single();
     if (error) throw new Error("Não foi possível adicionar ao radar.");
     return row;
+  });
+
+export const refreshCompetitorWatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = context.supabase as any;
+    const { data: watched } = await db.from("competitor_watch").select("*").eq("user_id", context.userId).limit(50);
+    if (!watched?.length) return { updated: 0 };
+    const { getValidMlAccessToken } = await import("@/lib/ml.server");
+    const token = await getValidMlAccessToken(context.userId);
+    if (!token.ok) throw new Error("Reconecte o Mercado Livre para atualizar o radar.");
+    let updated = 0;
+    for (const row of watched) {
+      try {
+        const response = await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(row.ml_item_id)}`, { headers: { Authorization: `Bearer ${token.accessToken}`, Accept: "application/json" } });
+        if (!response.ok) continue;
+        const item = await response.json() as { title?: string; price?: number; status?: string; permalink?: string };
+        await db.from("competitor_watch").update({ title: item.title ?? row.title, last_price_cents: typeof item.price === "number" ? Math.round(item.price * 100) : row.last_price_cents, last_status: item.status ?? row.last_status, permalink: item.permalink ?? row.permalink, last_checked_at: new Date().toISOString() }).eq("id", row.id).eq("user_id", context.userId);
+        updated += 1;
+      } catch { /* um item não bloqueia os demais */ }
+    }
+    return { updated };
   });
 
 export const removeCompetitorWatch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("competitor_watch").delete().eq("id", data.id).eq("user_id", context.userId);
+    const db = context.supabase as any;
+    const { error } = await db.from("competitor_watch").delete().eq("id", data.id).eq("user_id", context.userId);
     if (error) throw new Error("Não foi possível remover do radar.");
     return { ok: true as const };
   });
@@ -125,9 +153,10 @@ export const removeCompetitorWatch = createServerFn({ method: "POST" })
 export const getResellerDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: reseller } = await context.supabase.from("resellers").select("*").eq("user_id", context.userId).maybeSingle();
+    const db = context.supabase as any;
+    const { data: reseller } = await db.from("resellers").select("*").eq("user_id", context.userId).maybeSingle();
     if (!reseller || reseller.status !== "active") return { enabled: false as const };
-    const { data: sales } = await context.supabase.from("reseller_sales").select("*, plans(name)").eq("reseller_id", reseller.id).order("created_at", { ascending: false }).limit(100);
+    const { data: sales } = await db.from("reseller_sales").select("*, plans(name)").eq("reseller_id", reseller.id).order("created_at", { ascending: false }).limit(100);
     return { enabled: true as const, reseller, sales: sales ?? [] };
   });
 
@@ -137,7 +166,8 @@ export const adminListResellers = createServerFn({ method: "GET" })
     const { assertCapability } = await import("@/lib/permissions.server");
     await assertCapability(context, "admin.access");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin.from("resellers").select("*").order("created_at", { ascending: false });
+    const db = supabaseAdmin as any;
+    const { data, error } = await db.from("resellers").select("*").order("created_at", { ascending: false });
     if (error) throw new Error("Não foi possível listar revendedores.");
     return data ?? [];
   });
@@ -149,8 +179,15 @@ export const adminCreateReseller = createServerFn({ method: "POST" })
     const { assertCapability, logAudit } = await import("@/lib/permissions.server");
     await assertCapability(context, "licenses.generate");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: row, error } = await supabaseAdmin.from("resellers").insert({ ...data, created_by: context.userId }).select("*").single();
-    if (error) throw new Error("Não foi possível criar o revendedor.");
-    await logAudit({ actorId: context.userId, action: "reseller.create", entity: "reseller", entityId: row.id, details: { email: data.email, discount_percent: data.discount_percent } });
+    const db = supabaseAdmin as any;
+    let resolvedUserId = data.user_id ?? null;
+    if (!resolvedUserId) {
+      const { data: profile } = await db.from("profiles").select("id").ilike("email", data.email.trim()).maybeSingle();
+      resolvedUserId = profile?.id ?? null;
+    }
+    const payload = { name: data.name, email: data.email.trim().toLowerCase(), user_id: resolvedUserId, discount_percent: data.discount_percent, wallet_cents: data.wallet_cents, created_by: context.userId };
+    const { data: row, error } = await db.from("resellers").insert(payload).select("*").single();
+    if (error) throw new Error(error.code === "23505" ? "Este usuário já está cadastrado como revendedor." : "Não foi possível criar o revendedor.");
+    await logAudit({ actorId: context.userId, action: "reseller.create", entity: "reseller", entityId: row.id, details: { email: data.email, linked_user: !!resolvedUserId, discount_percent: data.discount_percent } });
     return row;
   });
