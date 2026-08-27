@@ -15,7 +15,6 @@ import { provisionAdminAccount } from "@/lib/setup.functions";
 
 const title = "Acesso administrativo — ANÚNCIO ML";
 const description = "Área restrita para administradores da plataforma ANÚNCIO ML.";
-const AUTHORIZED_ADMIN_EMAIL = "siteprimebr@gmail.com";
 
 export const Route = createFileRoute("/admin/login")({
   head: () => ({
@@ -34,7 +33,7 @@ function AdminLoginPage() {
   const navigate = useNavigate();
   const checkAdmin = useServerFn(checkIsAdmin);
   const provisionAdmin = useServerFn(provisionAdminAccount);
-  const [email, setEmail] = useState(AUTHORIZED_ADMIN_EMAIL);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -48,55 +47,33 @@ function AdminLoginPage() {
       toast.error("Credenciais inválidas");
       return;
     }
+
     const { isAdmin } = await checkAdmin();
     setLoading(false);
     if (!isAdmin) {
       await supabase.auth.signOut();
       toast.error("Esta conta não possui acesso administrativo");
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/auth", replace: true });
       return;
     }
-    navigate({ to: "/admin" });
+
+    navigate({ to: "/admin", replace: true });
   };
 
-  const requestAdminAccess = async () => {
+  const requestPasswordReset = async () => {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
-      toast.error("Informe o e-mail administrativo.");
-      return;
-    }
-    if (normalizedEmail !== AUTHORIZED_ADMIN_EMAIL) {
-      toast.error("Este e-mail não está autorizado para o painel administrativo.");
+      toast.error("Informe seu e-mail.");
       return;
     }
 
     setResetting(true);
     try {
-      const provision = await provisionAdmin({ data: { email: normalizedEmail } });
-
-      if (provision.ok) {
-        toast.success("Acesso administrativo criado.", {
-          description: "Enviamos um e-mail para você definir sua senha.",
-        });
-        return;
-      }
-
-      if (provision.reason === "already_provisioned") {
-        const redirectTo = `${window.location.origin}/reset-password`;
-        const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-          redirectTo,
-        });
-        if (error) throw error;
-        toast.success("E-mail enviado.", {
-          description: "Abra a mensagem recebida para criar ou redefinir sua senha administrativa.",
-        });
-        return;
-      }
-
-      toast.error("Não foi possível liberar o acesso administrativo.");
+      await provisionAdmin({ data: { email: normalizedEmail } });
+      toast.success("Se o e-mail informado possuir acesso administrativo, você receberá as instruções para redefinir a senha.");
     } catch (error) {
       console.error("Admin password/reset request failed", error);
-      toast.error("Não foi possível enviar o e-mail agora. Tente novamente.");
+      toast.error("Não foi possível processar a solicitação agora. Tente novamente.");
     } finally {
       setResetting(false);
     }
@@ -122,6 +99,7 @@ function AdminLoginPage() {
                   autoComplete="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Digite seu e-mail"
                   required
                 />
               </div>
@@ -142,23 +120,23 @@ function AdminLoginPage() {
               </Button>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 className="w-full"
                 disabled={loading || resetting}
-                onClick={requestAdminAccess}
+                onClick={requestPasswordReset}
               >
                 {resetting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <Mail className="mr-2 h-4 w-4" />
                 )}
-                Criar / redefinir senha administrativa
+                Esqueci minha senha
               </Button>
             </form>
           </CardContent>
         </Card>
         <p className="text-center text-xs text-muted-foreground">
-          Todas as ações administrativas são registradas e validadas no servidor.
+          Área restrita. O acesso é validado no servidor e somente contas autorizadas entram no painel.
         </p>
       </div>
     </div>

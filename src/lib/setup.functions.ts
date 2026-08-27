@@ -5,15 +5,18 @@ const AUTHORIZED_ADMIN_EMAIL = "siteprimebr@gmail.com";
 const PUBLIC_APP_ORIGIN = "https://anunciomlbr.lovable.app";
 
 /**
- * Provisiona de forma idempotente a conta administrativa principal.
- * Se o usuário já existir, apenas garante a role admin e envia redefinição.
- * Nenhuma senha fixa é armazenada no código.
+ * Provisiona/redefine a conta administrativa principal de forma idempotente.
+ * Por privacidade, o endpoint nunca revela se o e-mail informado é ou não o autorizado.
+ * Apenas o e-mail administrativo real gera qualquer ação no backend.
  */
 export const provisionAdminAccount = createServerFn({ method: "POST" })
   .inputValidator((data) => z.object({ email: z.string().email() }).parse(data))
   .handler(async ({ data }) => {
-    if (data.email.toLowerCase() !== AUTHORIZED_ADMIN_EMAIL) {
-      return { ok: false as const, reason: "email_not_authorized" };
+    const normalizedEmail = data.email.trim().toLowerCase();
+
+    // Resposta neutra para impedir enumeração/descoberta do e-mail administrativo.
+    if (normalizedEmail !== AUTHORIZED_ADMIN_EMAIL) {
+      return { ok: true as const };
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -21,9 +24,8 @@ export const provisionAdminAccount = createServerFn({ method: "POST" })
     const { data: list, error: listError } = await supabaseAdmin.auth.admin.listUsers();
     if (listError) throw new Error(listError.message);
 
-    let userId = list?.users?.find(
-      (user) => user.email?.toLowerCase() === AUTHORIZED_ADMIN_EMAIL,
-    )?.id ?? null;
+    let userId =
+      list?.users?.find((user) => user.email?.toLowerCase() === AUTHORIZED_ADMIN_EMAIL)?.id ?? null;
 
     if (!userId) {
       const initialPassword = `${crypto.randomUUID()}${crypto.randomUUID()}`;
