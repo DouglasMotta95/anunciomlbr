@@ -27,7 +27,6 @@ function DashboardPage() {
   const champions = (overview as any)?.champions ?? [];
   const active = listings.filter((l) => l.status === "active").length;
   const optimized = listings.filter((l) => (l.ai_score ?? 0) > 0).length;
-  const created = listings.length;
   const remaining = overview?.quota.remaining ?? 0;
   const used = (overview?.quota as any)?.used ?? 0;
   const limit = (overview?.quota as any)?.limit ?? remaining + used;
@@ -39,8 +38,8 @@ function DashboardPage() {
     actions={<><Button asChild variant="outline" size="sm"><Link to="/notificacoes" as any><Bell className="mr-2 h-4 w-4"/>Alertas</Link></Button><Button asChild size="sm"><Link to="/buscar"><PackagePlus className="mr-2 h-4 w-4"/>Duplicar anúncio</Link></Button></>}
   >
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Metric label="Anúncios criados" value={formatNumber(created)} hint="na sua conta" icon={PackagePlus}/>
-      <Metric label="Anúncios ativos" value={formatNumber(active)} hint="publicados e ativos" icon={Boxes}/>
+      <Metric label="Criados neste ciclo" value={formatNumber(used)} hint="criados ou duplicados pelo ANÚNCIO ML" icon={PackagePlus}/>
+      <Metric label="Anúncios ativos" value={formatNumber(active)} hint="inclui anúncios sincronizados da sua conta" icon={Boxes}/>
       <Metric label="Otimizados por IA" value={formatNumber(optimized)} hint="anúncios trabalhados pela IA" icon={Bot}/>
       <Metric label="Faturamento · 30 dias" value={formatBRL(sales.revenue_cents)} hint={`${formatNumber(sales.orders)} pedido(s)`} icon={WalletCards}/>
     </div>
@@ -49,9 +48,9 @@ function DashboardPage() {
       <Card className="border-primary/25">
         <CardHeader><CardTitle>Uso do seu plano</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-end justify-between gap-4"><div><p className="text-3xl font-extrabold">{formatNumber(used)} <span className="text-base font-medium text-muted-foreground">/ {formatNumber(limit)}</span></p><p className="text-sm text-muted-foreground">anúncios utilizados neste ciclo</p></div><Badge variant={pct >= 85 ? "destructive" : "secondary"}>{pct}% usado</Badge></div>
+          <div className="flex items-end justify-between gap-4"><div><p className="text-3xl font-extrabold">{formatNumber(used)} <span className="text-base font-medium text-muted-foreground">/ {formatNumber(limit)}</span></p><p className="text-sm text-muted-foreground">criações e duplicações utilizadas neste ciclo</p></div><Badge variant={pct >= 85 ? "destructive" : "secondary"}>{pct}% usado</Badge></div>
           <Progress value={pct}/>
-          <div className="flex flex-wrap items-center justify-between gap-3 text-sm"><span className="text-muted-foreground">Pausar ou excluir não devolve anúncios ao ciclo.</span><strong>{formatNumber(remaining)} disponíveis</strong></div>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm"><span className="text-muted-foreground">Anúncios que já existiam no Mercado Livre não consomem a franquia. Pausar ou excluir não devolve uso.</span><strong>{formatNumber(remaining)} disponíveis</strong></div>
           {pct >= 70 && <Button asChild><Link to="/assinatura" as any>Ver opções de upgrade</Link></Button>}
         </CardContent>
       </Card>
