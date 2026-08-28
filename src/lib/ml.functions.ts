@@ -57,6 +57,23 @@ function mapSearchResult(raw: Record<string, unknown>): MlItem {
   };
 }
 
+async function getSellerNickname(sellerId: string, accessToken: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://api.mercadolibre.com/users/${encodeURIComponent(sellerId)}`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "User-Agent": "ANUNCIO-ML/1.0",
+      },
+    });
+    if (!response.ok) return null;
+    const raw = (await response.json()) as { nickname?: unknown };
+    return typeof raw.nickname === "string" && raw.nickname.trim() ? raw.nickname.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function searchCatalogFallback(query: string, limit: number, accessToken: string): Promise<MlItem[]> {
   const catalogUrl = new URL("https://api.mercadolibre.com/products/search");
   catalogUrl.searchParams.set("status", "active");
@@ -115,6 +132,8 @@ async function searchCatalogFallback(query: string, limit: number, accessToken: 
         const images = pictures
           .map((picture) => httpsUrl(picture.secure_url ?? picture.url))
           .filter((value): value is string => !!value);
+        const sellerId = itemRaw["seller_id"] != null ? String(itemRaw["seller_id"]) : null;
+        const sellerNickname = sellerId ? await getSellerNickname(sellerId, accessToken) : null;
 
         return {
           id: String(itemRaw["id"] ?? itemId),
@@ -123,7 +142,7 @@ async function searchCatalogFallback(query: string, limit: number, accessToken: 
           thumbnail: httpsUrl(itemRaw["thumbnail"]) ?? images[0] ?? null,
           permalink: httpsUrl(itemRaw["permalink"]) ?? httpsUrl(raw["permalink"]),
           category: (itemRaw["category_id"] as string) ?? null,
-          seller: itemRaw["seller_id"] != null ? String(itemRaw["seller_id"]) : null,
+          seller: sellerNickname,
           condition: (itemRaw["condition"] as string) ?? null,
           available_quantity: (itemRaw["available_quantity"] as number) ?? null,
           sold_quantity: (itemRaw["sold_quantity"] as number) ?? null,
