@@ -5,6 +5,7 @@ import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landi
 import { CreditsExplainer } from "@/components/landing/CreditsExplainer";
 import { IllustrativeSocialProof } from "@/components/landing/IllustrativeSocialProof";
 import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
+import { PlanPurchaseSection } from "@/components/landing/PlanPurchaseSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
 import { RealSocialProof } from "@/components/landing/RealSocialProof";
@@ -16,7 +17,6 @@ import {
   FinalCta,
   LandingFooter,
   LandingNav,
-  PricingSection,
 } from "@/components/landing/sections";
 
 const title = "ANÚNCIO ML — Encontre, copie, otimize e publique anúncios";
@@ -49,7 +49,7 @@ function Landing() {
         <Reveal><IllustrativeSocialProof /></Reveal>
         <Reveal><VerifiedFeaturesSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
-        <Reveal><PricingSection /></Reveal>
+        <Reveal><PlanPurchaseSection /></Reveal>
         <Reveal><CreditsExplainer /></Reveal>
         <Reveal><PlanPeriodComparisonSection /></Reveal>
         <Reveal><LaunchFaqSection /></Reveal>
