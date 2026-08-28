@@ -9,6 +9,7 @@ import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
 import { RealSocialProof } from "@/components/landing/RealSocialProof";
 import { Reveal } from "@/components/landing/Reveal";
+import { SalesShowcase } from "@/components/landing/SalesShowcase";
 import { VerifiedFeaturesSection } from "@/components/landing/VerifiedFeaturesSection";
 import {
   ComparisonSection,
@@ -44,6 +45,7 @@ function Landing() {
         <ProductTrustBar />
         <PremiumCapabilities />
         <Reveal><RealSocialProof /></Reveal>
+        <Reveal><SalesShowcase /></Reveal>
         <Reveal><IllustrativeSocialProof /></Reveal>
         <Reveal><VerifiedFeaturesSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
