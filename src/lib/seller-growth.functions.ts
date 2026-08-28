@@ -7,7 +7,7 @@ type Opportunity={key:string;severity:"high"|"medium"|"low";title:string;descrip
 export const getSellerGrowthOverview=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{
   const db=context.supabase as any;
   const [{data:listings},{data:connection,error:connectionError},{data:quota},tokenState]=await Promise.all([
-    db.from("listings").select("id,title,status,stock,price_cents,cost_cents,fees_cents,ai_score,images,attributes,source_ml_id,updated_at"),
+    db.from("listings").select("id,title,status,stock,price_cents,cost_cents,fees_cents,ai_score,images,attributes,source_ml_id,source_permalink,updated_at"),
     db.from("ml_connections").select("connected,ml_user_id,nickname,last_sync_at,listings_count").eq("user_id",context.userId).maybeSingle(),
     db.rpc("my_ad_quota"),
     import("@/lib/ml.server").then(({getValidMlAccessToken})=>getValidMlAccessToken(context.userId)).catch(()=>({ok:false as const,reason:"token_check_failed"}))
@@ -42,7 +42,7 @@ export const getSellerGrowthOverview=createServerFn({method:"GET"}).middleware([
         const paid=result.orders.filter(o=>!["cancelled","invalid"].includes(o.status)),revenue=paid.reduce((s,o)=>s+Math.round((o.paid_amount??o.total_amount)*100),0),rank=new Map<string,any>();let units=0;
         for(const order of paid)for(const entry of order.items){units+=entry.quantity;const id=entry.item_id;if(!id)continue;const current=rank.get(id)??{ml_item_id:id,title:entry.title,units:0,revenue_cents:0};current.units+=entry.quantity;current.revenue_cents+=Math.round(entry.unit_price*entry.quantity*100);rank.set(id,current);}
         sales={available:true,orders:paid.length,revenue_cents:revenue,ticket_cents:paid.length?Math.round(revenue/paid.length):0,units};
-        champions=Array.from(rank.values()).sort((a,b)=>b.units-a.units||b.revenue_cents-a.revenue_cents).slice(0,5).map((c:any)=>{const local=rows.find((r:any)=>r.source_ml_id===c.ml_item_id);const first=Array.isArray(local?.images)?local.images[0]:null;return {...c,listing_id:local?.id??null,title:local?.title??c.title,image:typeof first==="string"?first:first?.secure_url??first?.url??null};});
+        champions=Array.from(rank.values()).sort((a,b)=>b.units-a.units||b.revenue_cents-a.revenue_cents).slice(0,5).map((c:any)=>{const local=rows.find((r:any)=>r.source_ml_id===c.ml_item_id);const first=Array.isArray(local?.images)?local.images[0]:null;return {...c,listing_id:local?.id??null,permalink:typeof local?.source_permalink==="string"?local.source_permalink:null,title:local?.title??c.title,image:typeof first==="string"?first:first?.secure_url??first?.url??null};});
       }
     }catch(error){console.error("growth orders summary failed",error);}
   }
