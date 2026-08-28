@@ -4,9 +4,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { MlItem } from "./ml.functions";
 
-// Mantém todos os exports antigos (OAuth, sync, disconnect etc.).
-// As funções de busca abaixo são exports explícitos e substituem as versões
-// antigas quando este módulo é resolvido pelo alias do tsconfig.
 export * from "./ml.functions";
 
 const ML_API = "https://api.mercadolibre.com";
@@ -30,12 +27,6 @@ function httpsUrl(value: unknown): string | null {
   return value;
 }
 
-/**
- * Busca é leitura: primeiro tenta o token do usuário, depois token da aplicação.
- * Se ambos estiverem indisponíveis, ainda tentamos endpoints públicos sem Bearer.
- * Isso evita que "Buscar" fique inutilizável só porque a conexão do vendedor
- * expirou ou porque o token da conta está sendo renovado.
- */
 async function getReadTokens(userId: string): Promise<string[]> {
   const { getAppAccessToken, getValidMlAccessToken } = await import("@/lib/ml.server");
   const tokens: string[] = [];
@@ -44,14 +35,14 @@ async function getReadTokens(userId: string): Promise<string[]> {
     const userToken = await getValidMlAccessToken(userId);
     if (userToken.ok && userToken.accessToken) tokens.push(userToken.accessToken);
   } catch {
-    // A busca pode continuar com token da aplicação ou endpoint público.
+    // Continua com app token ou endpoint público quando possível.
   }
 
   try {
     const appToken = await getAppAccessToken();
     if (appToken && !tokens.includes(appToken)) tokens.push(appToken);
   } catch {
-    // A busca ainda pode continuar em endpoints públicos.
+    // Continua com endpoint público quando possível.
   }
 
   return tokens;
@@ -66,12 +57,6 @@ function mergeHeaders(base: HeadersInit | undefined, token?: string): Headers {
   return headers;
 }
 
-/**
- * Tenta todos os tokens disponíveis e, por último, uma chamada sem autenticação.
- * 401/403 não encerram a busca imediatamente, pois alguns endpoints públicos do
- * Mercado Livre aceitam consulta anônima enquanto uma credencial pode não ter
- * o escopo necessário.
- */
 async function fetchMl(url: string | URL, init: RequestInit, tokens: string[]): Promise<FetchAttempt> {
   const statuses: number[] = [];
   let last: Response | null = null;
@@ -102,7 +87,7 @@ function mapSearchResult(raw: Record<string, unknown>): MlItem {
   const seller = raw["seller"] as { nickname?: string } | undefined;
   const price = typeof raw["price"] === "number" ? raw["price"] : null;
   return {
-    id: String(raw["id"] ?? ""),
+    id: String(raw["id"] ?? raw["item_id"] ?? ""),
     title: String(raw["title"] ?? ""),
     price_cents: price === null ? null : Math.round(price * 100),
     thumbnail: httpsUrl(raw["thumbnail"]),
@@ -125,7 +110,7 @@ async function getSellerNickname(sellerId: string, tokens: string[]): Promise<st
 
 async function fetchItem(itemId: string, tokens: string[]): Promise<{ item: MlItem | null; statuses: number[] }> {
   const id = itemId.toUpperCase().replace("MLB-", "MLB");
-  const attempt = await fetchMl(`${ML_API}/items/${encodeURIComponent(id)}`, {}, tokens);
+  const attempt = await fetchMl(`${ML_API}/items/${encodeURIComponent(id)}?include_attributes=all`, {}, tokens);
   if (!attempt.response?.ok) return { item: null, statuses: attempt.statuses };
 
   const raw = (await attempt.response.json().catch(() => null)) as Record<string, unknown> | null;
@@ -183,13 +168,27 @@ async function searchMarketplaceListings(query: string, limit: number, tokens: s
   return { items: await enrichItems(mapped, tokens, limit), statuses: attempt.statuses, failed: false };
 }
 
+async function getCatalogListingIds(productId: string, tokens: string[], limit: number): Promise<{ ids: string[]; statuses: number[] }> {
+  const url = new URL(`${ML_API}/products/${encodeURIComponent(productId)}/items`);
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 100)));
+  const attempt = await fetchMl(url, {}, tokens);
+  if (!attempt.response?.ok) return { ids: [], statuses: attempt.statuses };
+  const payload = (await attempt.response.json().catch(() => null)) as
+    | { results?: Array<{ item_id?: unknown }> }
+    | null;
+  const ids = (payload?.results ?? [])
+    .map((row) => (typeof row.item_id === "string" ? row.item_id : null))
+    .filter((id): id is string => !!id && /^MLB-?\d+$/i.test(id));
+  return { ids: Array.from(new Set(ids)), statuses: attempt.statuses };
+}
+
 async function searchCatalogProducts(query: string, limit: number, tokens: string[]) {
   const requested = Math.min(Math.max(limit, 1), 30);
   const url = new URL(`${ML_API}/products/search`);
   url.searchParams.set("status", "active");
   url.searchParams.set("site_id", "MLB");
   url.searchParams.set("q", query);
-  url.searchParams.set("limit", String(requested));
+  url.searchParams.set("limit", String(Math.min(requested, 12)));
 
   const attempt = await fetchMl(url, {}, tokens);
   if (!attempt.response?.ok) return { items: [] as MlItem[], statuses: attempt.statuses, failed: true };
@@ -197,23 +196,40 @@ async function searchCatalogProducts(query: string, limit: number, tokens: strin
     | { results?: Array<{ id?: string }> }
     | null;
 
-  const products = (payload?.results ?? []).slice(0, requested);
+  const productIds = (payload?.results ?? [])
+    .map((product) => product.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0)
+    .slice(0, 12);
+
+  const listingIdGroups = await Promise.all(
+    productIds.map((productId) => getCatalogListingIds(productId, tokens, Math.min(8, requested))),
+  );
+  const listingIds = Array.from(new Set(listingIdGroups.flatMap((group) => group.ids))).slice(0, requested);
+
+  if (listingIds.length) {
+    const items = await Promise.all(listingIds.map(async (id) => (await fetchItem(id, tokens)).item));
+    return {
+      items: items.filter((item): item is MlItem => !!item),
+      statuses: [...attempt.statuses, ...listingIdGroups.flatMap((group) => group.statuses)],
+      failed: false,
+    };
+  }
+
+  // Fallback: alguns produtos de catálogo ainda retornam somente buy_box_winner.
   const details = await Promise.all(
-    products.map(async (product) => {
-      if (!product.id) return null;
-      const productAttempt = await fetchMl(`${ML_API}/products/${encodeURIComponent(product.id)}`, {}, tokens);
+    productIds.map(async (productId) => {
+      const productAttempt = await fetchMl(`${ML_API}/products/${encodeURIComponent(productId)}`, {}, tokens);
       if (!productAttempt.response?.ok) return null;
       const raw = (await productAttempt.response.json().catch(() => null)) as Record<string, unknown> | null;
       const winner = raw?.["buy_box_winner"] as Record<string, unknown> | undefined;
       const itemId = typeof winner?.["item_id"] === "string" ? winner["item_id"] : null;
-      if (!itemId) return null;
-      return (await fetchItem(itemId, tokens)).item;
+      return itemId ? (await fetchItem(itemId, tokens)).item : null;
     }),
   );
 
   return {
-    items: details.filter((item): item is MlItem => !!item),
-    statuses: attempt.statuses,
+    items: details.filter((item): item is MlItem => !!item).slice(0, requested),
+    statuses: [...attempt.statuses, ...listingIdGroups.flatMap((group) => group.statuses)],
     failed: false,
   };
 }
@@ -260,7 +276,7 @@ function mergeResults(primary: MlItem[], secondary: MlItem[], limit: number): Ml
 function statusHint(statuses: number[]): string {
   const unique = Array.from(new Set(statuses));
   if (unique.includes(401)) return "A autorização de leitura do Mercado Livre foi recusada (401). Reconecte a conta se o erro continuar.";
-  if (unique.includes(403)) return "O Mercado Livre bloqueou esta modalidade de consulta (403). Tente por Produto, ID, Link ou Vendedor.";
+  if (unique.includes(403)) return "O Mercado Livre bloqueou uma das modalidades de consulta (403). A busca tenta automaticamente os caminhos de catálogo, ID, link e vendedor disponíveis.";
   if (unique.includes(429)) return "O Mercado Livre limitou temporariamente as consultas. Aguarde alguns instantes e tente novamente.";
   if (unique.some((status) => status >= 500)) return "O Mercado Livre está indisponível no momento. Tente novamente em alguns minutos.";
   return "Não foi possível consultar o Mercado Livre agora.";
@@ -329,6 +345,9 @@ async function resolveMlLink(rawLink: string): Promise<{ itemId: string | null; 
 }
 
 async function itemFromProduct(productId: string, tokens: string[]): Promise<MlItem | null> {
+  const offers = await getCatalogListingIds(productId, tokens, 1);
+  if (offers.ids[0]) return (await fetchItem(offers.ids[0], tokens)).item;
+
   const attempt = await fetchMl(`${ML_API}/products/${encodeURIComponent(productId)}`, {}, tokens);
   if (!attempt.response?.ok) return null;
   const raw = (await attempt.response.json().catch(() => null)) as Record<string, unknown> | null;
@@ -351,13 +370,19 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
     ]);
     const items = mergeResults(marketplace.items, catalog.items, limit);
     if (items.length > 0) return { ok: true, configured: true, reason: null, items };
-    if (!marketplace.failed || !catalog.failed) return { ok: true, configured: true, reason: null, items: [] };
-    return {
-      ok: false,
-      configured: true,
-      reason: statusHint([...marketplace.statuses, ...catalog.statuses]),
-      items: [],
-    };
+
+    const statuses = [...marketplace.statuses, ...catalog.statuses];
+    if (!marketplace.failed || !catalog.failed) {
+      return {
+        ok: true,
+        configured: true,
+        reason: statuses.includes(403)
+          ? "A busca ampla do marketplace foi restringida, e o catálogo oficial não encontrou ofertas clonáveis para este termo. Tente uma descrição mais específica, um ID, link ou vendedor."
+          : null,
+        items: [],
+      };
+    }
+    return { ok: false, configured: true, reason: statusHint(statuses), items: [] };
   });
 
 export const searchMercadoLivreProducts = createServerFn({ method: "POST" })
