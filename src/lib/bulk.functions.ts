@@ -9,6 +9,8 @@ export type BulkJobKind = "copy" | "duplicate" | "optimize" | "pause" | "activat
 
 const startSchema=z.object({kind:z.enum(["copy","duplicate","optimize","pause","activate","delete"]),items:z.array(z.object({id:z.string().min(1),label:z.string().min(1),source:z.record(z.string(),z.unknown()).optional().nullable()})).min(1).max(200)});
 
+type QuotaRpcClient={rpc:(fn:string,args:Record<string,unknown>)=>Promise<{data:boolean|null;error:{message:string}|null}>};
+
 export const startBulkJob=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).inputValidator((data:unknown)=>startSchema.parse(data)).handler(async({data,context})=>{
  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
  const items:BulkJobItem[]=data.items.map(item=>({id:item.id,label:item.label,status:"queued",message:null,source:item.source??null}));
@@ -33,6 +35,13 @@ async function processBulkJob(jobId:string,userId:string,kind:BulkJobKind,items:
 function normalizeHttps(value:unknown):string|null{if(typeof value!=="string"||!value)return null;return value.startsWith("http://")?`https://${value.slice(7)}`:value}
 function sourceImages(source:Record<string,unknown>):string[]{const provided=Array.isArray(source["images"])?(source["images"] as unknown[]).map(normalizeHttps).filter((v):v is string=>!!v):[];if(provided.length>0)return Array.from(new Set(provided));const thumbnail=normalizeHttps(source["thumbnail"]);return thumbnail?[thumbnail]:[]}
 
+async function claimListingQuota(userId:string,listingId:string){
+ const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
+ const quotaClient=supabaseAdmin as unknown as QuotaRpcClient;
+ const {data,error}=await quotaClient.rpc("claim_listing_quota",{_user_id:userId,_listing_id:listingId});
+ if(error||data!==true){await supabaseAdmin.from("listings").delete().eq("id",listingId).eq("user_id",userId);if(error)console.error("bulk listing quota claim failed",error.message);throw new Error(error?"Não foi possível validar o limite do plano.":"Limite de anúncios deste ciclo atingido.")}
+}
+
 async function consumeBulkAiCredit(userId:string){
  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
  const {data,error}=await supabaseAdmin.rpc("consume_ai_credit",{p_user_id:userId,p_amount:1});
@@ -45,12 +54,13 @@ async function runBulkItem(kind:BulkJobKind,userId:string,item:BulkJobItem){
  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
  if(kind==="copy"){
   const source=(item.source??{}) as Record<string,unknown>;const priceCents=typeof source["price_cents"]==="number"?source["price_cents"] as number:null;const attributes=Array.isArray(source["attributes"])?source["attributes"]:[];
-  const {error}=await supabaseAdmin.from("listings").insert({user_id:userId,title:String(source["title"]??item.label),price_cents:priceCents,category:source["category"] as string??null,condition:source["condition"] as string??null,status:"draft",source_ml_id:item.id,source_permalink:source["permalink"] as string??null,images:sourceImages(source) as unknown as never,attributes:attributes as unknown as never,stock:typeof source["available_quantity"]==="number"?source["available_quantity"] as number:1});if(error)throw new Error(error.message);return;
+  const {data:existing}=await supabaseAdmin.from("listings").select("id").eq("user_id",userId).eq("source_ml_id",item.id).maybeSingle();if(existing?.id)return;
+  const {data:created,error}=await supabaseAdmin.from("listings").insert({user_id:userId,title:String(source["title"]??item.label).replace(/\s*\((?:copy|cópia)\)\s*$/i,"").slice(0,60),price_cents:priceCents,category:source["category"] as string??null,condition:source["condition"] as string??null,status:"draft",source_ml_id:item.id,source_permalink:source["permalink"] as string??null,images:sourceImages(source) as unknown as never,attributes:attributes as unknown as never,stock:typeof source["available_quantity"]==="number"?source["available_quantity"] as number:1}).select("id").single();if(error||!created)throw new Error(error?.message??"Não foi possível copiar o anúncio.");await claimListingQuota(userId,created.id);return;
  }
  if(kind==="duplicate"){
   const {data:listing,error:fetchError}=await supabaseAdmin.from("listings").select("title,description,price_cents,stock,sku,category,condition,images,attributes,cost_cents,fees_cents,ai_score,source_permalink").eq("id",item.id).eq("user_id",userId).maybeSingle();if(fetchError||!listing)throw new Error("Anúncio não encontrado.");
   const {cleanOptimizedTitle}=await import("./ai.server");
-  const {error}=await supabaseAdmin.from("listings").insert({...listing,user_id:userId,status:"draft",title:cleanOptimizedTitle(String(listing.title??item.label))});if(error)throw new Error(error.message);return;
+  const {data:created,error}=await supabaseAdmin.from("listings").insert({...listing,user_id:userId,status:"draft",title:cleanOptimizedTitle(String(listing.title??item.label))}).select("id").single();if(error||!created)throw new Error(error?.message??"Não foi possível criar a cópia.");await claimListingQuota(userId,created.id);return;
  }
  if(kind==="delete"){const {error}=await supabaseAdmin.from("listings").delete().eq("id",item.id).eq("user_id",userId);if(error)throw new Error(error.message);return}
  if(kind==="pause"||kind==="activate"){const {error}=await supabaseAdmin.from("listings").update({status:kind==="pause"?"paused":"active",updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(error)throw new Error(error.message);return}
