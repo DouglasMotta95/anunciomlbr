@@ -134,6 +134,20 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  button,
+  [role="button"],
+  nav a,
+  a[class*="rounded"] {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  button,
+  [role="button"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   h1,
   h2,
   h3,
