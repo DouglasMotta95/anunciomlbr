@@ -19,6 +19,8 @@ jobs:
         run: |
           set -o pipefail
           bun run audit:ui 2>&1 | tee audit-ui.log
+      - name: Auditoria dos fluxos críticos
+        run: bun run audit:flows
       - name: Salvar log da auditoria de ações
         if: always()
         uses: actions/upload-artifact@v4
