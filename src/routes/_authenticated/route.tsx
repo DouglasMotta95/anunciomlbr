@@ -2,13 +2,31 @@ import { createFileRoute, Navigate, Outlet, redirect } from "@tanstack/react-rou
 
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { checkIsAdmin } from "@/lib/roles.functions";
+
+function isAdminRoute(pathname: string) {
+  return pathname === "/admin" || pathname.startsWith("/admin-");
+}
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
-    return { user: data.user };
+
+    let admin = false;
+    try {
+      const result = await checkIsAdmin();
+      admin = result.isAdmin === true;
+    } catch {
+      admin = false;
+    }
+
+    const adminPath = isAdminRoute(location.pathname);
+    if (admin && !adminPath) throw redirect({ to: "/admin", replace: true });
+    if (!admin && adminPath) throw redirect({ to: "/dashboard", replace: true });
+
+    return { user: data.user, isAdmin: admin };
   },
   component: AuthenticatedBoundary,
 });
