@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "audit:ui": "node scripts/audit-ui.mjs",
     "audit:flows": "node scripts/audit-critical-flows.mjs",
+    "audit:security": "node scripts/audit-security.mjs",
     "format": "prettier --write ."
   },
   "overrides": { "rolldown": "1.2.1" },
