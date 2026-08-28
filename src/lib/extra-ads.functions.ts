@@ -2,38 +2,40 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+async function hasMainLicense(db: any, userId: string) {
+  const { data } = await db
+    .from("licenses")
+    .select("id, expires_at, plans!inner(kind)")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
+    .limit(20);
+  return (data ?? []).some((row: any) => !["ad_package", "ai_package"].includes(row?.plans?.kind));
+}
+
 export const getExtraAdPackages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: mainLicense } = await context.supabase
-      .from("licenses")
-      .select("id, expires_at, plans!inner(kind)")
-      .eq("user_id", context.userId)
-      .eq("status", "active")
-      .neq("plans.kind", "ad_package")
-      .gt("expires_at", new Date().toISOString())
-      .limit(1)
-      .maybeSingle();
-
-    const { data: packages, error } = await context.supabase
-      .from("plans")
-      .select("id, code, name, tagline, price_monthly_cents, ad_quota, badge, highlighted")
-      .eq("active", true)
-      .eq("kind", "ad_package")
-      .order("sort_order");
-    if (error) throw new Error("Não foi possível carregar os pacotes extras.");
-
-    const { data: quotaData } = await context.supabase.rpc("my_ad_quota");
-    const quota = Array.isArray(quotaData) ? quotaData[0] : quotaData;
-
+    const [eligible, packageResult, quotaResult] = await Promise.all([
+      hasMainLicense(context.supabase, context.userId),
+      context.supabase
+        .from("plans")
+        .select("id, code, name, tagline, price_monthly_cents, ad_quota, badge, highlighted")
+        .eq("active", true)
+        .eq("kind", "ad_package")
+        .order("sort_order"),
+      context.supabase.rpc("my_ad_quota"),
+    ]);
+    if (packageResult.error) throw new Error("Não foi possível carregar os pacotes extras.");
+    const quota = Array.isArray(quotaResult.data) ? quotaResult.data[0] : quotaResult.data;
     return {
-      eligible: !!mainLicense,
+      eligible,
       quota: {
         total: quota?.quota ?? 0,
         used: quota?.used ?? 0,
         remaining: quota?.remaining ?? 0,
       },
-      packages: packages ?? [],
+      packages: packageResult.data ?? [],
     };
   });
 
@@ -41,16 +43,9 @@ export const createExtraAdsCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ package_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
-    const { data: mainLicense } = await context.supabase
-      .from("licenses")
-      .select("id, plans!inner(kind)")
-      .eq("user_id", context.userId)
-      .eq("status", "active")
-      .neq("plans.kind", "ad_package")
-      .gt("expires_at", new Date().toISOString())
-      .limit(1)
-      .maybeSingle();
-    if (!mainLicense) throw new Error("Pacotes extras estão disponíveis apenas para clientes com plano ativo.");
+    if (!(await hasMainLicense(context.supabase, context.userId))) {
+      throw new Error("Pacotes extras estão disponíveis apenas para clientes com plano ativo.");
+    }
 
     const { data: pack, error: packError } = await context.supabase
       .from("plans")
