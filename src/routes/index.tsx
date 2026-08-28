@@ -8,11 +8,11 @@ import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landi
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
 import { Reveal } from "@/components/landing/Reveal";
+import { VerifiedFeaturesSection } from "@/components/landing/VerifiedFeaturesSection";
 import { VideoDemoSection } from "@/components/landing/VideoDemoSection";
 import {
   ComparisonSection,
   FaqSection,
-  FeaturesGridSection,
   FinalCta,
   LandingFooter,
   LandingNav,
@@ -57,7 +57,7 @@ function Landing() {
         <ProductTrustBar />
         <PremiumCapabilities />
         <Reveal><VideoDemoSection /></Reveal>
-        <Reveal><FeaturesGridSection /></Reveal>
+        <Reveal><VerifiedFeaturesSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
         <Reveal><PricingSection /></Reveal>
         <Reveal><PlanPeriodComparisonSection /></Reveal>
@@ -74,7 +74,7 @@ function Landing() {
           </div>
           <Link
             to="/admin/login"
-            className="inline-flex shrink-0 items-center rounded-xl border border-primary/25 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-all hover:bg-primary/15"
+            className="inline-flex shrink-0 items-center rounded-xl border border-primary/25 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-all hover:-translate-y-0.5 hover:bg-primary/15"
           >
             <ShieldCheck className="mr-2 h-4 w-4" /> Painel administrativo
           </Link>
