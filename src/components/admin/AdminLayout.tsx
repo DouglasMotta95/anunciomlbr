@@ -58,6 +58,26 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
 ];
 
 const ALL_ITEMS = ADMIN_NAV_GROUPS.flatMap((group) => group.items);
+const DASHBOARD_CARD_TARGETS: Record<string, string> = {
+  "Usuários": "clientes",
+  "Clientes pagantes": "clientes",
+  "Assinaturas ativas": "assinaturas",
+  "Licenças ativas": "licencas",
+  "Licenças expiradas": "licencas",
+  "Testes gratuitos usados": "testes",
+  "Cancelamentos": "assinaturas",
+  "Receita aprovada": "pagamentos",
+  "MRR (mês atual)": "pagamentos",
+  "Anúncios processados": "anuncios",
+  "Anúncios publicados": "anuncios",
+  "Uso de IA": "anuncios",
+  "Contas Mercado Livre": "integracoes",
+  "Pagamentos recusados": "pagamentos",
+  "Novos usuários": "clientes",
+  "Novos usuários (7d)": "clientes",
+  "Clientes ativos": "clientes",
+  "Clientes inativos": "inativos",
+};
 
 function HealthCenter() {
   const getHealth = useServerFn(adminGetSystemHealth);
@@ -133,6 +153,40 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
     onSectionChange(section);
   };
 
+  // O dashboard legado renderiza as métricas dentro da própria rota. Para não
+  // duplicar a tela nem quebrar os outros tabs, transformamos somente os cards
+  // de métricas conhecidos em controles navegáveis depois que são renderizados.
+  useEffect(() => {
+    if (activeSection !== "dashboard") return;
+    const frame = requestAnimationFrame(() => {
+      const root = document.querySelector<HTMLElement>("[data-admin-content]");
+      if (!root) return;
+      const labels = root.querySelectorAll<HTMLElement>("span.text-xs.uppercase");
+      labels.forEach((labelNode) => {
+        const label = labelNode.textContent?.trim() ?? "";
+        const target = DASHBOARD_CARD_TARGETS[label];
+        if (!target) return;
+        const card = labelNode.closest<HTMLElement>(".rounded-xl.border.bg-card");
+        if (!card) return;
+        card.dataset.adminTarget = target;
+        card.setAttribute("role", "button");
+        card.setAttribute("tabindex", "0");
+        card.setAttribute("aria-label", `${label}: abrir seção correspondente`);
+        card.classList.add("cursor-pointer", "transition-all", "hover:-translate-y-0.5", "hover:border-primary/40", "hover:shadow-md", "focus-visible:outline-none", "focus-visible:ring-2", "focus-visible:ring-primary/50");
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeSection, children]);
+
+  const activateDashboardCard = (target: EventTarget | null) => {
+    if (activeSection !== "dashboard" || !(target instanceof Element)) return false;
+    const card = target.closest<HTMLElement>("[data-admin-target]");
+    const section = card?.dataset.adminTarget;
+    if (!section) return false;
+    chooseSection(section);
+    return true;
+  };
+
   if (checkingAdminAccess || hasAdminAccess !== true) return null;
 
   return (
@@ -189,7 +243,16 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
               </Select>
             </div>
           </header>
-          <div className="p-4 pb-10 sm:p-5">{activeSection === "saude" ? <HealthCenter /> : children}</div>
+          <div
+            data-admin-content
+            className="p-4 pb-10 sm:p-5"
+            onClickCapture={(event) => { activateDashboardCard(event.target); }}
+            onKeyDownCapture={(event) => {
+              if ((event.key === "Enter" || event.key === " ") && activateDashboardCard(event.target)) event.preventDefault();
+            }}
+          >
+            {activeSection === "saude" ? <HealthCenter /> : children}
+          </div>
         </main>
       </div>
     </div>
