@@ -71,7 +71,9 @@ async function searchCatalogFallback(query: string, limit: number, accessToken: 
       "User-Agent": "ANUNCIO-ML/1.0",
     },
   });
-  if (!catalogResponse.ok) return [];
+  if (!catalogResponse.ok) {
+    throw new Error(`ML catalog search responded ${catalogResponse.status}`);
+  }
 
   const catalogPayload = (await catalogResponse.json()) as {
     results?: Array<{ id?: string }>;
@@ -186,9 +188,7 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
 
       if (response.status === 401 || response.status === 403) {
         const fallbackItems = await searchCatalogFallback(data.query, limit, tokenState.accessToken);
-        if (fallbackItems.length > 0) {
-          return { ok: true as const, configured: true, items: fallbackItems, reason: null };
-        }
+        return { ok: true as const, configured: true, items: fallbackItems, reason: null };
       }
 
       return {
@@ -201,9 +201,7 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
       console.error("ML search failed", error);
       try {
         const fallbackItems = await searchCatalogFallback(data.query, limit, tokenState.accessToken);
-        if (fallbackItems.length > 0) {
-          return { ok: true as const, configured: true, items: fallbackItems, reason: null };
-        }
+        return { ok: true as const, configured: true, items: fallbackItems, reason: null };
       } catch (fallbackError) {
         console.error("ML catalog fallback failed", fallbackError);
       }
