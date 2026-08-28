@@ -20,7 +20,7 @@ export type CallGeminiResult =
 type QuotaSnapshot = { used: number; credit_limit: number; remaining: number };
 type ConsumeResult =
   | { ok: true; quota: QuotaSnapshot }
-  | { ok: false; reason: string; quota: QuotaSnapshot };
+  | { ok: false; reason: string; quota?: QuotaSnapshot | undefined };
 
 type CallGeminiDependencies = {
   getQuota: (userId: string) => Promise<QuotaSnapshot>;
