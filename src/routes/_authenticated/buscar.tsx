@@ -24,7 +24,7 @@ import {
   searchMercadoLivre,
   searchMercadoLivreProducts,
   searchMercadoLivreSeller,
-} from "@/lib/ml-search-fixed.functions";
+} from "@/lib/ml-search-production.functions";
 import type { MlItem } from "@/lib/ml.functions";
 import { getProductImage } from "@/lib/product-image";
 import { listingStatusLabel } from "@/lib/status-labels";
