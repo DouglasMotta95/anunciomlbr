@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type LinkComponentProps } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Activity, AlertTriangle, Bot, Calculator, Check, Copy, Eye, Gift, Loader2, Radar, Sparkles, Target, Trash2, TrendingUp } from "lucide-react";
@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { formatBRL, formatNumber } from "@/lib/format";
 import { askSellerCopilot } from "@/lib/seller-copilot.functions";
 import { addCompetitorWatch, calculateSmartPrice, getReferralSummary, getSellerGrowthOverview, listCompetitorWatch, removeCompetitorWatch } from "@/lib/seller-growth.functions";
@@ -19,7 +18,25 @@ import { addCompetitorWatch, calculateSmartPrice, getReferralSummary, getSellerG
 export const Route = createFileRoute("/_authenticated/crescimento")({ head: () => ({ meta: [{ title: "Central de crescimento — ANÚNCIO ML" }, { name: "robots", content: "noindex" }] }), component: GrowthPage });
 
 type CopilotResult = { headline: string; summary: string; priorities?: Array<{ title: string; reason: string; action: string; impact: "alto" | "medio" | "baixo" }>; warning?: string | null };
+type GrowthTo = NonNullable<LinkComponentProps["to"]>;
 const parseNumber = (value: string) => Number(value.trim().replace(/\./g, "").replace(",", "."));
+
+function growthDestination(value: unknown): GrowthTo {
+  switch (value) {
+    case "/assinatura": return "/assinatura";
+    case "/buscar": return "/buscar";
+    case "/creditos": return "/creditos";
+    case "/creditos-ia": return "/creditos-ia";
+    case "/estoque": return "/estoque";
+    case "/integracoes": return "/integracoes";
+    case "/notificacoes": return "/notificacoes";
+    case "/perguntas": return "/perguntas";
+    case "/saude-anuncios": return "/saude-anuncios";
+    case "/vendas": return "/vendas";
+    case "/anuncios":
+    default: return "/anuncios";
+  }
+}
 
 function GrowthPage() {
   const overviewFn = useServerFn(getSellerGrowthOverview), referralFn = useServerFn(getReferralSummary), radarFn = useServerFn(listCompetitorWatch), addRadarFn = useServerFn(addCompetitorWatch), removeRadarFn = useServerFn(removeCompetitorWatch), calcFn = useServerFn(calculateSmartPrice), copilotFn = useServerFn(askSellerCopilot);
@@ -33,7 +50,7 @@ function GrowthPage() {
   const addRadar = useMutation({ mutationFn: () => addRadarFn({ data: { ml_item_id: mlb.trim().toUpperCase() } }), onSuccess: () => { setMlb(""); void qc.invalidateQueries({ queryKey: ["competitor-watch"] }); toast.success("Anúncio adicionado ao radar"); }, onError: (error) => toast.error(error instanceof Error ? error.message : "Use um ID válido, como MLB123456789") });
   const removeRadar = useMutation({ mutationFn: (id: string) => removeRadarFn({ data: { id } }), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["competitor-watch"] }); toast.success("Anúncio removido do radar"); }, onError: () => toast.error("Não foi possível remover este anúncio do radar.") });
   const calculate = useMutation({ mutationFn: async () => { const c = parseNumber(cost), f = parseNumber(fees), m = parseNumber(margin); if (!Number.isFinite(c) || c <= 0) throw new Error("Informe um custo maior que zero."); if (!Number.isFinite(f) || f < 0 || f > 60) throw new Error("As taxas devem ficar entre 0% e 60%."); if (!Number.isFinite(m) || m < 1 || m > 80) throw new Error("A margem deve ficar entre 1% e 80%."); return calcFn({ data: { cost_cents: Math.round(c * 100), fees_percent: f, fixed_fees_cents: 0, target_margin_percent: m } }); }, onSuccess: setPriceResult, onError: (error) => toast.error(error instanceof Error ? error.message : "Confira os valores da precificação.") });
-  const copilot = useMutation({ mutationFn: () => copilotFn({ data: { question } }), onSuccess: async (result) => { if (!result.ok) return toast.error(result.reason); setCopilotResult(result.result); await Promise.all([qc.invalidateQueries({ queryKey: ["subscription-center"] }), qc.invalidateQueries({ queryKey: ["extra-ai-packages"] })]); toast.success("Análise concluída", { description: "1 crédito de IA utilizado." }); }, onError: (error) => toast.error(error instanceof Error ? error.message : "Não foi possível consultar o copiloto agora.") });
+  const copilot = useMutation({ mutationFn: () => copilotFn({ data: { question } }), onSuccess: async (result) => { if (!result.ok) { toast.error(result.reason); return; } setCopilotResult(result.result); await Promise.all([qc.invalidateQueries({ queryKey: ["subscription-center"] }), qc.invalidateQueries({ queryKey: ["extra-ai-packages"] })]); toast.success("Análise concluída", { description: "1 crédito de IA utilizado." }); }, onError: (error) => toast.error(error instanceof Error ? error.message : "Não foi possível consultar o copiloto agora.") });
   const copyReferral = async () => { if (!referral?.code) return; try { await navigator.clipboard.writeText(referral.code); toast.success("Código copiado"); } catch { toast.error("Não foi possível copiar o código."); } };
 
   if (overviewQuery.isError) return <AppShell title="Central de crescimento" description="Prioridades e ferramentas comerciais baseadas nos dados disponíveis."><Card><CardContent className="py-10 text-center"><AlertTriangle className="mx-auto h-8 w-8 text-destructive"/><p className="mt-3 font-semibold">Não foi possível carregar os dados agora.</p><p className="mt-1 text-sm text-muted-foreground">Nenhuma métrica será estimada como se fosse real.</p><Button className="mt-4" variant="outline" onClick={() => overviewQuery.refetch()}>Tentar novamente</Button></CardContent></Card></AppShell>;
@@ -44,7 +61,7 @@ function GrowthPage() {
     </div>
 
     <div className="mt-4 grid gap-4 xl:grid-cols-[1.15fr_.85fr]">
-      <Card><CardHeader><CardTitle className="text-base">Prioridades da operação</CardTitle></CardHeader><CardContent className="space-y-2">{!(overview?.opportunities ?? []).length ? <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Nenhuma pendência importante encontrada com os dados disponíveis.</div> : overview?.opportunities.slice(0,5).map((item) => <div key={item.key} className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><Badge variant={item.severity === "high" ? "destructive" : item.severity === "medium" ? "secondary" : "outline"}>{item.count}</Badge><p className="font-semibold">{item.title}</p></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p></div><Button asChild size="sm" variant="outline" className="shrink-0"><Link to={item.action_to as "/anuncios"}>Corrigir</Link></Button></div>)}</CardContent></Card>
+      <Card><CardHeader><CardTitle className="text-base">Prioridades da operação</CardTitle></CardHeader><CardContent className="space-y-2">{!(overview?.opportunities ?? []).length ? <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Nenhuma pendência importante encontrada com os dados disponíveis.</div> : overview?.opportunities.slice(0,5).map((item) => <div key={item.key} className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><Badge variant={item.severity === "high" ? "destructive" : item.severity === "medium" ? "secondary" : "outline"}>{item.count}</Badge><p className="font-semibold">{item.title}</p></div><p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p></div><Button asChild size="sm" variant="outline" className="shrink-0"><Link to={growthDestination(item.action_to)}>Corrigir</Link></Button></div>)}</CardContent></Card>
       <Card className="border-primary/20"><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Bot className="h-4 w-4 text-primary"/>Copiloto do vendedor</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-xs leading-5 text-muted-foreground">A IA usa apenas os dados disponíveis na sua conta. Cada nova análise usa <strong className="text-foreground">1 crédito de IA</strong>. Visualizar o resultado não cobra novamente.</p><Input value={question} maxLength={500} onChange={(e) => setQuestion(e.target.value)}/><Button className="w-full" onClick={() => copilot.mutate()} disabled={copilot.isPending || question.trim().length < 3}>{copilot.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Sparkles className="mr-2 h-4 w-4"/>}Analisar · 1 crédito</Button>{copilotResult && <div className="rounded-xl border bg-muted/20 p-4"><p className="font-semibold">{copilotResult.headline}</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{copilotResult.summary}</p>{copilotResult.warning && <div className="mt-3 flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs"><AlertTriangle className="h-4 w-4 shrink-0"/>{copilotResult.warning}</div>}<div className="mt-3 space-y-2">{copilotResult.priorities?.slice(0,3).map((p, i) => <div key={`${p.title}-${i}`} className="rounded-lg border bg-background p-3"><div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold">{p.title}</p><Badge variant={p.impact === "alto" ? "destructive" : "outline"}>{p.impact}</Badge></div><p className="mt-1 text-xs text-muted-foreground">{p.reason}</p><p className="mt-2 flex gap-2 text-xs"><Check className="h-4 w-4 shrink-0 text-primary"/>{p.action}</p></div>)}</div></div>}</CardContent></Card>
     </div>
 
