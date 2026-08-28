@@ -17,10 +17,11 @@ async function hasMainLicense(db: any, userId: string) {
 export const getExtraAiPackages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const db = context.supabase as any;
     const [{ getAiQuota }, eligible, packagesResult] = await Promise.all([
       import("@/lib/ai-quota.server"),
-      hasMainLicense(context.supabase, context.userId),
-      context.supabase
+      hasMainLicense(db, context.userId),
+      db
         .from("plans")
         .select("id,code,name,tagline,price_monthly_cents,ai_credits,badge,highlighted")
         .eq("active", true)
@@ -44,11 +45,12 @@ export const createExtraAiCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ package_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
-    if (!(await hasMainLicense(context.supabase, context.userId))) {
+    const db = context.supabase as any;
+    if (!(await hasMainLicense(db, context.userId))) {
       throw new Error("Créditos extras de IA estão disponíveis apenas para clientes com plano ativo.");
     }
 
-    const { data: pack, error: packError } = await context.supabase
+    const { data: pack, error: packError } = await db
       .from("plans")
       .select("id,code,name,price_monthly_cents,ai_credits,period_months,kind")
       .eq("id", data.package_id)
