@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Copy, Loader2, Save, Sparkles, Eye, Wand2, FileText, SearchCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -16,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import { createListingDraft, duplicateListingDraft } from "@/lib/listing-create.functions";
 import { getProductImage } from "@/lib/product-image";
 
 export const Route = createFileRoute("/_authenticated/editor/$id")({
@@ -28,7 +29,8 @@ type Form = { title:string; description:string; price:string; stock:string; sku:
 const EMPTY:Form={title:"",description:"",price:"",stock:"1",sku:"",category:""};
 
 function EditorPage(){
-  const {id}=Route.useParams();const isNew=id==="novo";const navigate=useNavigate();const queryClient=useQueryClient();const {user}=useAuth();
+  const {id}=Route.useParams();const isNew=id==="novo";const navigate=useNavigate();const queryClient=useQueryClient();
+  const createDraft=useServerFn(createListingDraft);const duplicateDraft=useServerFn(duplicateListingDraft);
   const [form,setForm]=useState<Form>(EMPTY);const [score,setScore]=useState<number|null>(null);
   const listing=useQuery({queryKey:["listing",id],enabled:!isNew,queryFn:async()=>{const {data,error}=await supabase.from("listings").select("*").eq("id",id).maybeSingle();if(error)throw error;return data}});
   const productImage=getProductImage(listing.data?.images);
@@ -37,14 +39,14 @@ function EditorPage(){
   useEffect(()=>{const row=listing.data;if(!row)return;setForm({title:row.title??"",description:row.description??"",price:row.price_cents!=null?(row.price_cents/100).toFixed(2):"",stock:String(row.stock??0),sku:row.sku??"",category:row.category??""});setScore(row.ai_score??null)},[listing.data]);
   const set=(key:keyof Form)=>(value:string)=>setForm(prev=>({...prev,[key]:value}));
   function parsedValues(){const price=form.price?Math.round(Number(form.price.replace(",","."))*100):null;const stock=Number(form.stock);if(form.title.trim().length<3)throw new Error("Informe um título válido.");if(form.title.trim().length>60)throw new Error("O título deve ter no máximo 60 caracteres.");if(price!==null&&(!Number.isFinite(price)||price<=0))throw new Error("Informe um preço válido maior que zero.");if(!Number.isFinite(stock)||stock<0||!Number.isInteger(stock))throw new Error("Informe um estoque válido.");return{price,stock}}
-  const save=useMutation({mutationFn:async()=>{if(!user)throw new Error("Sessão expirada.");const {price,stock}=parsedValues();const patch={title:form.title.trim(),description:form.description||null,price_cents:price,stock,sku:form.sku||null,category:form.category||null,ai_score:score};if(isNew){const {data,error}=await supabase.from("listings").insert({...patch,user_id:user.id,status:"draft"}).select("id").single();if(error)throw error;return data.id}const {error}=await supabase.from("listings").update(patch).eq("id",id);if(error)throw error;return id},onSuccess:async savedId=>{await queryClient.invalidateQueries({queryKey:["listings"]});toast.success("Anúncio salvo");if(isNew)navigate({to:"/editor/$id",params:{id:savedId}})},onError:e=>toast.error(e instanceof Error?e.message:"Não foi possível salvar.")});
-  const duplicate=useMutation({mutationFn:async()=>{if(!user)throw new Error("Sessão expirada.");if(!listing.data)throw new Error("Carregue o anúncio antes de duplicar.");const {price,stock}=parsedValues();const original=listing.data;const title=form.title.trim().replace(/\s*\((?:copy|cópia)\)\s*$/i,"").slice(0,60);const {data,error}=await supabase.from("listings").insert({user_id:user.id,status:"draft",title,description:form.description||null,price_cents:price,stock,sku:form.sku||null,category:form.category||null,condition:original.condition??null,images:original.images??[],attributes:original.attributes??[],cost_cents:original.cost_cents??null,fees_cents:original.fees_cents??null,ai_score:score,source_permalink:original.source_permalink??null}).select("id").single();if(error)throw error;return data.id},onSuccess:async newId=>{await queryClient.invalidateQueries({queryKey:["listings"]});toast.success("Anúncio duplicado com imagens e atributos");navigate({to:"/editor/$id",params:{id:newId}})},onError:e=>toast.error(e instanceof Error?e.message:"Não foi possível duplicar.")});
+  const save=useMutation({mutationFn:async()=>{const {price,stock}=parsedValues();const patch={title:form.title.trim(),description:form.description||null,price_cents:price,stock,sku:form.sku||null,category:form.category||null,ai_score:score};if(isNew){const result=await createDraft({data:{title:patch.title,description:patch.description,price_cents:patch.price_cents,stock:patch.stock,sku:patch.sku,category:patch.category}});if(!result.ok)throw new Error(result.reason);return result.id}const {error}=await supabase.from("listings").update(patch).eq("id",id);if(error)throw error;return id},onSuccess:async savedId=>{await queryClient.invalidateQueries({queryKey:["listings"]});toast.success("Anúncio salvo");if(isNew)navigate({to:"/editor/$id",params:{id:savedId}})},onError:e=>toast.error(e instanceof Error?e.message:"Não foi possível salvar.")});
+  const duplicate=useMutation({mutationFn:async()=>{if(!listing.data)throw new Error("Carregue o anúncio antes de duplicar.");const result=await duplicateDraft({data:{listing_id:id}});if(!result.ok)throw new Error(result.reason);return result.id},onSuccess:async newId=>{await queryClient.invalidateQueries({queryKey:["listings"]});toast.success("Cópia criada com imagens e atributos");navigate({to:"/editor/$id",params:{id:newId}})},onError:e=>toast.error(e instanceof Error?e.message:"Não foi possível criar a cópia.")});
   const ctx={title:form.title,description:form.description,category:form.category};
   const analysisCtx={...ctx,priceCents:form.price?Math.round(Number(form.price.replace(",","."))*100):null,imagesCount:listingImages.length,attributes:listingAttributes};
   return <AppShell title={isNew?"Novo anúncio":"Editor do anúncio"} description="Revise o anúncio, use a IA quando precisar e publique somente quando estiver pronto.">
     <div className="sticky top-[82px] z-10 mb-5 flex flex-wrap items-center gap-2 rounded-2xl border bg-background/95 p-3 shadow-sm backdrop-blur">
       <Button variant="ghost" size="sm" onClick={()=>navigate({to:"/anuncios"})}><ArrowLeft className="mr-2 h-4 w-4"/>Voltar</Button>
-      {!isNew&&<Button variant="outline" size="sm" onClick={()=>duplicate.mutate()} disabled={duplicate.isPending||listing.isLoading}><Copy className="mr-2 h-4 w-4"/>Duplicar</Button>}
+      {!isNew&&<Button variant="outline" size="sm" onClick={()=>duplicate.mutate()} disabled={duplicate.isPending||listing.isLoading}><Copy className="mr-2 h-4 w-4"/>Criar cópia</Button>}
       <div className="ml-auto flex flex-wrap gap-2">{!isNew&&<PublishButton listingId={id} disabled={save.isPending}/>}<Button size="sm" onClick={()=>save.mutate()} disabled={save.isPending}>{save.isPending?<Loader2 className="mr-2 h-4 w-4 animate-spin"/>:<Save className="mr-2 h-4 w-4"/>}Salvar alterações</Button></div>
     </div>
     {listing.isLoading&&!isNew?<div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/>Carregando anúncio...</div>:<div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,.8fr)]">
