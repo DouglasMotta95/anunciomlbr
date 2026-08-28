@@ -39,7 +39,132 @@ async function getUserMlToken(userId: string) {
   return getValidMlAccessToken(userId);
 }
 
-/** Busca anúncios usando a conexão Mercado Livre do próprio usuário. */
+function mapSearchResult(raw: Record<string, unknown>): MlItem {
+  const seller = raw["seller"] as { nickname?: string } | undefined;
+  const price = typeof raw["price"] === "number" ? (raw["price"] as number) : null;
+  return {
+    id: String(raw["id"] ?? ""),
+    title: String(raw["title"] ?? ""),
+    price_cents: price === null ? null : Math.round(price * 100),
+    thumbnail: httpsUrl(raw["thumbnail"]),
+    permalink: httpsUrl(raw["permalink"]),
+    category: (raw["category_id"] as string) ?? null,
+    seller: seller?.nickname ?? null,
+    condition: (raw["condition"] as string) ?? null,
+    available_quantity: (raw["available_quantity"] as number) ?? null,
+    sold_quantity: (raw["sold_quantity"] as number) ?? null,
+    status: (raw["status"] as string) ?? null,
+  };
+}
+
+async function getSellerNickname(sellerId: string, accessToken: string): Promise<string | null> {
+  try {
+    const response = await fetch(`https://api.mercadolibre.com/users/${encodeURIComponent(sellerId)}`, {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "User-Agent": "ANUNCIO-ML/1.0",
+      },
+    });
+    if (!response.ok) return null;
+    const raw = (await response.json()) as { nickname?: unknown };
+    return typeof raw.nickname === "string" && raw.nickname.trim() ? raw.nickname.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function searchCatalogFallback(query: string, limit: number, accessToken: string): Promise<MlItem[]> {
+  const catalogUrl = new URL("https://api.mercadolibre.com/products/search");
+  catalogUrl.searchParams.set("status", "active");
+  catalogUrl.searchParams.set("site_id", "MLB");
+  catalogUrl.searchParams.set("q", query);
+  catalogUrl.searchParams.set("limit", String(Math.min(limit, 12)));
+
+  const catalogResponse = await fetch(catalogUrl, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      "User-Agent": "ANUNCIO-ML/1.0",
+    },
+  });
+  if (!catalogResponse.ok) {
+    throw new Error(`ML catalog search responded ${catalogResponse.status}`);
+  }
+
+  const catalogPayload = (await catalogResponse.json()) as {
+    results?: Array<{ id?: string }>;
+  };
+  const productIds = (catalogPayload.results ?? [])
+    .map((result) => result.id)
+    .filter((id): id is string => !!id)
+    .slice(0, Math.min(limit, 12));
+
+  const details = await Promise.all(
+    productIds.map(async (productId) => {
+      try {
+        const response = await fetch(`https://api.mercadolibre.com/products/${encodeURIComponent(productId)}`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            "User-Agent": "ANUNCIO-ML/1.0",
+          },
+        });
+        if (!response.ok) return null;
+        const raw = (await response.json()) as Record<string, unknown>;
+        const winner = raw["buy_box_winner"] as Record<string, unknown> | undefined;
+        const itemId = typeof winner?.["item_id"] === "string" ? (winner["item_id"] as string) : null;
+        if (!itemId) return null;
+
+        const itemResponse = await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${accessToken}`,
+            "User-Agent": "ANUNCIO-ML/1.0",
+          },
+        });
+        if (!itemResponse.ok) return null;
+        const itemRaw = (await itemResponse.json()) as Record<string, unknown>;
+        const price = typeof itemRaw["price"] === "number" ? (itemRaw["price"] as number) : null;
+        const pictures = Array.isArray(itemRaw["pictures"])
+          ? (itemRaw["pictures"] as Array<{ secure_url?: string; url?: string }>)
+          : [];
+        const images = pictures
+          .map((picture) => httpsUrl(picture.secure_url ?? picture.url))
+          .filter((value): value is string => !!value);
+        const sellerId = itemRaw["seller_id"] != null ? String(itemRaw["seller_id"]) : null;
+        const sellerNickname = sellerId ? await getSellerNickname(sellerId, accessToken) : null;
+
+        return {
+          id: String(itemRaw["id"] ?? itemId),
+          title: String(itemRaw["title"] ?? raw["name"] ?? ""),
+          price_cents: price === null ? null : Math.round(price * 100),
+          thumbnail: httpsUrl(itemRaw["thumbnail"]) ?? images[0] ?? null,
+          permalink: httpsUrl(itemRaw["permalink"]) ?? httpsUrl(raw["permalink"]),
+          category: (itemRaw["category_id"] as string) ?? null,
+          seller: sellerNickname,
+          condition: (itemRaw["condition"] as string) ?? null,
+          available_quantity: (itemRaw["available_quantity"] as number) ?? null,
+          sold_quantity: (itemRaw["sold_quantity"] as number) ?? null,
+          status: (itemRaw["status"] as string) ?? null,
+          images,
+          attributes: Array.isArray(itemRaw["attributes"]) ? (itemRaw["attributes"] as unknown[]) : [],
+        } satisfies MlItem;
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  return details.filter((item): item is MlItem => !!item);
+}
+
+/**
+ * Busca anúncios no catálogo público do Mercado Livre.
+ * O token do vendedor é validado para garantir que a conta esteja conectada, mas não é enviado
+ * ao endpoint público /sites/MLB/search. Em caso de bloqueio desse endpoint, usamos o buscador
+ * oficial de produtos e convertemos produtos de catálogo em anúncios reais via buy box.
+ */
 export const searchMercadoLivre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
@@ -56,67 +181,53 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
       return {
         ok: false as const,
         configured: true,
-        reason: "Conecte novamente sua conta do Mercado Livre para usar a busca.",
+        reason: "Conecte sua conta do Mercado Livre antes de buscar anúncios.",
         items: [] as MlItem[],
       };
     }
 
+    const limit = data.limit ?? 20;
     const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(
       data.query,
-    )}&limit=${data.limit ?? 20}`;
+    )}&limit=${limit}`;
 
     try {
-      const headers = {
-        Accept: "application/json",
-        Authorization: `Bearer ${tokenState.accessToken}`,
-        "User-Agent": "ANUNCIO-ML/1.0",
-      };
-      let response = await fetch(url, { headers });
-      if (response.status === 401 || response.status === 403) {
-        // Uma conta pode ter sido autorizada antes da inclusão dos novos escopos.
-        // Nesse caso não mascaramos o problema como erro genérico de busca.
-        return {
-          ok: false as const,
-          configured: true,
-          reason: "O Mercado Livre recusou a autorização da busca. Reconecte sua conta para atualizar as permissões.",
-          items: [] as MlItem[],
-        };
-      }
-      if (!response.ok) {
-        return {
-          ok: false as const,
-          configured: true,
-          reason: `Não foi possível buscar no Mercado Livre agora (código ${response.status}).`,
-          items: [] as MlItem[],
-        };
-      }
-
-      const payload = (await response.json()) as { results?: Array<Record<string, unknown>> };
-      const items: MlItem[] = (payload.results ?? []).map((raw) => {
-        const seller = raw["seller"] as { nickname?: string } | undefined;
-        const price = typeof raw["price"] === "number" ? (raw["price"] as number) : null;
-        return {
-          id: String(raw["id"] ?? ""),
-          title: String(raw["title"] ?? ""),
-          price_cents: price === null ? null : Math.round(price * 100),
-          thumbnail: httpsUrl(raw["thumbnail"]),
-          permalink: httpsUrl(raw["permalink"]),
-          category: (raw["category_id"] as string) ?? null,
-          seller: seller?.nickname ?? null,
-          condition: (raw["condition"] as string) ?? null,
-          available_quantity: (raw["available_quantity"] as number) ?? null,
-          sold_quantity: (raw["sold_quantity"] as number) ?? null,
-          status: (raw["status"] as string) ?? null,
-        };
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "ANUNCIO-ML/1.0",
+        },
       });
 
-      return { ok: true as const, configured: true, items, reason: null };
-    } catch (error) {
-      console.error("ML search failed", error);
+      if (response.ok) {
+        const payload = (await response.json()) as { results?: Array<Record<string, unknown>> };
+        const items = (payload.results ?? []).map(mapSearchResult).filter((item) => !!item.id);
+        return { ok: true as const, configured: true, items, reason: null };
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        const fallbackItems = await searchCatalogFallback(data.query, limit, tokenState.accessToken);
+        return { ok: true as const, configured: true, items: fallbackItems, reason: null };
+      }
+
       return {
         ok: false as const,
         configured: true,
-        reason: "Não foi possível consultar o Mercado Livre agora.",
+        reason: `A busca do Mercado Livre respondeu ${response.status}. A conta continua conectada; esse erro veio do serviço de busca.`,
+        items: [] as MlItem[],
+      };
+    } catch (error) {
+      console.error("ML search failed", error);
+      try {
+        const fallbackItems = await searchCatalogFallback(data.query, limit, tokenState.accessToken);
+        return { ok: true as const, configured: true, items: fallbackItems, reason: null };
+      } catch (fallbackError) {
+        console.error("ML catalog fallback failed", fallbackError);
+      }
+      return {
+        ok: false as const,
+        configured: true,
+        reason: "Não foi possível consultar o Mercado Livre agora. Sua conexão não foi marcada como expirada.",
         items: [] as MlItem[],
       };
     }
