@@ -73,12 +73,12 @@ function Landing() {
         <Reveal><PartnerCta /></Reveal>
       </main>
       <LandingFooter />
-      <div className="border-t border-border/40 bg-background/95 px-4 py-2 text-center">
+      <div className="border-t border-border/50 bg-background/95 px-4 py-4 text-center">
         <Link
           to="/admin/login"
-          className="text-[10px] font-medium tracking-wide text-muted-foreground/35 transition-colors hover:text-muted-foreground"
+          className="inline-flex items-center rounded-full border border-border/70 bg-surface/50 px-4 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
         >
-          Área administrativa
+          Painel administrativo
         </Link>
       </div>
       <MobileStickyCta />
