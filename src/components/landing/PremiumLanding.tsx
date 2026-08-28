@@ -63,7 +63,7 @@ export function PremiumHero() {
           </div>
 
           <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-success" /> OAuth oficial do Mercado Livre</span>
+            <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-success" /> OAuth do Mercado Livre</span>
             <span className="inline-flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" /> IA aplicada sob demanda</span>
             <span className="inline-flex items-center gap-1.5"><ShoppingBag className="h-4 w-4 text-primary" /> Dados reais no painel autenticado</span>
           </div>
@@ -78,11 +78,32 @@ export function PremiumHero() {
   );
 }
 
+export function ProductTrustBar() {
+  const items = [
+    { icon: ShieldCheck, text: "Conexão OAuth com Mercado Livre" },
+    { icon: PackageSearch, text: "10 anúncios para testar o fluxo" },
+    { icon: Sparkles, text: "IA executada no backend" },
+    { icon: BarChart3, text: "Painel com dados da conta conectada" },
+  ];
+  return (
+    <section className="border-b border-border/60 bg-surface/30 py-5">
+      <div className="mx-auto grid max-w-6xl gap-3 px-4 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((item) => (
+          <div key={item.text} className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 text-xs font-medium text-muted-foreground">
+            <item.icon className="h-4 w-4 shrink-0 text-primary" />
+            <span>{item.text}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 const capabilities = [
   {
     icon: PackageSearch,
     title: "Buscar e trazer anúncios",
-    text: "Pesquise por palavra-chave, produto, ID ou link e leve a estrutura do anúncio para dentro do ANÚNCIO ML.",
+    text: "Pesquise por palavra-chave, produto, ID, link ou vendedor e leve a estrutura do anúncio para dentro do ANÚNCIO ML.",
   },
   {
     icon: Copy,
@@ -103,13 +124,13 @@ const capabilities = [
 
 export function PremiumCapabilities() {
   return (
-    <section className="border-b border-border/60 bg-surface/20 py-16 sm:py-24">
+    <section id="como-funciona" className="border-b border-border/60 bg-surface/20 py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4">
         <div className="mx-auto max-w-3xl text-center">
-          <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">O QUE VOCÊ FAZ NA PLATAFORMA</Badge>
-          <h2 className="mt-4 text-balance text-3xl font-black sm:text-4xl">Um fluxo completo, sem transformar o painel em um labirinto</h2>
+          <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">COMO O ANÚNCIO ML AJUDA</Badge>
+          <h2 className="mt-4 text-balance text-3xl font-black sm:text-4xl">Do anúncio encontrado ao acompanhamento da operação</h2>
           <p className="mt-3 text-pretty leading-7 text-muted-foreground">
-            Cada módulo tem uma função clara: encontrar oportunidades, preparar anúncios, melhorar conteúdo e acompanhar o que está acontecendo na conta.
+            Quatro etapas claras para reduzir trabalho repetitivo e manter a operação organizada em um único painel.
           </p>
         </div>
 
