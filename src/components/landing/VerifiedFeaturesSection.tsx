@@ -63,10 +63,10 @@ export function VerifiedFeaturesSection() {
             Recursos da plataforma
           </span>
           <h2 className="mt-4 text-balance text-3xl font-black sm:text-4xl">
-            O que você realmente encontra dentro do ANÚNCIO ML
+            O que você encontra dentro do ANÚNCIO ML
           </h2>
           <p className="mt-3 text-pretty leading-7 text-muted-foreground">
-            Sem prometer recurso futuro como se já estivesse pronto. A página comercial mostra as funções que fazem parte do fluxo atual do produto.
+            Recursos para buscar, preparar, otimizar e acompanhar sua operação no Mercado Livre em um fluxo mais organizado.
           </p>
         </div>
 
