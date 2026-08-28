@@ -5,11 +5,12 @@ import { createFileRoute } from "@tanstack/react-router";
  *
  * Segurança:
  * - valida formato/origem do payload (application_id precisa bater com ML_CLIENT_ID);
- * - nunca confia no corpo recebido: sempre relê o recurso na API oficial usando o
- *   token do vendedor guardado em `ml_tokens` (nunca exposto na resposta);
- * - idempotente: notificações repetidas (mesmo tópico + recurso + horário de envio)
- *   são descartadas pelo índice único de `ml_notifications`;
- * - responde 200 rapidamente para o Mercado Livre não reenfileirar.
+ * - aceita apenas tópicos e caminhos de recurso esperados;
+ * - resolve somente vendedores realmente conectados antes de persistir o evento;
+ * - nunca confia no corpo recebido: relê o recurso na API oficial com o token
+ *   do vendedor e, quando a API informa o seller, confere a titularidade;
+ * - idempotente por notification_id;
+ * - tokens nunca são expostos na resposta.
  */
 
 type MlNotification = {
@@ -35,6 +36,17 @@ const SUPPORTED_TOPICS = new Set([
   "shipments",
 ]);
 
+const RESOURCE_PREFIX: Record<string, string> = {
+  items: "/items/",
+  items_prices: "/items/",
+  orders: "/orders/",
+  orders_v2: "/orders/",
+  created_orders: "/orders/",
+  questions: "/questions/",
+  messages: "/messages/",
+  shipments: "/shipments/",
+};
+
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -42,69 +54,113 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function isSafeResource(topic: string, resource: string) {
+  const prefix = RESOURCE_PREFIX[topic];
+  if (!prefix || resource.length > 600 || !resource.startsWith(prefix)) return false;
+  if (resource.includes("..") || resource.includes("://") || resource.includes("\\")) return false;
+  return /^\/[A-Za-z0-9_./?=&:%-]+$/.test(resource);
+}
+
+function resourceSellerId(data: Record<string, unknown>) {
+  if (data["seller_id"] != null) return String(data["seller_id"]);
+  const seller = data["seller"];
+  if (seller && typeof seller === "object" && (seller as Record<string, unknown>)["id"] != null) {
+    return String((seller as Record<string, unknown>)["id"]);
+  }
+  return null;
+}
+
 export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
   server: {
     handlers: {
-      // O Mercado Livre valida a URL com um GET simples antes de salvar.
       GET: async () => json({ ok: true, service: "anuncio-ml-ml-webhook" }),
 
       POST: async ({ request }) => {
-        const clientId = process.env["ML_CLIENT_ID"];
+        const clientId = process.env["ML_CLIENT_ID"]?.trim();
+        if (!clientId) return json({ ok: false, reason: "not_configured" }, 503);
+
+        const contentType = request.headers.get("content-type") ?? "";
+        if (!contentType.toLowerCase().includes("application/json")) {
+          return json({ ok: false, reason: "unsupported_media_type" }, 415);
+        }
 
         let payload: MlNotification;
         try {
           payload = (await request.json()) as MlNotification;
         } catch {
-          return new Response("invalid json", { status: 400 });
+          return json({ ok: false, reason: "invalid_json" }, 400);
         }
 
         const topic = (payload.topic ?? "").trim();
         const resource = (payload.resource ?? "").trim();
-        const mlUserId = payload.user_id != null ? String(payload.user_id) : null;
-        const applicationId = payload.application_id != null ? String(payload.application_id) : null;
+        const mlUserId = payload.user_id != null ? String(payload.user_id).trim() : null;
+        const applicationId =
+          payload.application_id != null ? String(payload.application_id).trim() : null;
 
-        if (!topic || !resource) return json({ ok: false, reason: "missing_topic_or_resource" }, 400);
-
-        // Origem: a notificação precisa ser da nossa aplicação.
-        if (!clientId) return json({ ok: false, reason: "not_configured" }, 503);
-        if (!applicationId || applicationId !== String(clientId)) {
+        if (!SUPPORTED_TOPICS.has(topic)) return json({ ok: true, ignored: "unsupported_topic" });
+        if (!resource || !isSafeResource(topic, resource)) {
+          return json({ ok: false, reason: "invalid_resource" }, 400);
+        }
+        if (!mlUserId || !/^\d{1,20}$/.test(mlUserId)) {
+          return json({ ok: false, reason: "invalid_user" }, 400);
+        }
+        if (!applicationId || applicationId !== clientId) {
           return json({ ok: false, reason: "unknown_application" }, 401);
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        // Resolve o usuário do ANÚNCIO ML pela conta ML conectada.
-        let userId: string | null = null;
-        if (mlUserId) {
-          const { data: connection } = await supabaseAdmin
-            .from("ml_connections")
-            .select("user_id")
-            .eq("ml_user_id", mlUserId)
-            .maybeSingle();
-          userId = connection?.user_id ?? null;
+        // Só eventos de uma conta realmente conectada entram na fila/log. Isso
+        // impede que terceiros encham a tabela usando user_ids aleatórios.
+        const { data: connection, error: connectionError } = await supabaseAdmin
+          .from("ml_connections")
+          .select("user_id")
+          .eq("ml_user_id", mlUserId)
+          .eq("connected", true)
+          .maybeSingle();
+        if (connectionError) {
+          console.error("ML webhook connection lookup failed", connectionError.message);
+          return json({ ok: false, reason: "connection_lookup_failed" }, 500);
         }
+        const userId = connection?.user_id ?? null;
+        if (!userId) return json({ ok: true, ignored: "seller_not_connected" });
 
-        // Idempotência: o índice único bloqueia reentregas do mesmo evento.
+        const rawNotificationId =
+          typeof payload._id === "string" && payload._id.trim()
+            ? payload._id.trim()
+            : `${applicationId}:${topic}:${resource}:${payload.sent ?? "unspecified"}`;
+        const notificationId = rawNotificationId.slice(0, 600);
+
         const { data: logged, error: logError } = await supabaseAdmin
           .from("ml_notifications")
           .insert({
-            notification_id:
-              payload._id ??
-              `${applicationId}:${topic}:${resource}:${payload.sent ?? "unspecified"}`,
+            notification_id: notificationId,
             topic,
             resource,
             ml_user_id: mlUserId,
             application_id: applicationId,
             user_id: userId,
-            attempts: payload.attempts ?? 1,
-            payload: payload as never,
+            attempts:
+              typeof payload.attempts === "number" && payload.attempts > 0
+                ? Math.min(Math.trunc(payload.attempts), 1000)
+                : 1,
+            payload: {
+              _id: typeof payload._id === "string" ? payload._id.slice(0, 600) : null,
+              topic,
+              resource,
+              user_id: mlUserId,
+              application_id: applicationId,
+              attempts: payload.attempts ?? 1,
+              sent: payload.sent ?? null,
+              received: payload.received ?? null,
+              actions: Array.isArray(payload.actions) ? payload.actions.slice(0, 20) : [],
+            } as never,
             sent_at: payload.sent ?? null,
           })
           .select("id")
           .maybeSingle();
 
         if (logError) {
-          // 23505 = violação de unicidade -> já processamos este evento.
           if ((logError as { code?: string }).code === "23505") {
             return json({ ok: true, deduped: true });
           }
@@ -112,24 +168,6 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
           return json({ ok: false, reason: "log_failed" }, 500);
         }
 
-        if (!SUPPORTED_TOPICS.has(topic)) {
-          await supabaseAdmin
-            .from("ml_notifications")
-            .update({ processed: true, processed_at: new Date().toISOString(), error: "topic_ignored" })
-            .eq("id", logged!.id);
-          return json({ ok: true, ignored: topic });
-        }
-
-        // Sem usuário conectado não há token para consultar o recurso oficial.
-        if (!userId) {
-          await supabaseAdmin
-            .from("ml_notifications")
-            .update({ processed: true, processed_at: new Date().toISOString(), error: "seller_not_connected" })
-            .eq("id", logged!.id);
-          return json({ ok: true, ignored: "seller_not_connected" });
-        }
-
-        // Token válido (renova via refresh_token quando necessário).
         const { getValidMlAccessToken } = await import("@/lib/ml.server");
         const tokenState = await getValidMlAccessToken(userId);
 
@@ -140,28 +178,39 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
             .eq("id", logged!.id);
           return json({ ok: true, pending: tokenState.reason });
         }
-        const accessToken = tokenState.accessToken;
 
         let processError: string | null = null;
         try {
           const lookup = await fetch(`https://api.mercadolibre.com${resource}`, {
-            headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+            headers: {
+              Authorization: `Bearer ${tokenState.accessToken}`,
+              Accept: "application/json",
+              "User-Agent": "ANUNCIO-ML/1.0",
+            },
           });
 
           if (!lookup.ok) {
             processError = `resource_lookup_${lookup.status}`;
           } else {
             const data = (await lookup.json()) as Record<string, unknown>;
-
-            if (topic === "items" || topic === "items_prices") {
-              const mlId = String((data["id"] as string | undefined) ?? resource.split("/").pop() ?? "");
-              const patch: Record<string, unknown> = {
-                updated_at: new Date().toISOString(),
-              };
+            const sellerId = resourceSellerId(data);
+            if (sellerId && sellerId !== mlUserId) {
+              processError = "resource_owner_mismatch";
+            } else if (topic === "items" || topic === "items_prices") {
+              const mlId = String(
+                (data["id"] as string | undefined) ?? resource.split("/").pop() ?? "",
+              );
+              const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
               if (typeof data["title"] === "string") patch["title"] = data["title"];
-              if (typeof data["price"] === "number") patch["price_cents"] = Math.round(data["price"] * 100);
-              if (typeof data["available_quantity"] === "number") patch["stock"] = data["available_quantity"];
-              if (typeof data["permalink"] === "string") patch["source_permalink"] = data["permalink"];
+              if (typeof data["price"] === "number") {
+                patch["price_cents"] = Math.round(data["price"] * 100);
+              }
+              if (typeof data["available_quantity"] === "number") {
+                patch["stock"] = data["available_quantity"];
+              }
+              if (typeof data["permalink"] === "string") {
+                patch["source_permalink"] = data["permalink"];
+              }
 
               const { data: listing } = await supabaseAdmin
                 .from("listings")
@@ -169,7 +218,6 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
                 .eq("user_id", userId)
                 .eq("source_ml_id", mlId)
                 .maybeSingle();
-
 
               if (listing) {
                 await supabaseAdmin.from("listings").update(patch as never).eq("id", listing.id);
@@ -184,7 +232,6 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
                 meta: { ml_item_id: mlId, topic },
               });
             } else {
-              // orders / orders_v2 / created_orders / questions / messages / shipments
               await supabaseAdmin.from("activity_events").insert({
                 user_id: userId,
                 kind: "ml_notification",
@@ -211,7 +258,6 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
           })
           .eq("id", logged!.id);
 
-        // Sempre 200: o Mercado Livre reenvia em caso de erro HTTP.
         return json({ ok: !processError, topic });
       },
     },
