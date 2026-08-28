@@ -9,6 +9,7 @@ const PERIOD_MONTHS: Record<string, number> = {
   semiannual: 6,
   annual: 12,
 };
+const DEFAULT_PUBLIC_ORIGIN = "https://anunciomlbr.lovable.app";
 
 const schema = z.object({
   plan_id: z.string().uuid(),
@@ -22,16 +23,12 @@ const schema = z.object({
     .optional(),
 });
 
-/**
- * Cria a preferência de pagamento no Mercado Pago (checkout oficial).
- * Sem o token de acesso configurado, retornamos "configuração pendente" —
- * nunca simulamos um pagamento aprovado.
- */
+/** Cria uma preferência real no Mercado Pago; nunca simula aprovação ou pedido offline. */
 export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => schema.parse(data))
   .handler(async ({ data, context }) => {
-    const accessToken = process.env["MERCADOPAGO_ACCESS_TOKEN"];
+    const accessToken = process.env["MERCADOPAGO_ACCESS_TOKEN"]?.trim();
 
     const { data: plan, error: planError } = await context.supabase
       .from("plans")
@@ -50,18 +47,24 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
     const percent = Number(discount?.discount_percent ?? 0);
     let amountCents = Math.round(plan.price_monthly_cents * months * (1 - percent / 100));
 
-    // Cupom sempre revalidado no servidor.
     let coupon: { code: string; discount_percent: number } | null = null;
     if (data.coupon_code) {
       const { resolveCoupon } = await import("@/lib/coupons.server");
       const result = await resolveCoupon(data.coupon_code);
       if (result.ok) {
         coupon = { code: result.code, discount_percent: result.discount_percent };
-        amountCents = Math.max(
-          Math.round(amountCents * (1 - result.discount_percent / 100)),
-          100,
-        );
+        amountCents = Math.max(Math.round(amountCents * (1 - result.discount_percent / 100)), 100);
       }
+    }
+
+    if (!accessToken) {
+      return {
+        configured: false as const,
+        payment_id: null,
+        amount_cents: amountCents,
+        checkout_url: null,
+        reason: "Mercado Pago ainda não está configurado no servidor.",
+      };
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -80,17 +83,8 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
       .single();
     if (paymentError) throw new Error("Não foi possível registrar o pagamento.");
 
-    if (!accessToken) {
-      return {
-        configured: false as const,
-        payment_id: payment.id,
-        amount_cents: amountCents,
-        checkout_url: null,
-      };
-    }
-
-    const origin = process.env["APP_PUBLIC_URL"] ?? "";
-    const successUrl = origin ? `${origin}/checkout/success?payment_id=${payment.id}` : undefined;
+    const origin = (process.env["APP_PUBLIC_URL"]?.trim() || DEFAULT_PUBLIC_ORIGIN).replace(/\/$/, "");
+    const successUrl = `${origin}/checkout/success?payment_id=${payment.id}`;
     const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
       headers: {
@@ -113,36 +107,58 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
           plan_id: plan.id,
           coupon_code: coupon?.code ?? null,
         },
-        notification_url: origin ? `${origin}/api/public/webhooks/mercadopago` : undefined,
-        back_urls: origin
-          ? {
-              success: successUrl,
-              pending: successUrl,
-              failure: `${origin}/checkout`,
-            }
-          : undefined,
+        notification_url: `${origin}/api/public/webhooks/mercadopago`,
+        back_urls: {
+          success: successUrl,
+          pending: successUrl,
+          failure: `${origin}/checkout`,
+        },
+        auto_return: "approved",
       }),
     });
 
     if (!response.ok) {
-      console.error("Mercado Pago preference failed", response.status, await response.text());
+      const providerError = await response.text().catch(() => "");
+      console.error("Mercado Pago preference failed", response.status, providerError.slice(0, 500));
+      await supabaseAdmin
+        .from("payments")
+        .update({ raw: { checkout_error_status: response.status } as never })
+        .eq("id", payment.id);
       return {
         configured: true as const,
         payment_id: payment.id,
         amount_cents: amountCents,
         checkout_url: null,
+        reason: "O Mercado Pago não conseguiu iniciar o checkout agora.",
       };
     }
 
     const preference = (await response.json()) as {
+      id?: string;
       init_point?: string;
       sandbox_init_point?: string;
     };
+    const checkoutUrl = preference.init_point ?? preference.sandbox_init_point ?? null;
+    if (!checkoutUrl) {
+      return {
+        configured: true as const,
+        payment_id: payment.id,
+        amount_cents: amountCents,
+        checkout_url: null,
+        reason: "O Mercado Pago não retornou o endereço do checkout.",
+      };
+    }
+
+    if (preference.id) {
+      await supabaseAdmin.from("payments").update({ provider_ref: preference.id }).eq("id", payment.id);
+    }
+
     return {
       configured: true as const,
       payment_id: payment.id,
       amount_cents: amountCents,
-      checkout_url: preference.init_point ?? preference.sandbox_init_point ?? null,
+      checkout_url: checkoutUrl,
+      reason: null,
     };
   });
 
@@ -175,11 +191,7 @@ export const getCheckoutSummary = createServerFn({ method: "GET" })
     };
   });
 
-/**
- * Confirma o pagamento direto na API do Mercado Pago e emite a licença
- * automaticamente quando aprovado — garante a liberação mesmo se o webhook
- * atrasar ou não chegar. Só o próprio dono do pedido pode chamar.
- */
+/** Confirma o pagamento na API do Mercado Pago e emite a licença somente quando aprovado. */
 export const confirmCheckoutPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ payment_id: z.string().uuid() }).parse(data))
