@@ -7,6 +7,7 @@ import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landi
 import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
+import { RealSocialProof } from "@/components/landing/RealSocialProof";
 import { Reveal } from "@/components/landing/Reveal";
 import { VerifiedFeaturesSection } from "@/components/landing/VerifiedFeaturesSection";
 import {
@@ -54,6 +55,7 @@ function Landing() {
         <PremiumHero />
         <ProductTrustBar />
         <PremiumCapabilities />
+        <Reveal><RealSocialProof /></Reveal>
         <Reveal><VerifiedFeaturesSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
         <Reveal><PricingSection /></Reveal>
