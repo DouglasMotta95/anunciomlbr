@@ -36,15 +36,28 @@ export const adminGetMetrics = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const metrics = await getAdminMetrics(data, context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { count: platformCreations, error } = await supabaseAdmin
-      .from("listing_quota_claims")
-      .select("listing_id", { count: "exact", head: true });
-    if (error) console.error("admin platform creations count failed", error.message);
+
+    const [{ count: platformCreations, error: creationsError }, { count: platformPublished, error: publishedError }] = await Promise.all([
+      supabaseAdmin
+        .from("listing_quota_claims")
+        .select("listing_id", { count: "exact", head: true }),
+      supabaseAdmin
+        .from("listing_quota_claims")
+        .select("listing_id,listings!inner(published_at)", { count: "exact", head: true })
+        .not("listings.published_at", "is", null),
+    ]);
+
+    if (creationsError) console.error("admin platform creations count failed", creationsError.message);
+    if (publishedError) console.error("admin platform published count failed", publishedError.message);
+
     return {
       ...metrics,
-      // A UI antiga chama este campo de "Anúncios processados". Ele agora representa
-      // somente criações/clonagens que consumiram franquia, não anúncios sincronizados.
-      listingsTotal: platformCreations ?? 0,
+      // Métrica principal do admin: somente anúncios que nasceram no ANÚNCIO ML
+      // (criação/clonagem com quota claim) E foram efetivamente publicados pela plataforma.
+      // Anúncios apenas sincronizados/importados da conta do cliente nunca entram aqui.
+      listingsTotal: platformPublished ?? 0,
+      platformCreatedTotal: platformCreations ?? 0,
+      platformPublishedTotal: platformPublished ?? 0,
       catalogListingsTotal: metrics.listingsTotal,
     };
   });
