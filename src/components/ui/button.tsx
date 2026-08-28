@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "relative inline-flex select-none items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-xl text-sm font-semibold cursor-pointer transform-gpu transition-[transform,box-shadow,background-color,border-color,color,opacity] duration-150 ease-out hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:translate-y-0 disabled:scale-100 disabled:opacity-50 disabled:cursor-not-allowed motion-reduce:transform-none motion-reduce:transition-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "relative inline-flex select-none touch-manipulation items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-xl text-sm font-semibold cursor-pointer transform-gpu transition-[transform,box-shadow,background-color,border-color,color,opacity,filter] duration-150 ease-out [-webkit-tap-highlight-color:transparent] hover:-translate-y-0.5 active:translate-y-[1px] active:scale-[0.955] active:brightness-95 active:shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:translate-y-0 disabled:scale-100 disabled:brightness-100 disabled:opacity-50 disabled:cursor-not-allowed motion-reduce:transform-none motion-reduce:transition-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -18,7 +18,7 @@ const buttonVariants = cva(
         secondary:
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 hover:shadow-md",
         ghost: "shadow-none hover:bg-accent hover:text-accent-foreground hover:shadow-sm",
-        link: "rounded-md text-primary underline-offset-4 shadow-none hover:translate-y-0 hover:underline hover:shadow-none",
+        link: "rounded-md text-primary underline-offset-4 shadow-none hover:translate-y-0 hover:underline hover:shadow-none active:translate-y-0 active:scale-[0.98]",
       },
       size: {
         default: "h-10 px-4 py-2",
