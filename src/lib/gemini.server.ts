@@ -33,6 +33,8 @@ export type GeminiOptions = {
   json?: boolean | undefined;
   temperature?: number | null | undefined;
   maxOutputTokens?: number | null | undefined;
+  /** Uso interno/testes. O endpoint público nunca aceita este campo do cliente. */
+  timeoutMs?: number | undefined;
 };
 
 /** Chamada única de texto ao Gemini com tratamento completo de erros. */
@@ -42,12 +44,17 @@ export async function geminiGenerate(
 ): Promise<GeminiOk<string> | GeminiFail> {
   const key = apiKey();
   if (!key) {
-    return { ok: false, code: "not_configured", reason: "A IA não está configurada no servidor (GEMINI_API_KEY ausente)." };
+    return {
+      ok: false,
+      code: "not_configured",
+      reason: "A IA não está configurada no servidor (GEMINI_API_KEY ausente).",
+    };
   }
 
   const model = options.model || DEFAULT_MODEL;
+  const timeoutMs = Math.max(1, Math.min(options.timeoutMs ?? TIMEOUT_MS, TIMEOUT_MS));
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let response: Response;
   try {
@@ -58,48 +65,84 @@ export async function geminiGenerate(
         signal: controller.signal,
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
-          ...(options.system ? { system_instruction: { parts: [{ text: options.system }] } } : {}),
+          ...(options.system
+            ? { system_instruction: { parts: [{ text: options.system }] } }
+            : {}),
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: {
             ...(options.json ? { responseMimeType: "application/json" } : {}),
             ...(options.temperature != null ? { temperature: options.temperature } : {}),
-            ...(options.maxOutputTokens != null ? { maxOutputTokens: options.maxOutputTokens } : {}),
+            ...(options.maxOutputTokens != null
+              ? { maxOutputTokens: options.maxOutputTokens }
+              : {}),
           },
         }),
       },
     );
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      return { ok: false, code: "timeout", reason: "A IA demorou demais para responder. Tente novamente." };
+      return {
+        ok: false,
+        code: "timeout",
+        reason: "A IA demorou demais para responder. Tente novamente.",
+      };
     }
     console.error("[gemini] falha de conexão");
-    return { ok: false, code: "network", reason: "Não foi possível conectar à IA agora." };
+    return {
+      ok: false,
+      code: "network",
+      reason: "Não foi possível conectar à IA agora.",
+    };
   } finally {
     clearTimeout(timer);
   }
 
   if (response.status === 400 || response.status === 401 || response.status === 403) {
-    // Nunca logar a chave nem o corpo (pode ecoar credenciais).
     console.error("[gemini] credencial rejeitada", response.status);
-    return { ok: false, code: "invalid_key", reason: "A chave da IA é inválida ou sem permissão. Verifique a GEMINI_API_KEY." };
+    return {
+      ok: false,
+      code: "invalid_key",
+      reason: "A chave da IA é inválida ou sem permissão. Verifique a GEMINI_API_KEY.",
+    };
   }
   if (response.status === 429) {
-    return { ok: false, code: "rate_limited", reason: "Limite de requisições da IA atingido. Tente novamente em instantes." };
+    return {
+      ok: false,
+      code: "rate_limited",
+      reason: "Limite de requisições da IA atingido. Tente novamente em instantes.",
+    };
   }
   if (!response.ok) {
     console.error("[gemini] erro da API", response.status);
-    return { ok: false, code: "api_error", reason: `A IA não respondeu corretamente (erro ${response.status}).` };
+    return {
+      ok: false,
+      code: "api_error",
+      reason: `A IA não respondeu corretamente (erro ${response.status}).`,
+    };
   }
 
   let payload: { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   try {
     payload = (await response.json()) as typeof payload;
   } catch {
-    return { ok: false, code: "parse_error", reason: "Não foi possível interpretar a resposta da IA." };
+    return {
+      ok: false,
+      code: "parse_error",
+      reason: "Não foi possível interpretar a resposta da IA.",
+    };
   }
 
-  const text = payload.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
-  if (!text) return { ok: false, code: "empty", reason: "A IA retornou uma resposta vazia. Tente novamente." };
+  const text = payload.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? "")
+    .join("")
+    .trim();
+  if (!text) {
+    return {
+      ok: false,
+      code: "empty",
+      reason: "A IA retornou uma resposta vazia. Tente novamente.",
+    };
+  }
   return { ok: true, result: text };
 }
 
@@ -113,6 +156,10 @@ export async function geminiGenerateJson<T>(
   try {
     return { ok: true, result: JSON.parse(out.result) as T };
   } catch {
-    return { ok: false, code: "parse_error", reason: "Não foi possível interpretar a resposta JSON da IA." };
+    return {
+      ok: false,
+      code: "parse_error",
+      reason: "Não foi possível interpretar a resposta JSON da IA.",
+    };
   }
 }
