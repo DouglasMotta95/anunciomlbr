@@ -97,9 +97,9 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
       { key: "supabase", label: "Banco / Backend", state: config.supabase ? "ok" : "error", detail: config.supabase ? "Backend configurado" : "Configuração do backend incompleta" },
       { key: "migrations", label: "Migrations e catálogo", state: migrationsOk ? "ok" : "warning", detail: migrationDetail },
       { key: "mercadoLivre", label: "Mercado Livre", state: config.mercadoLivre ? "ok" : "error", detail: config.mercadoLivre ? `${mlConnected.count ?? 0} conta(s) conectada(s)` : "Credenciais OAuth incompletas" },
-      { key: "mercadoPago", label: "Mercado Pago", state: config.mercadoPago ? "ok" : "warning", detail: config.mercadoPago ? "Token configurado" : "Token de pagamento ausente" },
+      { key: "mercadoPago", label: "Mercado Pago", state: config.mercadoPago ? "ok" : "error", detail: config.mercadoPago ? "Token configurado" : "Token de pagamento ausente" },
       { key: "ai", label: "Inteligência artificial", state: config.ai ? "ok" : "warning", detail: aiProvider ? `${aiProvider} configurado` : "Chave de IA ausente" },
-      { key: "webhook", label: "Webhook Mercado Pago", state: config.webhookMercadoPago ? "ok" : "warning", detail: config.webhookMercadoPago ? "Assinatura configurada" : "Secret de assinatura não configurado" },
+      { key: "webhook", label: "Webhook Mercado Pago", state: config.webhookMercadoPago ? "ok" : "error", detail: config.webhookMercadoPago ? "Assinatura HMAC obrigatória configurada" : "Secret de assinatura obrigatório não configurado" },
     ] as Array<{ key: string; label: string; state: HealthState; detail: string }>;
 
     const attention = [
