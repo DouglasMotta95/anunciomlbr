@@ -88,10 +88,13 @@ export const createAiListingVariants = createServerFn({ method: "POST" })
         .single();
 
       if (error || !copy) {
-        if (created.length) {
-          await supabaseAdmin.from("listings").delete().in("id", created.map((row) => row.id)).eq("user_id", context.userId);
-        }
-        return { ok: false as const, reason: "Não foi possível salvar todas as variações. Nenhuma nova variação foi mantida." };
+        return {
+          ok: false as const,
+          reason: created.length
+            ? `${created.length} anúncio(s) foram criados antes de ocorrer um erro ao salvar a próxima variação. Eles foram mantidos porque já consumiram a franquia.`
+            : "Não foi possível salvar as variações.",
+          created,
+        };
       }
 
       const { data: claimed, error: claimError } = await supabaseAdmin.rpc("claim_listing_quota", {
@@ -100,16 +103,19 @@ export const createAiListingVariants = createServerFn({ method: "POST" })
       });
 
       if (claimError || claimed !== true) {
+        // Esta cópia ainda não consumiu a franquia, então pode ser removida.
+        // As anteriores são mantidas: claim_listing_quota consome uma franquia
+        // persistente, que não deve ser "devolvida" ao apagar o anúncio.
         await supabaseAdmin.from("listings").delete().eq("id", copy.id).eq("user_id", context.userId);
-        if (created.length) {
-          await supabaseAdmin.from("listings").delete().in("id", created.map((row) => row.id)).eq("user_id", context.userId);
-        }
         if (claimError) console.error("[variants claim]", claimError.message);
         return {
           ok: false as const,
-          reason: claimError
-            ? "Não foi possível registrar a franquia das variações agora. Nenhuma nova variação foi mantida."
-            : "A franquia foi alterada durante a criação das variações. Nenhuma nova variação foi mantida; atualize a página e tente novamente.",
+          reason: created.length
+            ? `${created.length} anúncio(s) foram criados antes de a franquia disponível mudar. Os anúncios já criados foram mantidos.`
+            : claimError
+              ? "Não foi possível registrar a franquia das variações agora. Tente novamente."
+              : "A franquia foi alterada antes da criação. Atualize a página e tente novamente.",
+          created,
         };
       }
 
@@ -120,8 +126,13 @@ export const createAiListingVariants = createServerFn({ method: "POST" })
     const { consumeAiQuota } = await import("./ai-quota.server");
     const consumed = await consumeAiQuota(context.userId, 1);
     if (!consumed.ok) {
-      await supabaseAdmin.from("listings").delete().in("id", created.map((row) => row.id)).eq("user_id", context.userId);
-      return { ok: false as const, reason: consumed.reason };
+      // Não apaga os rascunhos: eles já possuem claims e apagar não devolveria
+      // a franquia consumida. Reporta a inconsistência sem perder o trabalho.
+      return {
+        ok: false as const,
+        reason: `${consumed.reason} As ${created.length} variações já criadas foram mantidas na sua lista de anúncios.`,
+        created,
+      };
     }
 
     await supabaseAdmin.from("activity_events").insert({
