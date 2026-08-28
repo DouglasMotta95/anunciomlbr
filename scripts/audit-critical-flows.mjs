@@ -21,17 +21,17 @@ function expect(file, needles, label) {
 }
 
 expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "signInWithOAuth"], "autenticação e aceite legal");
-expect("src/routes/_authenticated/onboarding.tsx", ["/integracoes"], "onboarding");
+expect("src/routes/_authenticated/onboarding.tsx", ["openMercadoLivreOAuthStart", "/buscar", "/dashboard"], "onboarding");
 expect("src/routes/_authenticated/integracoes.tsx", ["openMercadoLivreOAuthStart", "syncMercadoLivreCatalog"], "Mercado Livre OAuth/sincronização");
-expect("src/routes/_authenticated/buscar.tsx", ["create", "Mercado Livre"], "busca/cópia");
+expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "Mercado Livre"], "busca/cópia");
 expect("src/routes/_authenticated/editor.$id.tsx", ["PublishButton", "generateListingImage", "3 créditos"], "editor/publicação/imagem IA");
-expect("src/lib/listing-image-ai.functions.ts", ["quota.remaining < 3", "consumeAiQuota(context.userId, 3)"], "cobrança de imagem IA");
+expect("src/lib/listing-image-ai.functions.ts", ["IMAGE_CREDIT_COST = 3", "quota.remaining < IMAGE_CREDIT_COST", "consumeAiQuota(context.userId, IMAGE_CREDIT_COST)"], "cobrança de imagem IA");
 expect("src/lib/gemini.functions.ts", ["getAiQuota", "consumeAiQuota(context.userId, 1)"], "endpoint Gemini tarifado");
 expect("src/routes/checkout/index.tsx", ["Mercado Pago", "checkout"], "checkout");
 expect("src/routes/checkout/success.tsx", ["approved", "payment"], "retorno de pagamento");
 expect("src/routes/_authenticated/admin.tsx", ["beforeLoad", "checkIsAdmin"], "guarda administrativa");
 expect("src/lib/admin.server.ts", ["assertAdmin"], "proteção do backend administrativo");
-expect("src/lib/admin-health.functions.ts", ["ai_credit_status", "ai-listing-images", "Migrations e catálogo"], "diagnóstico de migrations");
+expect("src/lib/admin-health.functions.ts", ["ai_credit_status", "ai-listing-images", "Migrations e catálogo", "3 créditos por imagem"], "diagnóstico de migrations");
 expect("src/routes/termos.tsx", ["Termos de Uso"], "termos");
 expect("src/routes/privacidade.tsx", ["Política de Privacidade"], "privacidade");
 expect(".gitignore", [".env", ".env.*"], "proteção de secrets");
