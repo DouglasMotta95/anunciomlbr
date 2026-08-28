@@ -15,6 +15,7 @@ import {
   syncMlListings,
 } from "@/lib/ml.functions";
 import { openMercadoLivreOAuthStart } from "@/lib/ml-oauth-client";
+import type { MlSyncResult } from "@/lib/ml.server";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateTime } from "@/lib/format";
 
@@ -51,7 +52,8 @@ function OnboardingPage() {
 
   const sync = useMutation({
     mutationFn: () => runSync(),
-    onSuccess: (result) => {
+    onSuccess: (rawResult) => {
+      const result = rawResult as unknown as MlSyncResult;
       if (result.ok) {
         toast.success(
           `Sincronizado: ${result.imported} novos, ${result.updated} atualizados (${result.total} anúncios).`,
@@ -59,7 +61,7 @@ function OnboardingPage() {
       } else {
         toast.error("Não foi possível sincronizar", { description: result.reason });
       }
-      queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
+      void queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
     },
     onError: () => toast.error("Falha na sincronização."),
   });
@@ -68,7 +70,7 @@ function OnboardingPage() {
     mutationFn: () => runDisconnect(),
     onSuccess: () => {
       toast.success("Conta desconectada.");
-      queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
+      void queryClient.invalidateQueries({ queryKey: ["ml-connection-state"] });
     },
     onError: () => toast.error("Falha ao desconectar."),
   });
@@ -82,8 +84,8 @@ function OnboardingPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
-      navigate({ to: "/dashboard" });
+      void queryClient.invalidateQueries({ queryKey: ["profile"] });
+      void navigate({ to: "/dashboard" });
     },
   });
 
@@ -177,10 +179,10 @@ function OnboardingPage() {
             {finish.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Ir para o dashboard
           </Button>
-          <Button variant="outline" onClick={() => navigate({ to: "/buscar" })}>
+          <Button variant="outline" onClick={() => void navigate({ to: "/buscar" })}>
             Buscar meu primeiro anúncio
           </Button>
-          <Button variant="ghost" onClick={() => navigate({ to: "/dashboard" })}>
+          <Button variant="ghost" onClick={() => void navigate({ to: "/dashboard" })}>
             Fazer depois
           </Button>
         </CardContent>
