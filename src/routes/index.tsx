@@ -6,6 +6,7 @@ import { SessionSplash } from "@/components/SessionSplash";
 import { VisitTracker } from "@/components/VisitTracker";
 import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landing/ConversionSections";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
+import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
 import { Reveal } from "@/components/landing/Reveal";
 import { VideoDemoSection } from "@/components/landing/VideoDemoSection";
 import {
@@ -61,6 +62,7 @@ function Landing() {
         <Reveal><PricingSection /></Reveal>
         <Reveal><PlanPeriodComparisonSection /></Reveal>
         <Reveal><FaqSection /></Reveal>
+        <Reveal><PreSaleSupport /></Reveal>
         <Reveal><FinalCta /></Reveal>
       </main>
 
