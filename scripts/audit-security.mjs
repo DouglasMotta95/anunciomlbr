@@ -54,6 +54,18 @@ expect(
   "webhook Mercado Pago",
 );
 expect(
+  "src/routes/api/public/webhooks/mercadolivre.ts",
+  [
+    "SUPPORTED_TOPICS",
+    "isSafeResource",
+    "unknown_application",
+    "seller_not_connected",
+    "resource_owner_mismatch",
+    "getValidMlAccessToken",
+  ],
+  "webhook Mercado Livre",
+);
+expect(
   "src/lib/ml-pkce.functions.ts",
   ["code_challenge", "S256", "crypto.randomUUID", "ml_oauth_states"],
   "OAuth Mercado Livre PKCE",
