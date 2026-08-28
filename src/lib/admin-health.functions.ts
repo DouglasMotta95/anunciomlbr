@@ -4,6 +4,24 @@ import { assertCapability } from "@/lib/permissions.server";
 
 export type HealthState = "ok" | "warning" | "error";
 
+const EXPECTED_AI: Record<string, number> = {
+  starter: 100,
+  pro: 300,
+  premium: 750,
+  business: 1000,
+};
+
+const EXPECTED_PACKAGES = [
+  "ai_extra_100",
+  "ai_extra_300",
+  "ai_extra_750",
+  "ai_extra_1500",
+  "ads_extra_25",
+  "ads_extra_100",
+  "ads_extra_300",
+  "ads_extra_1000",
+] as const;
+
 export const adminGetSystemHealth = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -19,6 +37,9 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
       failedPayments,
       pendingPayments,
       recentMlEvents,
+      planCatalog,
+      aiRpc,
+      imageBucket,
     ] = await Promise.all([
       supabaseAdmin.from("ml_connections").select("user_id", { count: "exact", head: true }).eq("connected", true),
       supabaseAdmin.from("licenses").select("id", { count: "exact", head: true }).eq("status", "active").not("expires_at", "is", null).lte("expires_at", in7Days).gte("expires_at", now.toISOString()),
@@ -30,6 +51,9 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
         .select("id", { count: "exact", head: true })
         .in("kind", ["ml_notification", "ml_item_updated"])
         .gte("created_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
+      supabaseAdmin.from("plans").select("code,ai_credits,kind,active"),
+      supabaseAdmin.rpc("ai_credit_status", { _user_id: context.userId }),
+      supabaseAdmin.storage.getBucket("ai-listing-images"),
     ]);
 
     const aiProvider = process.env["LOVABLE_API_KEY"]
@@ -46,8 +70,27 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
       webhookMercadoPago: !!process.env["MERCADOPAGO_WEBHOOK_SECRET"],
     };
 
+    const catalogRows = planCatalog.data ?? [];
+    const mainPlansCurrent = Object.entries(EXPECTED_AI).every(([code, expected]) => {
+      const row = catalogRows.find((plan: any) => plan.code === code && plan.active !== false);
+      return Number(row?.ai_credits) === expected;
+    });
+    const packagesCurrent = EXPECTED_PACKAGES.every((code) =>
+      catalogRows.some((plan: any) => plan.code === code && plan.active === true),
+    );
+    const migrationsOk = !planCatalog.error && !aiRpc.error && !imageBucket.error && mainPlansCurrent && packagesCurrent;
+    const migrationDetail = migrationsOk
+      ? "Catálogo v2, RPC de créditos e bucket de imagens confirmados no ambiente"
+      : [
+          !mainPlansCurrent ? "franquias dos planos desatualizadas" : null,
+          !packagesCurrent ? "pacotes extras ausentes/desativados" : null,
+          aiRpc.error ? "RPC de créditos indisponível" : null,
+          imageBucket.error ? "bucket de imagens IA indisponível" : null,
+        ].filter(Boolean).join(" · ") || "não foi possível validar o estado do banco";
+
     const services = [
-      { key: "supabase", label: "Supabase / Banco", state: config.supabase ? "ok" : "error", detail: config.supabase ? "Backend configurado" : "Configuração do backend incompleta" },
+      { key: "supabase", label: "Banco / Backend", state: config.supabase ? "ok" : "error", detail: config.supabase ? "Backend configurado" : "Configuração do backend incompleta" },
+      { key: "migrations", label: "Migrations e catálogo", state: migrationsOk ? "ok" : "warning", detail: migrationDetail },
       { key: "mercadoLivre", label: "Mercado Livre", state: config.mercadoLivre ? "ok" : "error", detail: config.mercadoLivre ? `${mlConnected.count ?? 0} conta(s) conectada(s)` : "Credenciais OAuth incompletas" },
       { key: "mercadoPago", label: "Mercado Pago", state: config.mercadoPago ? "ok" : "warning", detail: config.mercadoPago ? "Token configurado" : "Token de pagamento ausente" },
       { key: "ai", label: "Inteligência artificial", state: config.ai ? "ok" : "warning", detail: aiProvider ? `${aiProvider} configurado` : "Chave de IA ausente" },
