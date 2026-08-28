@@ -29,6 +29,12 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const now = new Date();
     const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const migratedDb = supabaseAdmin as unknown as {
+      rpc: (
+        name: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message?: string } | null }>;
+    };
 
     const [
       mlConnected,
@@ -52,7 +58,7 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
         .in("kind", ["ml_notification", "ml_item_updated"])
         .gte("created_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
       supabaseAdmin.from("plans").select("code,ai_credits,kind,active,features"),
-      supabaseAdmin.rpc("ai_credit_status", { _user_id: context.userId }),
+      migratedDb.rpc("ai_credit_status", { _user_id: context.userId }),
       supabaseAdmin.storage.getBucket("ai-listing-images"),
     ]);
 
@@ -99,7 +105,7 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
       { key: "mercadoLivre", label: "Mercado Livre", state: config.mercadoLivre ? "ok" : "error", detail: config.mercadoLivre ? `${mlConnected.count ?? 0} conta(s) conectada(s)` : "Credenciais OAuth incompletas" },
       { key: "mercadoPago", label: "Mercado Pago", state: config.mercadoPago ? "ok" : "error", detail: config.mercadoPago ? "Token configurado" : "Token de pagamento ausente" },
       { key: "ai", label: "Inteligência artificial", state: config.ai ? "ok" : "warning", detail: aiProvider ? `${aiProvider} configurado` : "Chave de IA ausente" },
-      { key: "webhook", label: "Webhook Mercado Pago", state: config.webhookMercadoPago ? "ok" : "error", detail: config.webhookMercadoPago ? "Assinatura HMAC obrigatória configurada" : "Secret de assinatura obrigatório não configurado" },
+      { key: "webhook", label: "Webhook Mercado Pago", state: config.webhookMercadoPago ? "ok" : "error", detail: config.webhookMercadoPago ? "Assinatura configurada" : "Secret de assinatura não configurado — pagamentos não serão liberados até configurar" },
     ] as Array<{ key: string; label: string; state: HealthState; detail: string }>;
 
     const attention = [
