@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 
-import { supabase } from "@/integrations/supabase/client";
+import { hasSupabaseBrowserConfig, supabase } from "@/integrations/supabase/client";
 import { checkIsAdmin } from "@/lib/roles.functions";
 
 export type AuthState = {
@@ -14,9 +14,11 @@ export type AuthState = {
 
 export function useAuth(): AuthState {
   const queryClient = useQueryClient();
+  const configured = hasSupabaseBrowserConfig();
 
   const { data, isLoading } = useQuery({
     queryKey: ["auth-session"],
+    enabled: configured,
     queryFn: async () => {
       const { data } = await supabase.auth.getSession();
       return data.session ?? null;
@@ -25,6 +27,8 @@ export function useAuth(): AuthState {
   });
 
   useEffect(() => {
+    if (!configured) return;
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
         // Derruba a sessão na UI imediatamente e remove qualquer dado privado da conta anterior.
@@ -41,8 +45,9 @@ export function useAuth(): AuthState {
       }
     });
     return () => sub.subscription.unsubscribe();
-  }, [queryClient]);
+  }, [configured, queryClient]);
 
+  if (!configured) return { user: null, session: null, loading: false };
   return { user: data?.user ?? null, session: data ?? null, loading: isLoading };
 }
 
