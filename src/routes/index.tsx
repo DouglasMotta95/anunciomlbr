@@ -1,7 +1,5 @@
-import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
-import { SessionSplash } from "@/components/SessionSplash";
 import { VisitTracker } from "@/components/VisitTracker";
 import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landing/ConversionSections";
 import { CreditsExplainer } from "@/components/landing/CreditsExplainer";
@@ -19,8 +17,6 @@ import {
   LandingNav,
   PricingSection,
 } from "@/components/landing/sections";
-import { useAuth } from "@/hooks/useAuth";
-import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
 const title = "ANÚNCIO ML — Encontre, copie, otimize e publique anúncios";
 const description =
@@ -35,18 +31,8 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: description },
     ],
   }),
-  component: LandingGate,
+  component: Landing,
 });
-
-function LandingGate() {
-  const { user, loading } = useAuth();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return <Landing />;
-  if (user) return <Navigate to="/dashboard" replace />;
-  if (loading && hasStoredSession() && !hasAuthErrorInUrl()) return <SessionSplash />;
-  return <Landing />;
-}
 
 function Landing() {
   return (
