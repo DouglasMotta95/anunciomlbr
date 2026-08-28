@@ -1,9 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, LogOut, Save } from "lucide-react";
+import { ExternalLink, Loader2, LogOut, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { useNavigate } from "@tanstack/react-router";
 
 import { AppShell } from "@/components/app/AppShell";
 import { Button } from "@/components/ui/button";
@@ -133,6 +132,20 @@ function AccountPage() {
               }}
             >
               <LogOut className="mr-2 h-4 w-4" /> Sair da conta
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Privacidade e documentos</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/termos" target="_blank">Termos de Uso<ExternalLink className="ml-2 h-3.5 w-3.5" /></Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/privacidade" target="_blank">Política de Privacidade<ExternalLink className="ml-2 h-3.5 w-3.5" /></Link>
             </Button>
           </CardContent>
         </Card>
