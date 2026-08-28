@@ -17,6 +17,7 @@ import { getBulkJob, type BulkJobItem } from "@/lib/bulk.functions";
 
 const KIND_LABEL: Record<string, string> = {
   copy: "Copiando anúncios",
+  duplicate: "Criando cópias",
   optimize: "Otimizando com IA",
   pause: "Pausando anúncios",
   activate: "Ativando anúncios",
@@ -65,7 +66,7 @@ export function BulkJobDialog({
         <DialogHeader>
           <DialogTitle>{job ? KIND_LABEL[job.kind] ?? "Processando" : "Processando"}</DialogTitle>
           <DialogDescription>
-            O progresso é confirmado pelo servidor. Se ocorrer uma falha, ela será exibida aqui em vez de deixar o processo parado indefinidamente.
+            Cada anúncio é confirmado pelo servidor. Você verá aqui quais foram concluídos e, se houver falha, o motivo exato.
           </DialogDescription>
         </DialogHeader>
 
@@ -78,7 +79,7 @@ export function BulkJobDialog({
             <div>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>
-                  {job.processed + job.failed}/{job.total} processados
+                  {job.processed + job.failed}/{job.total} finalizados
                 </span>
                 <Badge variant={finished ? (job.failed > 0 ? "destructive" : "default") : "secondary"}>
                   {job.status === "queued" && "Na fila"}
@@ -95,7 +96,7 @@ export function BulkJobDialog({
                 {items.map((item) => (
                   <div key={item.id} className="px-3 py-2 text-sm">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate font-medium">{item.label}</span>
                       <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                         {item.status === "processing" && <Loader2 className="h-3 w-3 animate-spin" />}
                         {item.status === "done" && <CheckCircle2 className="h-3 w-3 text-primary" />}
