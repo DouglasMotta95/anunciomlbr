@@ -21,6 +21,11 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Lint
         run: bun run lint
+      - name: Build de produção e geração de rotas
+        shell: bash
+        run: |
+          set -o pipefail
+          bun run build 2>&1 | tee build.log
       - name: Type-check estrito
         run: bun run typecheck
       - name: Testes do callGemini
@@ -40,11 +45,6 @@ jobs:
         with:
           name: quality-ui-audit-log
           path: audit-ui.log
-      - name: Build de produção
-        shell: bash
-        run: |
-          set -o pipefail
-          bun run build 2>&1 | tee build.log
       - name: Salvar log do build
         if: always()
         uses: actions/upload-artifact@v4
