@@ -7,7 +7,7 @@ import {
   ImageIcon,
   Layers3,
   Loader2,
-  ShoppingCart,
+  ShieldCheck,
   Sparkles,
   WandSparkles,
 } from "lucide-react";
@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { AppShell } from "@/components/app/AppShell";
+import { PaymentTrust } from "@/components/app/PaymentTrust";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,6 +123,8 @@ function AiCreditsPage() {
     >
       <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">
+          <PaymentTrust />
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -164,9 +167,7 @@ function AiCreditsPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold">{item.title}</p>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {item.description}
-                      </p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.description}</p>
                     </div>
                     <Badge variant="secondary" className="text-[11px]">
                       {item.cost}
@@ -180,12 +181,9 @@ function AiCreditsPage() {
           {!data?.eligible && !isLoading ? (
             <Card className="border-warning/40">
               <CardContent className="space-y-3 p-5">
-                <p className="font-semibold">
-                  Créditos extras de IA são exclusivos para clientes com plano ativo.
-                </p>
+                <p className="font-semibold">Créditos extras de IA são exclusivos para clientes com plano ativo.</p>
                 <p className="text-sm text-muted-foreground">
-                  O teste grátis continua com os créditos iniciais. Para comprar saldo adicional,
-                  primeiro escolha um plano.
+                  O teste grátis continua com os créditos iniciais. Para comprar saldo adicional, primeiro escolha um plano.
                 </p>
                 <Button asChild>
                   <Link to="/licenca">Escolher um plano</Link>
@@ -209,9 +207,7 @@ function AiCreditsPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <p className="text-2xl font-extrabold">
-                        {formatBRL(pack.price_monthly_cents)}
-                      </p>
+                      <p className="text-2xl font-extrabold">{formatBRL(pack.price_monthly_cents)}</p>
                       <p className="text-xs text-muted-foreground">pagamento único</p>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
@@ -221,6 +217,10 @@ function AiCreditsPage() {
                     <p className="text-xs leading-relaxed text-muted-foreground">
                       Use em textos, otimizações e análises. Imagens usam 3 créditos por geração.
                     </p>
+                    <div className="flex items-start gap-2 rounded-xl border border-primary/15 bg-primary/[.04] p-3 text-xs leading-5 text-muted-foreground">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <span>No Mercado Pago você poderá escolher saldo, Pix, cartão ou outro meio disponível para sua conta.</span>
+                    </div>
                     <Button
                       className="w-full"
                       variant={pack.highlighted ? "default" : "outline"}
@@ -230,9 +230,9 @@ function AiCreditsPage() {
                       {purchase.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
-                        <ShoppingCart className="mr-2 h-4 w-4" />
+                        <ShieldCheck className="mr-2 h-4 w-4" />
                       )}
-                      Comprar
+                      Continuar para pagamento seguro
                     </Button>
                   </CardContent>
                 </Card>
@@ -252,8 +252,9 @@ function AiCreditsPage() {
             <p>4. Gerar um anúncio completo custa 1 crédito pela geração e mais 3 por imagem criada.</p>
             <p>5. Aplicar ou salvar um resultado já gerado não cobra o crédito novamente.</p>
             <p>6. Ao acabar, você pode comprar créditos extras sem trocar de plano.</p>
-            <p>7. Os extras ficam separados da franquia do plano e valem por até 12 meses.</p>
-            <p>8. O sistema usa primeiro a franquia do ciclo e depois o saldo extra.</p>
+            <p>7. O pagamento é concluído no ambiente oficial do Mercado Pago e a liberação só ocorre após confirmação.</p>
+            <p>8. Os extras ficam separados da franquia do plano e valem por até 12 meses.</p>
+            <p>9. O sistema usa primeiro a franquia do ciclo e depois o saldo extra.</p>
             <Button asChild variant="outline" className="w-full">
               <Link to="/creditos">Comprar anúncios extras</Link>
             </Button>
