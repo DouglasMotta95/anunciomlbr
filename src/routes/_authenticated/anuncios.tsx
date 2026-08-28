@@ -293,7 +293,7 @@ function ListingsPage() {
             <p className="text-sm font-semibold">{selectedIds.length} anúncios selecionados</p>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => startBulk("duplicate")}>
-                <Files className="mr-1.5 h-3.5 w-3.5" /> Duplicar selecionados
+                <Files className="mr-1.5 h-3.5 w-3.5" /> Criar cópias
               </Button>
               <Button size="sm" variant="secondary" onClick={() => startBulk("optimize")}>
                 <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Otimizar com IA
