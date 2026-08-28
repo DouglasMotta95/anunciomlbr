@@ -9,7 +9,7 @@ export function usePlans() {
     queryKey: ["plans", includeAddons ? "admin" : "public"],
     queryFn: async (): Promise<Plan[]> => {
       let query = supabase.from("plans").select("*").eq("active", true);
-      if (!includeAddons) query = query.neq("kind", "ad_package");
+      if (!includeAddons) query = query.not("kind", "in", '("ad_package","ai_package")');
       const { data, error } = await query.order("sort_order");
       if (error) throw error;
       return (data ?? []).map((p) => ({
