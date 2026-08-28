@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const PUBLIC_CALLBACK = "https://anunciomlbr.lovable.app/api/public/ml/callback";
+const ML_API = "https://api.mercadolibre.com";
 
 function httpsUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
@@ -59,7 +60,7 @@ function mapSearchResult(raw: Record<string, unknown>): MlItem {
 
 async function getSellerNickname(sellerId: string, accessToken: string): Promise<string | null> {
   try {
-    const response = await fetch(`https://api.mercadolibre.com/users/${encodeURIComponent(sellerId)}`, {
+    const response = await fetch(`${ML_API}/users/${encodeURIComponent(sellerId)}`, {
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
@@ -74,12 +75,17 @@ async function getSellerNickname(sellerId: string, accessToken: string): Promise
   }
 }
 
-async function searchCatalogFallback(query: string, limit: number, accessToken: string): Promise<MlItem[]> {
-  const catalogUrl = new URL("https://api.mercadolibre.com/products/search");
+/**
+ * Usa o buscador oficial de produtos do Mercado Livre e converte os produtos de catálogo
+ * em anúncios reais através do buy_box_winner. É o caminho principal para palavra-chave.
+ */
+async function searchCatalogProducts(query: string, limit: number, accessToken: string): Promise<MlItem[]> {
+  const requested = Math.min(Math.max(limit, 1), 30);
+  const catalogUrl = new URL(`${ML_API}/products/search`);
   catalogUrl.searchParams.set("status", "active");
   catalogUrl.searchParams.set("site_id", "MLB");
   catalogUrl.searchParams.set("q", query);
-  catalogUrl.searchParams.set("limit", String(Math.min(limit, 12)));
+  catalogUrl.searchParams.set("limit", String(requested));
 
   const catalogResponse = await fetch(catalogUrl, {
     headers: {
@@ -88,44 +94,41 @@ async function searchCatalogFallback(query: string, limit: number, accessToken: 
       "User-Agent": "ANUNCIO-ML/1.0",
     },
   });
-  if (!catalogResponse.ok) {
-    throw new Error(`ML catalog search responded ${catalogResponse.status}`);
-  }
+  if (!catalogResponse.ok) throw new Error(`ML products search responded ${catalogResponse.status}`);
 
-  const catalogPayload = (await catalogResponse.json()) as {
-    results?: Array<{ id?: string }>;
-  };
+  const catalogPayload = (await catalogResponse.json()) as { results?: Array<{ id?: string }> };
   const productIds = (catalogPayload.results ?? [])
     .map((result) => result.id)
     .filter((id): id is string => !!id)
-    .slice(0, Math.min(limit, 12));
+    .slice(0, requested);
+
+  const sellerCache = new Map<string, Promise<string | null>>();
+  const sellerName = (sellerId: string) => {
+    const existing = sellerCache.get(sellerId);
+    if (existing) return existing;
+    const promise = getSellerNickname(sellerId, accessToken);
+    sellerCache.set(sellerId, promise);
+    return promise;
+  };
 
   const details = await Promise.all(
     productIds.map(async (productId) => {
       try {
-        const response = await fetch(`https://api.mercadolibre.com/products/${encodeURIComponent(productId)}`, {
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${accessToken}`,
-            "User-Agent": "ANUNCIO-ML/1.0",
-          },
+        const productResponse = await fetch(`${ML_API}/products/${encodeURIComponent(productId)}`, {
+          headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}`, "User-Agent": "ANUNCIO-ML/1.0" },
         });
-        if (!response.ok) return null;
-        const raw = (await response.json()) as Record<string, unknown>;
-        const winner = raw["buy_box_winner"] as Record<string, unknown> | undefined;
-        const itemId = typeof winner?.["item_id"] === "string" ? (winner["item_id"] as string) : null;
+        if (!productResponse.ok) return null;
+        const product = (await productResponse.json()) as Record<string, unknown>;
+        const winner = product["buy_box_winner"] as Record<string, unknown> | undefined;
+        const itemId = typeof winner?.["item_id"] === "string" ? winner["item_id"] : null;
         if (!itemId) return null;
 
-        const itemResponse = await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`, {
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${accessToken}`,
-            "User-Agent": "ANUNCIO-ML/1.0",
-          },
+        const itemResponse = await fetch(`${ML_API}/items/${encodeURIComponent(itemId)}`, {
+          headers: { Accept: "application/json", Authorization: `Bearer ${accessToken}`, "User-Agent": "ANUNCIO-ML/1.0" },
         });
         if (!itemResponse.ok) return null;
         const itemRaw = (await itemResponse.json()) as Record<string, unknown>;
-        const price = typeof itemRaw["price"] === "number" ? (itemRaw["price"] as number) : null;
+        const price = typeof itemRaw["price"] === "number" ? itemRaw["price"] : null;
         const pictures = Array.isArray(itemRaw["pictures"])
           ? (itemRaw["pictures"] as Array<{ secure_url?: string; url?: string }>)
           : [];
@@ -133,16 +136,15 @@ async function searchCatalogFallback(query: string, limit: number, accessToken: 
           .map((picture) => httpsUrl(picture.secure_url ?? picture.url))
           .filter((value): value is string => !!value);
         const sellerId = itemRaw["seller_id"] != null ? String(itemRaw["seller_id"]) : null;
-        const sellerNickname = sellerId ? await getSellerNickname(sellerId, accessToken) : null;
 
         return {
           id: String(itemRaw["id"] ?? itemId),
-          title: String(itemRaw["title"] ?? raw["name"] ?? ""),
+          title: String(itemRaw["title"] ?? product["name"] ?? ""),
           price_cents: price === null ? null : Math.round(price * 100),
           thumbnail: httpsUrl(itemRaw["thumbnail"]) ?? images[0] ?? null,
-          permalink: httpsUrl(itemRaw["permalink"]) ?? httpsUrl(raw["permalink"]),
+          permalink: httpsUrl(itemRaw["permalink"]) ?? httpsUrl(product["permalink"]),
           category: (itemRaw["category_id"] as string) ?? null,
-          seller: sellerNickname,
+          seller: sellerId ? await sellerName(sellerId) : null,
           condition: (itemRaw["condition"] as string) ?? null,
           available_quantity: (itemRaw["available_quantity"] as number) ?? null,
           sold_quantity: (itemRaw["sold_quantity"] as number) ?? null,
@@ -159,21 +161,40 @@ async function searchCatalogFallback(query: string, limit: number, accessToken: 
   return details.filter((item): item is MlItem => !!item);
 }
 
+/** Compatibilidade com a busca de listagens do marketplace quando a rota estiver disponível. */
+async function searchMarketplaceListings(query: string, limit: number, accessToken: string): Promise<MlItem[]> {
+  const url = new URL(`${ML_API}/sites/MLB/search`);
+  url.searchParams.set("q", query);
+  url.searchParams.set("limit", String(Math.min(limit, 50)));
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      "User-Agent": "ANUNCIO-ML/1.0",
+    },
+  });
+  if (!response.ok) throw new Error(`ML marketplace search responded ${response.status}`);
+  const payload = (await response.json()) as { results?: Array<Record<string, unknown>> };
+  return (payload.results ?? []).map(mapSearchResult).filter((item) => !!item.id);
+}
+
+function mergeSearchResults(primary: MlItem[], secondary: MlItem[], limit: number): MlItem[] {
+  const unique = new Map<string, MlItem>();
+  for (const item of [...primary, ...secondary]) {
+    if (item.id && !unique.has(item.id)) unique.set(item.id, item);
+  }
+  return Array.from(unique.values()).slice(0, limit);
+}
+
 /**
- * Busca anúncios no catálogo público do Mercado Livre.
- * O token do vendedor é validado para garantir que a conta esteja conectada, mas não é enviado
- * ao endpoint público /sites/MLB/search. Em caso de bloqueio desse endpoint, usamos o buscador
- * oficial de produtos e convertemos produtos de catálogo em anúncios reais via buy box.
+ * Busca por palavra-chave usando os recursos oficiais atuais do Mercado Livre.
+ * products/search é o caminho principal documentado para q; /sites/MLB/search fica como
+ * compatibilidade para ampliar o conjunto quando estiver habilitado para a aplicação.
  */
 export const searchMercadoLivre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
-    z
-      .object({
-        query: z.string().trim().min(1).max(120),
-        limit: z.number().int().min(1).max(50).optional(),
-      })
-      .parse(data),
+    z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(50).optional() }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const tokenState = await getUserMlToken(context.userId);
@@ -186,51 +207,32 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
       };
     }
 
-    const limit = data.limit ?? 20;
-    const url = `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(
-      data.query,
-    )}&limit=${limit}`;
+    const limit = data.limit ?? 24;
+    const [catalogResult, marketplaceResult] = await Promise.allSettled([
+      searchCatalogProducts(data.query, limit, tokenState.accessToken),
+      searchMarketplaceListings(data.query, limit, tokenState.accessToken),
+    ]);
 
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "ANUNCIO-ML/1.0",
-        },
-      });
+    const catalogItems = catalogResult.status === "fulfilled" ? catalogResult.value : [];
+    const marketplaceItems = marketplaceResult.status === "fulfilled" ? marketplaceResult.value : [];
+    const items = mergeSearchResults(marketplaceItems, catalogItems, limit);
 
-      if (response.ok) {
-        const payload = (await response.json()) as { results?: Array<Record<string, unknown>> };
-        const items = (payload.results ?? []).map(mapSearchResult).filter((item) => !!item.id);
-        return { ok: true as const, configured: true, items, reason: null };
-      }
+    if (items.length > 0) return { ok: true as const, configured: true, items, reason: null };
 
-      if (response.status === 401 || response.status === 403) {
-        const fallbackItems = await searchCatalogFallback(data.query, limit, tokenState.accessToken);
-        return { ok: true as const, configured: true, items: fallbackItems, reason: null };
-      }
+    if (catalogResult.status === "rejected") console.error("ML products search failed", catalogResult.reason);
+    if (marketplaceResult.status === "rejected") console.error("ML marketplace search failed", marketplaceResult.reason);
 
-      return {
-        ok: false as const,
-        configured: true,
-        reason: `A busca do Mercado Livre respondeu ${response.status}. A conta continua conectada; esse erro veio do serviço de busca.`,
-        items: [] as MlItem[],
-      };
-    } catch (error) {
-      console.error("ML search failed", error);
-      try {
-        const fallbackItems = await searchCatalogFallback(data.query, limit, tokenState.accessToken);
-        return { ok: true as const, configured: true, items: fallbackItems, reason: null };
-      } catch (fallbackError) {
-        console.error("ML catalog fallback failed", fallbackError);
-      }
-      return {
-        ok: false as const,
-        configured: true,
-        reason: "Não foi possível consultar o Mercado Livre agora. Sua conexão não foi marcada como expirada.",
-        items: [] as MlItem[],
-      };
+    // Uma resposta vazia dos buscadores é resultado válido; não manda o cliente reconectar a conta.
+    if (catalogResult.status === "fulfilled" || marketplaceResult.status === "fulfilled") {
+      return { ok: true as const, configured: true, items: [] as MlItem[], reason: null };
     }
+
+    return {
+      ok: false as const,
+      configured: true,
+      reason: "O Mercado Livre não respondeu à busca agora. Sua conta continua conectada; tente novamente em instantes.",
+      items: [] as MlItem[],
+    };
   });
 
 /** Monta a URL oficial de autorização OAuth do Mercado Livre. */
@@ -314,11 +316,7 @@ export const disconnectMercadoLivre = createServerFn({ method: "POST" })
 export const getMercadoLivreItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
-    z
-      .object({
-        id: z.string().trim().regex(/^MLB-?\d+$/i, "ID inválido. Use o formato MLB1234567890."),
-      })
-      .parse(data),
+    z.object({ id: z.string().trim().regex(/^MLB-?\d+$/i, "ID inválido. Use o formato MLB1234567890.") }).parse(data),
   )
   .handler(async ({ data, context }) => {
     const tokenState = await getUserMlToken(context.userId);
@@ -333,7 +331,7 @@ export const getMercadoLivreItem = createServerFn({ method: "POST" })
 
     const id = data.id.toUpperCase().replace("MLB-", "MLB");
     try {
-      const response = await fetch(`https://api.mercadolibre.com/items/${id}`, {
+      const response = await fetch(`${ML_API}/items/${id}`, {
         headers: { Authorization: `Bearer ${tokenState.accessToken}`, Accept: "application/json" },
       });
       if (response.status === 401 || response.status === 403) {
