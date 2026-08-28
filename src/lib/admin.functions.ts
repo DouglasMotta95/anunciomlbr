@@ -33,7 +33,21 @@ export const adminGetMetrics = createServerFn({ method: "GET" })
       })
       .parse(data),
   )
-  .handler(async ({ data, context }) => getAdminMetrics(data, context));
+  .handler(async ({ data, context }) => {
+    const metrics = await getAdminMetrics(data, context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { count: platformCreations, error } = await supabaseAdmin
+      .from("listing_quota_claims")
+      .select("listing_id", { count: "exact", head: true });
+    if (error) console.error("admin platform creations count failed", error.message);
+    return {
+      ...metrics,
+      // A UI antiga chama este campo de "Anúncios processados". Ele agora representa
+      // somente criações/clonagens que consumiram franquia, não anúncios sincronizados.
+      listingsTotal: platformCreations ?? 0,
+      catalogListingsTotal: metrics.listingsTotal,
+    };
+  });
 
 /** Lista clientes com licença/plano/status para a tabela admin. */
 export const adminListClients = createServerFn({ method: "POST" })

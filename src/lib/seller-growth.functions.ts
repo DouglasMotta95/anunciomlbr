@@ -6,15 +6,17 @@ type Opportunity={key:string;severity:"high"|"medium"|"low";title:string;descrip
 
 export const getSellerGrowthOverview=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{
   const db=context.supabase as any;
-  const [{data:listings},{data:connection},{data:quota}]=await Promise.all([
+  const [{data:listings},{data:connection,error:connectionError},{data:quota},tokenState]=await Promise.all([
     db.from("listings").select("id,title,status,stock,price_cents,cost_cents,fees_cents,ai_score,images,attributes,source_ml_id,updated_at"),
-    db.from("ml_connections").select("connected,access_token,last_sync_at,listings_count").eq("user_id",context.userId).maybeSingle(),
-    db.rpc("my_ad_quota")
+    db.from("ml_connections").select("connected,ml_user_id,nickname,last_sync_at,listings_count").eq("user_id",context.userId).maybeSingle(),
+    db.rpc("my_ad_quota"),
+    import("@/lib/ml.server").then(({getValidMlAccessToken})=>getValidMlAccessToken(context.userId)).catch(()=>({ok:false as const,reason:"token_check_failed"}))
   ]);
+  if(connectionError)console.error("growth ML connection lookup failed",connectionError);
   const rows=listings??[],opportunities:Opportunity[]=[];
   const relevant=rows.filter((r:any)=>!["closed","archived"].includes(String(r.status??"")));
   const active=rows.filter((r:any)=>r.status==="active");
-  const mlConnected=Boolean(connection?.connected||connection?.access_token);
+  const mlConnected=tokenState.ok===true;
   const lowStock=active.filter((r:any)=>Number(r.stock??0)<=3);
   const noCost=active.filter((r:any)=>!r.cost_cents);
   const weakAi=relevant.filter((r:any)=>r.ai_score!==null&&r.ai_score!==undefined&&Number(r.ai_score)<70);
@@ -51,7 +53,7 @@ export const getSellerGrowthOverview=createServerFn({method:"GET"}).middleware([
     sales,champions,catalog:{total:rows.length,active:active.length},
     ai:{scored:relevant.filter((r:any)=>r.ai_score!==null&&r.ai_score!==undefined).length,unscored:relevant.filter((r:any)=>r.ai_score===null||r.ai_score===undefined).length},
     quota:{quota:q?.quota??0,used:q?.used??0,remaining:q?.remaining??0},
-    connection:connection?{connected:mlConnected,last_sync_at:connection.last_sync_at??null,listings_count:connection.listings_count??0}:null
+    connection:{connected:mlConnected,ml_user_id:connection?.ml_user_id??null,nickname:connection?.nickname??null,last_sync_at:connection?.last_sync_at??null,listings_count:connection?.listings_count??0}
   };
 });
 
