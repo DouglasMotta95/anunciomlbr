@@ -42,12 +42,20 @@ async function claimListingQuota(userId:string,listingId:string){
  if(error||data!==true){await supabaseAdmin.from("listings").delete().eq("id",listingId).eq("user_id",userId);if(error)console.error("bulk listing quota claim failed",error.message);throw new Error(error?"Não foi possível validar o limite do plano.":"Limite de anúncios deste ciclo atingido.")}
 }
 
+async function checkBulkAiCredit(userId:string){
+ const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
+ const {data,error}=await supabaseAdmin.rpc("ai_credit_status",{p_user_id:userId});
+ if(error){console.error("[AI quota bulk status]",error.message);throw new Error("Não foi possível validar os créditos de IA.")}
+ const quota=Array.isArray(data)?data[0]:data;
+ if((quota?.remaining??0)<1)throw new Error(`Créditos de IA esgotados (${quota?.used??0}/${quota?.credit_limit??0}).`);
+}
+
 async function consumeBulkAiCredit(userId:string){
  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
  const {data,error}=await supabaseAdmin.rpc("consume_ai_credit",{p_user_id:userId,p_amount:1});
- if(error){console.error("[AI quota bulk]",error.message);throw new Error("Não foi possível validar os créditos de IA.")}
+ if(error){console.error("[AI quota bulk consume]",error.message);throw new Error("A otimização foi gerada, mas não foi possível registrar o crédito de IA.")}
  const quota=Array.isArray(data)?data[0]:data;
- if(!quota?.allowed)throw new Error(`Créditos de IA esgotados (${quota?.used??0}/${quota?.credit_limit??0}).`);
+ if(!quota?.allowed)throw new Error("Seu saldo de IA foi utilizado por outra ação simultânea. Tente novamente.");
 }
 
 async function runBulkItem(kind:BulkJobKind,userId:string,item:BulkJobItem){
@@ -66,11 +74,12 @@ async function runBulkItem(kind:BulkJobKind,userId:string,item:BulkJobItem){
  if(kind==="pause"||kind==="activate"){const {error}=await supabaseAdmin.from("listings").update({status:kind==="pause"?"paused":"active",updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(error)throw new Error(error.message);return}
  if(kind==="optimize"){
   const {data:listing,error:fetchError}=await supabaseAdmin.from("listings").select("id,title,description,category,price_cents,attributes,images").eq("id",item.id).eq("user_id",userId).maybeSingle();if(fetchError||!listing)throw new Error("Anúncio não encontrado.");
-  await consumeBulkAiCredit(userId);
+  await checkBulkAiCredit(userId);
   const {aiJson,cleanOptimizedTitle,optimizationPrompt}=await import("./ai.server");
   const imagesCount=Array.isArray(listing.images)?listing.images.length:0;
   const out=await aiJson<{title?:string;description?:string;score_after?:number}>(optimizationPrompt({title:listing.title,description:listing.description,category:listing.category,price_cents:listing.price_cents,attributes:listing.attributes,images_count:imagesCount}));if(!out.ok)throw new Error(out.reason);const parsed=out.result;if(!parsed.title||!parsed.description)throw new Error("A IA não retornou título e descrição válidos.");
   const cleanTitle=cleanOptimizedTitle(parsed.title);if(cleanTitle.length<3)throw new Error("A IA não retornou um título válido.");
+  await consumeBulkAiCredit(userId);
   const {error:updateError}=await supabaseAdmin.from("listings").update({title:cleanTitle,description:parsed.description.trim(),ai_score:Number.isFinite(parsed.score_after)?Math.max(0,Math.min(100,Number(parsed.score_after))):null,updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(updateError)throw new Error(updateError.message);
  }
 }
