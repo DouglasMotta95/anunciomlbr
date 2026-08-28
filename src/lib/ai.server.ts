@@ -40,57 +40,41 @@ async function requestLovable<T>(prompt: string, apiKey: string): Promise<{ ok: 
       }),
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") return { ok: false, reason: "A IA demorou demais para responder. Tente novamente." };
-    console.error("ai gateway fetch failed", error);
+    if (error instanceof Error && error.name === "AbortError") {
+      return { ok: false, reason: "A IA demorou demais para responder. Tente novamente." };
+    }
+    console.error("ai gateway fetch failed");
     return { ok: false, reason: "Não foi possível falar com a IA agora." };
-  } finally { clearTimeout(timer); }
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (response.status === 429) return { ok: false, reason: "Limite de uso da IA atingido. Tente novamente em instantes." };
   if (response.status === 402) return { ok: false, reason: "Créditos de IA esgotados no workspace." };
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    console.error("ai gateway error", response.status, body.slice(0, 500));
+    console.error("ai gateway error", response.status);
     return { ok: false, reason: `A IA não respondeu corretamente (erro ${response.status}).` };
   }
+
   const payload = (await response.json()) as { choices?: { message?: { content?: string } }[] };
   const content = payload.choices?.[0]?.message?.content?.trim();
   if (!content) return { ok: false, reason: "Resposta vazia da IA." };
-  try { return { ok: true, result: JSON.parse(content) as T }; }
-  catch { return { ok: false, reason: "Não foi possível interpretar a resposta da IA." }; }
+  try {
+    return { ok: true, result: JSON.parse(content) as T };
+  } catch {
+    return { ok: false, reason: "Não foi possível interpretar a resposta da IA." };
+  }
 }
 
-async function requestGemini<T>(prompt: string, apiKey: string): Promise<{ ok: true; result: T } | AiFail> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-  let response: Response;
-  try {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM }] },
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") return { ok: false, reason: "A IA demorou demais para responder. Tente novamente." };
-    console.error("gemini fetch failed", error);
-    return { ok: false, reason: "Não foi possível falar com a IA agora." };
-  } finally { clearTimeout(timer); }
-
-  if (response.status === 429) return { ok: false, reason: "Limite de uso da IA atingido. Tente novamente em instantes." };
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    console.error("gemini error", response.status, body.slice(0, 500));
-    return { ok: false, reason: `A IA não respondeu corretamente (erro ${response.status}).` };
-  }
-  const payload = (await response.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-  const content = payload.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
-  if (!content) return { ok: false, reason: "Resposta vazia da IA." };
-  try { return { ok: true, result: JSON.parse(content) as T }; }
-  catch { return { ok: false, reason: "Não foi possível interpretar a resposta da IA." }; }
+async function requestGemini<T>(prompt: string): Promise<{ ok: true; result: T } | AiFail> {
+  const { geminiGenerateJson } = await import("./gemini.server");
+  const out = await geminiGenerateJson<T>(prompt, {
+    system: SYSTEM,
+    model: GEMINI_MODEL,
+    temperature: 0.35,
+  });
+  if (out.ok) return out;
+  return { ok: false, reason: out.reason };
 }
 
 /** Chamada única com fallback automático de provedor. */
@@ -104,8 +88,7 @@ export async function aiJson<T>(prompt: string): Promise<{ ok: true; result: T }
     console.warn("Lovable AI indisponível; tentando Gemini direto.");
   }
 
-  if (googleKey) return requestGemini<T>(prompt, googleKey);
-
+  if (googleKey) return requestGemini<T>(prompt);
   return { ok: false, reason: "IA não configurada no servidor. Configure a chave de IA no ambiente de produção." };
 }
 
@@ -118,7 +101,6 @@ export type OptimizationInput = {
   images_count?: number;
 };
 
-/** Prompt único para que editor e ações em massa tenham a mesma qualidade e as mesmas regras. */
 export function optimizationPrompt(input: OptimizationInput): string {
   return `Otimize de verdade este anúncio do Mercado Livre Brasil, mas somente quando houver melhoria real possível.
 
@@ -156,18 +138,29 @@ export function cleanOptimizedTitle(value: string): string {
 }
 
 export type TitleSuggestion = { title: string; score: number; keywords: string[] };
-export function titlesPrompt(input: { title: string; category?: string | null | undefined; description?: string | null | undefined; count: number }): string {
+export function titlesPrompt(input: { title: string; category?: string | null; description?: string | null; count: number }): string {
   return `Gere exatamente ${input.count} variações de título para este anúncio do Mercado Livre.\nTítulo atual: ${input.title}\nCategoria: ${input.category ?? "(não informada)"}\nDescrição (contexto): ${(input.description ?? "").slice(0, 900) || "(vazia)"}\n\nRegras: máximo 60 caracteres por título, sem emojis, sem promessas de frete/preço, sem repetir palavras desnecessárias.\nJSON: {"titles":[{"title":string,"score":number(0-100),"keywords":string[]}]}`;
 }
+
 export function bestTitlePrompt(titles: string[], context: string): string {
   return `Escolha o melhor título para o Mercado Livre entre as opções.\nContexto do produto: ${context}\nOpções:\n${titles.map((t, i) => `${i + 1}. ${t}`).join("\n")}\n\nJSON: {"index":number(1-${titles.length}),"title":string,"reason":string,"score":number(0-100)}`;
 }
+
 export type DescriptionMode = "generate" | "improve" | "rewrite" | "organize" | "expand" | "summarize";
-const MODE_LABEL: Record<DescriptionMode, string> = { generate: "criar uma descrição completa", improve: "melhorar a descrição mantendo o conteúdo", rewrite: "reescrever com outra abordagem", organize: "organizar em blocos e tópicos", expand: "expandir com mais detalhes já presentes", summarize: "resumir mantendo o essencial" };
-export function descriptionPrompt(input: { title: string; description?: string | null | undefined; category?: string | null | undefined; mode: DescriptionMode }): string {
-  return `Tarefa: ${MODE_LABEL[input.mode]}.\nTítulo: ${input.title}\nCategoria: ${input.category ?? "(não informada)"}\nDescrição atual: ${(input.description ?? "").slice(0, 3000) || "(vazia)"}\n\nNão invente especificações que não estejam no título/descrição. Sem links, telefones ou dados de contato (proibido pelo Mercado Livre).\nJSON: {"description":string,"changes":string[]}`;
+const MODE_LABEL: Record<DescriptionMode, string> = {
+  generate: "criar uma descrição completa",
+  improve: "melhorar a descrição mantendo o conteúdo",
+  rewrite: "reescrever com outra abordagem",
+  organize: "organizar em blocos e tópicos",
+  expand: "expandir com mais detalhes já presentes",
+  summarize: "resumir mantendo o essencial",
+};
+
+export function descriptionPrompt(input: { title: string; description?: string | null; category?: string | null; mode: DescriptionMode }): string {
+  return `Tarefa: ${MODE_LABEL[input.mode]}.\nTítulo: ${input.title}\nCategoria: ${input.category ?? "(não informada)"}\nDescrição atual: ${(input.description ?? "").slice(0, 3000) || "(vazia)"}\n\nNão invente especificações que não estejam no título/descrição. Sem links, telefones ou dados de contato.\nJSON: {"description":string,"changes":string[]}`;
 }
+
 export type ListingAnalysis = { score: number; strengths: string[]; problems: string[]; suggestions: string[]; keywords: string[] };
-export function analysisPrompt(input: { title: string; description?: string | null | undefined; category?: string | null | undefined; attributes?: unknown; images_count: number; price_cents?: number | null | undefined }): string {
+export function analysisPrompt(input: { title: string; description?: string | null; category?: string | null; attributes?: unknown; images_count: number; price_cents?: number | null }): string {
   return `Analise a qualidade deste anúncio do Mercado Livre.\nTítulo: ${input.title}\nCategoria: ${input.category ?? "(não informada)"}\nAtributos: ${JSON.stringify(input.attributes ?? {}).slice(0, 1200)}\nQuantidade de imagens: ${input.images_count}\nPreço (centavos): ${input.price_cents ?? "(não informado)"}\nDescrição: ${(input.description ?? "").slice(0, 2000) || "(vazia)"}\n\nAvalie título, descrição, categoria, atributos, palavras-chave, imagens e estrutura.\nJSON: {"score":number(0-100),"strengths":string[],"problems":string[],"suggestions":string[],"keywords":string[]}`;
 }
