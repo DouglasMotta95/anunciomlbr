@@ -29,10 +29,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { startBulkJob } from "@/lib/bulk.functions";
 import { formatBRL } from "@/lib/format";
+import { createListingDraft } from "@/lib/listing-create.functions";
 import { getMercadoLivreItem, searchMercadoLivre, type MlItem } from "@/lib/ml.functions";
 import { getProductImage } from "@/lib/product-image";
 import { listingStatusLabel } from "@/lib/status-labels";
@@ -87,29 +87,28 @@ function getItemImages(item: MlItem): string[] {
   return item.thumbnail ? [item.thumbnail] : [];
 }
 
-function draftPayload(item: MlItem, userId: string) {
+function mlDraftData(item: MlItem, dedupeSource: boolean) {
   return {
-    user_id: userId,
-    title: item.title.slice(0, 60),
+    title: item.title.replace(/\s*\((?:copy|cópia)\)\s*$/i, "").slice(0, 60),
     price_cents: item.price_cents,
     category: item.category,
     condition: item.condition,
-    status: "draft" as const,
-    source_ml_id: item.id,
+    source_ml_id: dedupeSource ? item.id : null,
     source_permalink: item.permalink,
-    images: getItemImages(item) as never,
-    attributes: (item.attributes ?? []) as never,
+    images: getItemImages(item),
+    attributes: item.attributes ?? [],
     stock: item.available_quantity ?? 1,
+    dedupe_source: dedupeSource,
   };
 }
 
 function SearchPage() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const search = useServerFn(searchMercadoLivre);
   const lookupById = useServerFn(getMercadoLivreItem);
   const startJob = useServerFn(startBulkJob);
+  const createDraft = useServerFn(createListingDraft);
 
   const [mode, setMode] = useState<Mode>("keyword");
   const [query, setQuery] = useState("");
@@ -159,86 +158,53 @@ function SearchPage() {
 
   const copyOne = useMutation({
     mutationFn: async (item: MlItem) => {
-      if (!user) throw new Error("Sessão expirada.");
-      const { data: existing } = await supabase
-        .from("listings")
-        .select("id")
-        .eq("source_ml_id", item.id)
-        .maybeSingle();
-      if (existing?.id) return { id: existing.id, existed: true };
-
-      const { data, error } = await supabase
-        .from("listings")
-        .insert(draftPayload(item, user.id))
-        .select("id")
-        .single();
-      if (error) throw error;
-      return { id: data.id, existed: false };
+      const result = await createDraft({ data: mlDraftData(item, true) });
+      if (!result.ok) throw new Error(result.reason);
+      return { id: result.id, existed: result.existed };
     },
     onSuccess: ({ existed }) => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
+      queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
       toast.success(
         existed
           ? "Esse anúncio já estava copiado nos seus rascunhos"
           : "Anúncio copiado como rascunho com imagens e atributos",
       );
     },
-    onError: () => toast.error("Falha ao copiar anúncio."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao copiar anúncio."),
   });
 
   const editOne = useMutation({
     mutationFn: async (item: MlItem) => {
-      if (!user) throw new Error("Sessão expirada.");
-      const { data: existing } = await supabase
-        .from("listings")
-        .select("id")
-        .eq("source_ml_id", item.id)
-        .maybeSingle();
-      if (existing?.id) return existing.id;
-
-      const { data, error } = await supabase
-        .from("listings")
-        .insert(draftPayload(item, user.id))
-        .select("id")
-        .single();
-      if (error) throw error;
-      return data.id;
+      const result = await createDraft({ data: mlDraftData(item, true) });
+      if (!result.ok) throw new Error(result.reason);
+      return result.id;
     },
     onSuccess: async (id) => {
       await queryClient.invalidateQueries({ queryKey: ["listings"] });
+      await queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
       navigate({ to: "/editor/$id", params: { id } });
     },
-    onError: () => toast.error("Não foi possível abrir o anúncio para edição."),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Não foi possível abrir o anúncio para edição."),
   });
 
   const duplicateOne = useMutation({
     mutationFn: async (item: MlItem) => {
-      if (!user) throw new Error("Sessão expirada.");
-      const suffix = " (cópia)";
-      const base = item.title.slice(0, Math.max(3, 60 - suffix.length));
-      const { error } = await supabase.from("listings").insert({
-        user_id: user.id,
-        title: `${base}${suffix}`,
-        price_cents: item.price_cents,
-        category: item.category,
-        condition: item.condition,
-        status: "draft",
-        source_permalink: item.permalink,
-        images: getItemImages(item) as never,
-        attributes: (item.attributes ?? []) as never,
-        stock: item.available_quantity ?? 1,
-      });
-      if (error) throw error;
+      const result = await createDraft({ data: mlDraftData(item, false) });
+      if (!result.ok) throw new Error(result.reason);
+      return result.id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
-      toast.success("Anúncio duplicado com imagens e atributos");
+      queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
+      toast.success("Cópia criada com título limpo, imagens e atributos");
     },
-    onError: () => toast.error("Falha ao duplicar anúncio."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao criar cópia."),
   });
 
   const startBulk = async (kind: "copy" | "optimize", scope: MlItem[]) => {
-    if (!scope.length || !user) return;
+    if (!scope.length) return;
 
     let jobItems: { id: string; label: string; source?: Record<string, unknown> }[];
     if (kind === "optimize") {
@@ -259,20 +225,13 @@ function SearchPage() {
       );
       const missing = scope.filter((item) => !existingByMlId.has(item.id));
 
-      if (missing.length > 0) {
-        const { data: inserted, error } = await supabase
-          .from("listings")
-          .insert(missing.map((item) => draftPayload(item, user.id)))
-          .select("id, title, source_ml_id");
-        if (error || !inserted) {
-          toast.error("Não foi possível preparar os anúncios para otimização.");
+      for (const item of missing) {
+        const created = await createDraft({ data: mlDraftData(item, true) });
+        if (!created.ok) {
+          toast.error(created.reason);
           return;
         }
-        for (const row of inserted) {
-          if (row.source_ml_id) {
-            existingByMlId.set(row.source_ml_id, { id: row.id, title: row.title });
-          }
-        }
+        existingByMlId.set(item.id, { id: created.id, title: item.title.slice(0, 60) });
       }
 
       jobItems = scope
@@ -283,6 +242,7 @@ function SearchPage() {
         .filter((item): item is { id: string; label: string } => !!item);
 
       queryClient.invalidateQueries({ queryKey: ["listings"] });
+      queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
     } else {
       jobItems = scope.map((item) => ({
         id: item.id,
@@ -387,8 +347,8 @@ function SearchPage() {
             </Button>
           </form>
           <p className="mt-3 text-xs text-muted-foreground">
-            A busca usa a API pública oficial do Mercado Livre. Copiamos estrutura, categoria e
-            atributos para acelerar o cadastro — o conteúdo final é sempre seu.
+            A busca usa a API oficial do Mercado Livre. Copiamos estrutura, categoria e atributos
+            para acelerar o cadastro — o conteúdo final é sempre seu.
           </p>
         </CardContent>
       </Card>
@@ -485,7 +445,7 @@ function SearchPage() {
                         <Copy className="mr-1 h-3 w-3" /> Copiar
                       </Button>
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => duplicateOne.mutate(item)}>
-                        <Files className="mr-1 h-3 w-3" /> Duplicar
+                        <Files className="mr-1 h-3 w-3" /> Criar cópia
                       </Button>
                       <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => startBulk("optimize", [item])}>
                         <Sparkles className="mr-1 h-3 w-3" /> IA
@@ -538,6 +498,7 @@ function SearchPage() {
         onOpenChange={(open) => !open && setJobId(null)}
         onFinished={() => {
           queryClient.invalidateQueries({ queryKey: ["listings"] });
+          queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
         }}
       />
     </AppShell>
