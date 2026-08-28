@@ -3,24 +3,12 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-async function hasMainLicense(db: any, userId: string) {
-  const { data } = await db
-    .from("licenses")
-    .select("id,expires_at,plans!inner(kind)")
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .gt("expires_at", new Date().toISOString())
-    .limit(20);
-  return (data ?? []).some((row: any) => !["ad_package", "ai_package"].includes(row?.plans?.kind));
-}
-
 export const getExtraAiPackages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const db = context.supabase as any;
-    const [{ getAiQuota }, eligible, packagesResult] = await Promise.all([
+    const [{ getAiQuota }, packagesResult] = await Promise.all([
       import("@/lib/ai-quota.server"),
-      hasMainLicense(db, context.userId),
       db
         .from("plans")
         .select("id,code,name,tagline,price_monthly_cents,ai_credits,badge,highlighted")
@@ -31,7 +19,7 @@ export const getExtraAiPackages = createServerFn({ method: "GET" })
     if (packagesResult.error) throw new Error("Não foi possível carregar os pacotes de IA.");
     const quota = await getAiQuota(context.userId);
     return {
-      eligible,
+      eligible: true,
       quota: {
         total: quota.credit_limit,
         used: quota.used,
@@ -46,10 +34,6 @@ export const createExtraAiCheckout = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => z.object({ package_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
-    if (!(await hasMainLicense(db, context.userId))) {
-      throw new Error("Créditos extras de IA estão disponíveis apenas para clientes com plano ativo.");
-    }
-
     const { data: pack, error: packError } = await db
       .from("plans")
       .select("id,code,name,price_monthly_cents,ai_credits,period_months,kind")
