@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { SessionSplash } from "@/components/SessionSplash";
 import { VisitTracker } from "@/components/VisitTracker";
 import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landing/ConversionSections";
+import { CreditsExplainer } from "@/components/landing/CreditsExplainer";
 import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
@@ -59,6 +60,7 @@ function Landing() {
         <Reveal><VerifiedFeaturesSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
         <Reveal><PricingSection /></Reveal>
+        <Reveal><CreditsExplainer /></Reveal>
         <Reveal><PlanPeriodComparisonSection /></Reveal>
         <Reveal><LaunchFaqSection /></Reveal>
         <Reveal><PreSaleSupport /></Reveal>
@@ -66,7 +68,11 @@ function Landing() {
       </main>
 
       <LandingFooter />
-      <div className="mx-auto max-w-6xl px-4 pb-5 text-right">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 pb-5 text-xs text-muted-foreground/60">
+        <div className="flex flex-wrap gap-4">
+          <Link to="/termos" className="transition hover:text-foreground">Termos de Uso</Link>
+          <Link to="/privacidade" className="transition hover:text-foreground">Política de Privacidade</Link>
+        </div>
         <Link to="/admin/login" className="text-[10px] text-muted-foreground/35 transition hover:text-muted-foreground" rel="nofollow">
           Área administrativa
         </Link>
