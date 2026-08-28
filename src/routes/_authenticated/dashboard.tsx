@@ -45,7 +45,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
   component: DashboardPage,
 });
 
-type DashboardTo = LinkComponentProps["to"];
+type DashboardTo = NonNullable<LinkComponentProps["to"]>;
 
 type JourneyProps = {
   done: boolean;
