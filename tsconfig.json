@@ -24,6 +24,7 @@
     "exactOptionalPropertyTypes": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
+      "@/lib/ml.functions": ["./src/lib/ml-search-fixed.functions.ts"],
       "@/*": ["./src/*"]
     }
   }
