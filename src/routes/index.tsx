@@ -5,6 +5,7 @@ import { SessionSplash } from "@/components/SessionSplash";
 import { VisitTracker } from "@/components/VisitTracker";
 import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landing/ConversionSections";
 import { CreditsExplainer } from "@/components/landing/CreditsExplainer";
+import { IllustrativeSocialProof } from "@/components/landing/IllustrativeSocialProof";
 import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
@@ -57,6 +58,7 @@ function Landing() {
         <ProductTrustBar />
         <PremiumCapabilities />
         <Reveal><RealSocialProof /></Reveal>
+        <Reveal><IllustrativeSocialProof /></Reveal>
         <Reveal><VerifiedFeaturesSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
         <Reveal><PricingSection /></Reveal>
