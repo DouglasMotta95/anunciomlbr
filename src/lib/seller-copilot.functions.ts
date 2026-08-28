@@ -12,11 +12,13 @@ export const askSellerCopilot = createServerFn({ method: "POST" })
 
     const [{ data: listings }, { data: connection }] = await Promise.all([
       context.supabase.from("listings").select("title,status,stock,price_cents,cost_cents,fees_cents,ai_score,updated_at").limit(250),
-      context.supabase.from("ml_connections").select("connected,last_sync_at,access_token,nickname").eq("user_id", context.userId).maybeSingle(),
+      context.supabase.from("ml_connections").select("connected,last_sync_at,nickname").eq("user_id", context.userId).maybeSingle(),
     ]);
 
+    const { getValidMlAccessToken } = await import("@/lib/ml.server");
+    const tokenState = await getValidMlAccessToken(context.userId);
     const rows = listings ?? [];
-    const mlConnected = !!connection && (!!connection.connected || !!connection.access_token);
+    const mlConnected = !!connection && (connection.connected || tokenState.ok);
     const scoredRows = rows.filter((row: any) => row.ai_score !== null && row.ai_score !== undefined);
     const summary = {
       ml_connected: mlConnected,
