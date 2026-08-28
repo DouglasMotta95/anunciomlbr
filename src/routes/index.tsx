@@ -5,6 +5,7 @@ import { ShieldCheck } from "lucide-react";
 import { SessionSplash } from "@/components/SessionSplash";
 import { VisitTracker } from "@/components/VisitTracker";
 import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landing/ConversionSections";
+import { IllustrativeSocialProof } from "@/components/landing/IllustrativeSocialProof";
 import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
@@ -59,6 +60,7 @@ function Landing() {
         <Reveal><VideoDemoSection /></Reveal>
         <Reveal><VerifiedFeaturesSection /></Reveal>
         <Reveal><ComparisonSection /></Reveal>
+        <Reveal><IllustrativeSocialProof /></Reveal>
         <Reveal><PricingSection /></Reveal>
         <Reveal><PlanPeriodComparisonSection /></Reveal>
         <Reveal><LaunchFaqSection /></Reveal>
