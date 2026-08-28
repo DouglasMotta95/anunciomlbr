@@ -80,6 +80,30 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_credit_usage: {
+        Row: {
+          id: string
+          period_start: string
+          updated_at: string
+          used: number
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          period_start: string
+          updated_at?: string
+          used?: number
+          user_id: string
+        }
+        Update: {
+          id?: string
+          period_start?: string
+          updated_at?: string
+          used?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       analytics_events: {
         Row: {
           amount_cents: number | null
@@ -169,6 +193,42 @@ export type Database = {
           status?: Database["public"]["Enums"]["job_status"]
           total?: number
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      competitor_watch: {
+        Row: {
+          created_at: string
+          id: string
+          last_checked_at: string | null
+          last_price_cents: number | null
+          last_status: string | null
+          ml_item_id: string
+          permalink: string | null
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          last_price_cents?: number | null
+          last_status?: string | null
+          ml_item_id: string
+          permalink?: string | null
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          last_price_cents?: number | null
+          last_status?: string | null
+          ml_item_id?: string
+          permalink?: string | null
+          title?: string | null
           user_id?: string
         }
         Relationships: []
@@ -552,6 +612,51 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_value_snapshots: {
+        Row: {
+          ai_actions: number
+          created_at: string
+          estimated_minutes_saved: number
+          id: string
+          listings_created: number
+          listings_optimized: number
+          orders: number
+          period_start: string
+          revenue_cents: number
+          units_sold: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_actions?: number
+          created_at?: string
+          estimated_minutes_saved?: number
+          id?: string
+          listings_created?: number
+          listings_optimized?: number
+          orders?: number
+          period_start: string
+          revenue_cents?: number
+          units_sold?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_actions?: number
+          created_at?: string
+          estimated_minutes_saved?: number
+          id?: string
+          listings_created?: number
+          listings_optimized?: number
+          orders?: number
+          period_start?: string
+          revenue_cents?: number
+          units_sold?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount_cents: number
@@ -722,6 +827,305 @@ export type Database = {
         }
         Relationships: []
       }
+      referral_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          id: string
+          reward_ads: number
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          id?: string
+          reward_ads?: number
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          id?: string
+          reward_ads?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          code: string
+          converted_at: string | null
+          created_at: string
+          id: string
+          referred_user_id: string
+          referrer_user_id: string
+          reward_ads: number
+          status: string
+        }
+        Insert: {
+          code: string
+          converted_at?: string | null
+          created_at?: string
+          id?: string
+          referred_user_id: string
+          referrer_user_id: string
+          reward_ads?: number
+          status?: string
+        }
+        Update: {
+          code?: string
+          converted_at?: string | null
+          created_at?: string
+          id?: string
+          referred_user_id?: string
+          referrer_user_id?: string
+          reward_ads?: number
+          status?: string
+        }
+        Relationships: []
+      }
+      reseller_customers: {
+        Row: {
+          created_at: string
+          customer_email: string
+          customer_name: string | null
+          id: string
+          last_license_code: string | null
+          reseller_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_email: string
+          customer_name?: string | null
+          id?: string
+          last_license_code?: string | null
+          reseller_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string
+          customer_name?: string | null
+          id?: string
+          last_license_code?: string | null
+          reseller_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reseller_customers_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "resellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reseller_sales: {
+        Row: {
+          commission_cents: number
+          created_at: string
+          customer_user_id: string | null
+          id: string
+          license_id: string | null
+          plan_id: string | null
+          reseller_cost_cents: number
+          reseller_id: string
+          sale_price_cents: number
+          status: string
+        }
+        Insert: {
+          commission_cents?: number
+          created_at?: string
+          customer_user_id?: string | null
+          id?: string
+          license_id?: string | null
+          plan_id?: string | null
+          reseller_cost_cents: number
+          reseller_id: string
+          sale_price_cents: number
+          status?: string
+        }
+        Update: {
+          commission_cents?: number
+          created_at?: string
+          customer_user_id?: string | null
+          id?: string
+          license_id?: string | null
+          plan_id?: string | null
+          reseller_cost_cents?: number
+          reseller_id?: string
+          sale_price_cents?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reseller_sales_license_id_fkey"
+            columns: ["license_id"]
+            isOneToOne: false
+            referencedRelation: "licenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_sales_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reseller_sales_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "resellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reseller_wallet_transactions: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          id: string
+          kind: string
+          reference: string | null
+          reseller_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          id?: string
+          kind: string
+          reference?: string | null
+          reseller_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          reference?: string | null
+          reseller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reseller_wallet_transactions_reseller_id_fkey"
+            columns: ["reseller_id"]
+            isOneToOne: false
+            referencedRelation: "resellers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resellers: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          discount_percent: number
+          email: string
+          id: string
+          name: string
+          status: string
+          total_commission_cents: number
+          total_sales_cents: number
+          updated_at: string
+          user_id: string | null
+          wallet_cents: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          discount_percent?: number
+          email: string
+          id?: string
+          name: string
+          status?: string
+          total_commission_cents?: number
+          total_sales_cents?: number
+          updated_at?: string
+          user_id?: string | null
+          wallet_cents?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          discount_percent?: number
+          email?: string
+          id?: string
+          name?: string
+          status?: string
+          total_commission_cents?: number
+          total_sales_cents?: number
+          updated_at?: string
+          user_id?: string | null
+          wallet_cents?: number
+        }
+        Relationships: []
+      }
+      sales_recovery_actions: {
+        Row: {
+          action: string
+          admin_user_id: string
+          created_at: string
+          id: string
+          message: string | null
+          note: string | null
+          payment_id: string
+        }
+        Insert: {
+          action: string
+          admin_user_id: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          note?: string | null
+          payment_id: string
+        }
+        Update: {
+          action?: string
+          admin_user_id?: string
+          created_at?: string
+          id?: string
+          message?: string | null
+          note?: string | null
+          payment_id?: string
+        }
+        Relationships: []
+      }
+      seller_action_state: {
+        Row: {
+          action_key: string
+          completed_at: string | null
+          created_at: string
+          dismissed_until: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_key: string
+          completed_at?: string | null
+          created_at?: string
+          dismissed_until?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_key?: string
+          completed_at?: string | null
+          created_at?: string
+          dismissed_until?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       site_visits: {
         Row: {
           bot_reason: string | null
@@ -779,6 +1183,176 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_cancellation_requests: {
+        Row: {
+          details: string | null
+          id: string
+          license_id: string | null
+          reason: string
+          requested_at: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          details?: string | null
+          id?: string
+          license_id?: string | null
+          reason: string
+          requested_at?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          details?: string | null
+          id?: string
+          license_id?: string | null
+          reason?: string
+          requested_at?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_cancellation_requests_license_id_fkey"
+            columns: ["license_id"]
+            isOneToOne: false
+            referencedRelation: "licenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_retention_feedback: {
+        Row: {
+          accepted_alternative: string | null
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          subscription_id: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted_alternative?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          subscription_id?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted_alternative?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          subscription_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_notification_preferences: {
+        Row: {
+          email: boolean
+          in_app: boolean
+          opportunity_alerts: boolean
+          quota_alerts: boolean
+          sales_alerts: boolean
+          stock_alerts: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          email?: boolean
+          in_app?: boolean
+          opportunity_alerts?: boolean
+          quota_alerts?: boolean
+          sales_alerts?: boolean
+          stock_alerts?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          email?: boolean
+          in_app?: boolean
+          opportunity_alerts?: boolean
+          quota_alerts?: boolean
+          sales_alerts?: boolean
+          stock_alerts?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_notifications: {
+        Row: {
+          action_to: string | null
+          body: string
+          created_at: string
+          dedupe_key: string | null
+          id: string
+          kind: string
+          read_at: string | null
+          severity: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          action_to?: string | null
+          body: string
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind: string
+          read_at?: string | null
+          severity?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          action_to?: string | null
+          body?: string
+          created_at?: string
+          dedupe_key?: string | null
+          id?: string
+          kind?: string
+          read_at?: string | null
+          severity?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_product_events: {
+        Row: {
+          created_at: string
+          event_key: string | null
+          event_type: string
+          id: string
+          metadata: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_key?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_key?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -819,6 +1393,16 @@ export type Database = {
         Args: { _amount: number; _user_id: string }
         Returns: boolean
       }
+      consume_ai_credit: {
+        Args: { p_amount?: number; p_user_id: string }
+        Returns: {
+          allowed: boolean
+          credit_limit: number
+          remaining: number
+          used: number
+        }[]
+      }
+      ensure_referral_code: { Args: never; Returns: string }
       generate_license_code: { Args: { _plan_code: string }; Returns: string }
       has_role: {
         Args: {
