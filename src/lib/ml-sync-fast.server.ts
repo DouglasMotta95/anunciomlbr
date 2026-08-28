@@ -102,7 +102,10 @@ export async function syncUserListingsFast(userId: string, limit = 1000): Promis
       console.error("fast ML sync batch failed", error.message);
       return { ok: false, reason: error.message };
     }
-    for (const row of rows) idsBySource.has(row.source_ml_id) ? updated++ : imported++;
+    for (const row of rows) {
+      if (idsBySource.has(row.source_ml_id)) updated += 1;
+      else imported += 1;
+    }
   }
 
   const now = new Date().toISOString();
