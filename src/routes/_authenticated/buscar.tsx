@@ -2,14 +2,20 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  Clipboard,
   Copy,
+  Download,
   Edit,
+  Files,
+  Hash,
+  Link2,
   Loader2,
+  PackageSearch,
   Search,
   SearchX,
   Sparkles,
-  Files,
-  Download,
+  Store,
+  Tags,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -21,25 +27,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { startBulkJob } from "@/lib/bulk.functions";
 import { formatBRL } from "@/lib/format";
 import { createListingDraft } from "@/lib/listing-create.functions";
-import { getMercadoLivreItem, searchMercadoLivre, type MlItem } from "@/lib/ml.functions";
+import {
+  getMercadoLivreItem,
+  getMercadoLivreItemFromLink,
+  searchMercadoLivre,
+  searchMercadoLivreProducts,
+  searchMercadoLivreSeller,
+  type MlItem,
+} from "@/lib/ml.functions";
 import { getProductImage } from "@/lib/product-image";
 import { listingStatusLabel } from "@/lib/status-labels";
 
 const title = "Buscar e copiar anúncios — ANÚNCIO ML";
 const description =
-  "Pesquise produtos no Mercado Livre, copie a estrutura dos anúncios em massa e edite antes de publicar.";
+  "Pesquise anúncios e produtos no Mercado Livre por palavra-chave, produto, ID, link ou vendedor.";
 
 export const Route = createFileRoute("/_authenticated/buscar")({
   head: () => ({
@@ -54,28 +60,55 @@ export const Route = createFileRoute("/_authenticated/buscar")({
   component: SearchPage,
 });
 
-type Mode = "keyword" | "id" | "link" | "produto" | "vendedor";
+type Mode = "keyword" | "produto" | "id" | "link" | "vendedor";
 
-const MODE_OPTIONS: { value: Mode; label: string; placeholder: string }[] = [
-  { value: "keyword", label: "Palavra-chave", placeholder: "Ex.: fone bluetooth, air fryer" },
-  { value: "produto", label: "Produto", placeholder: "Ex.: iPhone 15 128GB" },
-  { value: "id", label: "ID do anúncio", placeholder: "Ex.: MLB1234567890" },
-  { value: "link", label: "Link do anúncio", placeholder: "Cole o link do anúncio no Mercado Livre" },
-  { value: "vendedor", label: "Vendedor", placeholder: "Nome do vendedor" },
-];
-
-function extractMlbId(input: string): string | null {
-  const match = input.toUpperCase().match(/MLB-?\d+/);
-  return match ? match[0].replace("-", "") : null;
-}
+const MODE_OPTIONS = [
+  {
+    value: "keyword" as const,
+    label: "Palavra-chave",
+    short: "Anúncios relacionados",
+    placeholder: "Ex.: fone bluetooth, air fryer",
+    icon: Tags,
+  },
+  {
+    value: "produto" as const,
+    label: "Produto",
+    short: "Produto de catálogo",
+    placeholder: "Ex.: iPhone 15 128GB",
+    icon: PackageSearch,
+  },
+  {
+    value: "id" as const,
+    label: "ID do anúncio",
+    short: "Busca exata por MLB",
+    placeholder: "Ex.: MLB1234567890",
+    icon: Hash,
+  },
+  {
+    value: "link" as const,
+    label: "Link",
+    short: "Cole a URL do anúncio",
+    placeholder: "https://produto.mercadolivre.com.br/...",
+    icon: Link2,
+  },
+  {
+    value: "vendedor" as const,
+    label: "Vendedor",
+    short: "Nickname ou ID",
+    placeholder: "Ex.: LOJAOFICIAL ou 123456789",
+    icon: Store,
+  },
+] satisfies Array<{
+  value: Mode;
+  label: string;
+  short: string;
+  placeholder: string;
+  icon: typeof Search;
+}>;
 
 function conditionLabel(condition: string | null): string | null {
   if (!condition) return null;
-  const map: Record<string, string> = {
-    new: "Novo",
-    used: "Usado",
-    refurbished: "Recondicionado",
-  };
+  const map: Record<string, string> = { new: "Novo", used: "Usado", refurbished: "Recondicionado" };
   return map[condition] ?? condition;
 }
 
@@ -105,8 +138,11 @@ function mlDraftData(item: MlItem, dedupeSource: boolean) {
 function SearchPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const search = useServerFn(searchMercadoLivre);
+  const searchKeyword = useServerFn(searchMercadoLivre);
+  const searchProduct = useServerFn(searchMercadoLivreProducts);
+  const searchSeller = useServerFn(searchMercadoLivreSeller);
   const lookupById = useServerFn(getMercadoLivreItem);
+  const lookupByLink = useServerFn(getMercadoLivreItemFromLink);
   const startJob = useServerFn(startBulkJob);
   const createDraft = useServerFn(createListingDraft);
 
@@ -120,32 +156,23 @@ function SearchPage() {
 
   const runSearch = useMutation({
     mutationFn: async (term: string) => {
-      if (mode === "id" || mode === "link") {
-        const id = mode === "id" ? term.toUpperCase() : extractMlbId(term);
-        if (!id)
-          return {
-            ok: false as const,
-            configured: true,
-            reason: "Não foi possível identificar o ID (MLB...) informado.",
-            items: [] as MlItem[],
-          };
-        return lookupById({ data: { id } });
-      }
-      return search({ data: { query: term, limit: 24 } });
+      if (mode === "id") return lookupById({ data: { id: term.toUpperCase().replace("-", "") } });
+      if (mode === "link") return lookupByLink({ data: { link: term } });
+      if (mode === "vendedor") return searchSeller({ data: { query: term, limit: 24 } });
+      if (mode === "produto") return searchProduct({ data: { query: term, limit: 24 } });
+      return searchKeyword({ data: { query: term, limit: 24 } });
     },
     onSuccess: (result) => {
       setSearched(true);
       setItems(result.items);
       setSelected({});
       setNotice(result.ok ? null : result.reason);
-      if (mode === "vendedor" && result.ok && result.items.length > 0) {
-        toast.info("Busca por vendedor", {
-          description:
-            "Os resultados são retornados pela busca oficial do Mercado Livre. Confira o nome do vendedor exibido em cada anúncio.",
-        });
+      if (result.ok && result.items.length > 0) {
+        toast.success(`${result.items.length} resultado(s) encontrado(s)`);
       }
     },
-    onError: () => toast.error("Não foi possível buscar agora."),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Não foi possível buscar agora."),
   });
 
   const selectedIds = Object.keys(selected).filter((id) => selected[id]);
@@ -153,7 +180,7 @@ function SearchPage() {
 
   const copyToClipboard = async (code: string) => {
     await navigator.clipboard.writeText(code);
-    toast.success("✓ Código copiado");
+    toast.success("Código copiado");
   };
 
   const copyOne = useMutation({
@@ -165,11 +192,7 @@ function SearchPage() {
     onSuccess: ({ existed }) => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
       queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
-      toast.success(
-        existed
-          ? "Esse anúncio já estava copiado nos seus rascunhos"
-          : "Anúncio copiado como rascunho com imagens e atributos",
-      );
+      toast.success(existed ? "Esse anúncio já estava nos seus rascunhos" : "Anúncio copiado para seus rascunhos");
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao copiar anúncio."),
   });
@@ -198,15 +221,15 @@ function SearchPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
       queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
-      toast.success("Cópia criada com título limpo, imagens e atributos");
+      toast.success("Nova cópia criada nos rascunhos");
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao criar cópia."),
   });
 
   const startBulk = async (kind: "copy" | "optimize", scope: MlItem[]) => {
     if (!scope.length) return;
-
     let jobItems: { id: string; label: string; source?: Record<string, unknown> }[];
+
     if (kind === "optimize") {
       const mlIds = scope.map((item) => item.id);
       const { data: existing, error: existingError } = await supabase
@@ -240,7 +263,6 @@ function SearchPage() {
           return row ? { id: row.id, label: row.title } : null;
         })
         .filter((item): item is { id: string; label: string } => !!item);
-
       queryClient.invalidateQueries({ queryKey: ["listings"] });
       queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
     } else {
@@ -265,7 +287,6 @@ function SearchPage() {
       toast.error("Nenhum anúncio válido foi preparado para o processamento.");
       return;
     }
-
     const result = await startJob({ data: { kind, items: jobItems } });
     if (!result.ok) {
       toast.error(result.reason);
@@ -276,21 +297,14 @@ function SearchPage() {
 
   const copyCodes = async () => {
     await navigator.clipboard.writeText(selectedIds.join("\n"));
-    toast.success(`✓ ${selectedIds.length} códigos copiados`);
+    toast.success(`${selectedIds.length} código(s) copiado(s)`);
   };
 
   const exportCsv = () => {
     const header = "id,titulo,preco,categoria,vendedor,condicao\n";
     const rows = selectedItems
       .map((item) =>
-        [
-          item.id,
-          item.title.replace(/,/g, " "),
-          item.price_cents ?? "",
-          item.category ?? "",
-          item.seller ?? "",
-          conditionLabel(item.condition) ?? "",
-        ].join(","),
+        [item.id, item.title.replace(/,/g, " "), item.price_cents ?? "", item.category ?? "", item.seller ?? "", conditionLabel(item.condition) ?? ""].join(","),
       )
       .join("\n");
     const blob = new Blob([header + rows], { type: "text/csv;charset=utf-8" });
@@ -303,80 +317,101 @@ function SearchPage() {
     toast.success("CSV exportado");
   };
 
-  const activeModeOption = MODE_OPTIONS.find((m) => m.value === mode)!;
+  const activeModeOption = MODE_OPTIONS.find((option) => option.value === mode)!;
+  const ActiveModeIcon = activeModeOption.icon;
 
   return (
     <AppShell
       title="Buscar e copiar"
-      description="Pesquise no Mercado Livre por palavra-chave, ID, link ou vendedor e traga a estrutura dos anúncios."
+      description="Escolha como deseja encontrar o anúncio. Cada modo usa a consulta adequada do Mercado Livre."
     >
-      <Card>
-        <CardContent className="pt-6">
+      <Card className="overflow-hidden border-primary/20">
+        <CardContent className="space-y-5 p-4 sm:p-6">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {MODE_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const active = option.value === mode;
+              return (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={active ? "default" : "outline"}
+                  className="h-auto min-h-16 justify-start rounded-2xl px-4 py-3 text-left"
+                  onClick={() => {
+                    setMode(option.value);
+                    setItems([]);
+                    setSelected({});
+                    setNotice(null);
+                    setSearched(false);
+                  }}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{option.label}</span>
+                    <span className={`mt-0.5 block text-[11px] font-normal ${active ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
+                      {option.short}
+                    </span>
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+
           <form
-            className="flex flex-wrap gap-2"
+            className="flex flex-col gap-2 sm:flex-row"
             onSubmit={(event) => {
               event.preventDefault();
               if (query.trim().length > 1) runSearch.mutate(query.trim());
             }}
           >
-            <Select value={mode} onValueChange={(value) => setMode(value as Mode)}>
-              <SelectTrigger className="w-[190px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MODE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={activeModeOption.placeholder}
-              className="min-w-[240px] flex-1"
-            />
-            <Button type="submit" disabled={runSearch.isPending || query.trim().length < 2}>
-              {runSearch.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="mr-2 h-4 w-4" />
-              )}
-              Buscar
+            <div className="relative flex-1">
+              <ActiveModeIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={activeModeOption.placeholder}
+                className="h-11 pl-10"
+              />
+            </div>
+            <Button type="submit" size="lg" className="h-11 rounded-xl px-6" disabled={runSearch.isPending || query.trim().length < 2}>
+              {runSearch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {runSearch.isPending ? "Buscando..." : `Buscar por ${activeModeOption.label.toLowerCase()}`}
             </Button>
           </form>
-          <p className="mt-3 text-xs text-muted-foreground">
-            A busca usa a API oficial do Mercado Livre. Copiamos estrutura, categoria e atributos
-            para acelerar o cadastro — o conteúdo final é sempre seu.
+
+          <p className="text-xs leading-5 text-muted-foreground">
+            {mode === "keyword" && "Procura anúncios relacionados à expressão e complementa com produtos de catálogo quando disponíveis."}
+            {mode === "produto" && "Consulta o catálogo de produtos do Mercado Livre e traz o anúncio ativo associado quando existir."}
+            {mode === "id" && "Consulta diretamente o anúncio pelo código MLB informado."}
+            {mode === "link" && "Resolve links oficiais do Mercado Livre e links encurtados para localizar o anúncio."}
+            {mode === "vendedor" && "Busca as publicações ativas pelo nickname exato ou pelo ID numérico do vendedor."}
           </p>
         </CardContent>
       </Card>
 
       {notice && (
-        <div className="mt-4 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+        <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-muted-foreground">
           {notice}
         </div>
       )}
 
       {runSearch.isPending && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <Skeleton key={index} className="h-44 rounded-2xl" />
-          ))}
+          {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-64 rounded-2xl" />)}
         </div>
       )}
 
       {!runSearch.isPending && searched && items.length === 0 && !notice && (
-        <div className="mt-10 flex flex-col items-center gap-2 text-center text-muted-foreground">
-          <SearchX className="h-8 w-8" />
-          <p className="text-sm">Nenhum resultado para essa busca.</p>
+        <div className="mt-10 flex flex-col items-center gap-2 rounded-3xl border border-dashed p-10 text-center text-muted-foreground">
+          <SearchX className="h-9 w-9" />
+          <p className="font-semibold text-foreground">Nenhum resultado encontrado</p>
+          <p className="max-w-md text-sm">Confira a escrita e tente outro modo de busca. Para vendedor, use o nickname exato ou o ID numérico.</p>
         </div>
       )}
 
       {items.length > 0 && (
         <>
-          <div className="mt-5 flex items-center gap-3">
+          <div className="mt-5 flex items-center gap-3 rounded-2xl border bg-card px-4 py-3">
             <Checkbox
               checked={selectedIds.length === items.length}
               onCheckedChange={(checked) =>
@@ -384,109 +419,105 @@ function SearchPage() {
               }
               id="select-all"
             />
-            <label htmlFor="select-all" className="text-sm text-muted-foreground">
-              Selecionar todos os {items.length} resultados
+            <label htmlFor="select-all" className="cursor-pointer text-sm font-medium">
+              Selecionar todos <span className="text-muted-foreground">({items.length} resultados)</span>
             </label>
           </div>
 
-          <div className="mt-3 grid gap-4 pb-24 sm:grid-cols-2 xl:grid-cols-3">
-            {items.map((item) => (
-              <Card key={item.id} className="overflow-hidden">
-                <CardContent className="flex gap-3 pt-6">
-                  <Checkbox
-                    checked={!!selected[item.id]}
-                    onCheckedChange={(checked) =>
-                      setSelected((prev) => ({ ...prev, [item.id]: !!checked }))
-                    }
-                    className="mt-1"
-                  />
-                  {getProductImage(item) ? (
-                    <img
-                      src={getProductImage(item) ?? undefined}
-                      alt={item.title}
-                      loading="lazy"
-                      className="h-16 w-16 shrink-0 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-muted text-[10px] text-muted-foreground">
-                      Sem imagem
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-sm font-medium">{item.title}</p>
-                    <p className="mt-1 font-display text-base font-bold">
-                      {formatBRL(item.price_cents)}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {item.category && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {item.category}
-                        </Badge>
-                      )}
-                      {item.seller && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {item.seller}
-                        </Badge>
-                      )}
-                      {conditionLabel(item.condition) && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          {conditionLabel(item.condition)}
-                        </Badge>
-                      )}
-                      {item.status && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          {listingStatusLabel(item.status)}
-                        </Badge>
+          <div className="mt-3 grid gap-4 pb-28 sm:grid-cols-2 xl:grid-cols-3">
+            {items.map((item) => {
+              const image = getProductImage(item);
+              return (
+                <Card key={item.id} className="group overflow-hidden transition-shadow hover:shadow-lg">
+                  <CardContent className="p-0">
+                    <div className="relative aspect-[16/9] overflow-hidden bg-muted">
+                      <Checkbox
+                        checked={!!selected[item.id]}
+                        onCheckedChange={(checked) => setSelected((prev) => ({ ...prev, [item.id]: !!checked }))}
+                        className="absolute left-3 top-3 z-10 bg-background shadow"
+                      />
+                      {image ? (
+                        <img src={image} alt={item.title} loading="lazy" className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-[1.03]" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem imagem</div>
                       )}
                     </div>
-                    <p className="mt-1 text-[10px] text-muted-foreground">{item.id}</p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => copyOne.mutate(item)}>
-                        <Copy className="mr-1 h-3 w-3" /> Copiar
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => duplicateOne.mutate(item)}>
-                        <Files className="mr-1 h-3 w-3" /> Criar cópia
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => startBulk("optimize", [item])}>
-                        <Sparkles className="mr-1 h-3 w-3" /> IA
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => copyToClipboard(item.id)}>
-                        Copiar código
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        disabled={editOne.isPending}
-                        onClick={() => editOne.mutate(item)}
-                      >
-                        <Edit className="mr-1 h-3 w-3" /> Editar
+
+                    <div className="space-y-3 p-4">
+                      <div>
+                        <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5">{item.title}</p>
+                        <p className="mt-2 font-display text-xl font-extrabold">{formatBRL(item.price_cents)}</p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {item.seller && <Badge variant="outline" className="max-w-full truncate text-[10px]">{item.seller}</Badge>}
+                        {conditionLabel(item.condition) && <Badge variant="secondary" className="text-[10px]">{conditionLabel(item.condition)}</Badge>}
+                        {item.status && <Badge variant="secondary" className="text-[10px]">{listingStatusLabel(item.status)}</Badge>}
+                      </div>
+                      <p className="font-mono text-[10px] text-muted-foreground">{item.id}</p>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          size="sm"
+                          className="rounded-xl"
+                          disabled={copyOne.isPending}
+                          onClick={() => copyOne.mutate(item)}
+                        >
+                          {copyOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+                          Copiar anúncio
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="rounded-xl"
+                          disabled={duplicateOne.isPending}
+                          onClick={() => duplicateOne.mutate(item)}
+                        >
+                          {duplicateOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Files className="h-3.5 w-3.5" />}
+                          Criar cópia
+                        </Button>
+                        <Button size="sm" variant="outline" className="rounded-xl" onClick={() => startBulk("optimize", [item])}>
+                          <Sparkles className="h-3.5 w-3.5" /> Otimizar IA
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl"
+                          disabled={editOne.isPending}
+                          onClick={() => editOne.mutate(item)}
+                        >
+                          {editOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Edit className="h-3.5 w-3.5" />}
+                          Editar
+                        </Button>
+                      </div>
+                      <Button size="sm" variant="ghost" className="w-full rounded-xl text-muted-foreground" onClick={() => copyToClipboard(item.id)}>
+                        <Clipboard className="h-3.5 w-3.5" /> Copiar código MLB
                       </Button>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </>
       )}
 
       {selectedIds.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <p className="text-sm font-semibold">{selectedIds.length} anúncios selecionados</p>
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => startBulk("copy", selectedItems)}>
-                <Copy className="mr-1.5 h-3.5 w-3.5" /> COPIAR SELECIONADOS
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 shadow-2xl backdrop-blur-xl">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="text-sm font-semibold">{selectedIds.length} anúncio(s) selecionado(s)</p>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              <Button size="sm" className="rounded-xl" onClick={() => startBulk("copy", selectedItems)}>
+                <Copy className="h-3.5 w-3.5" /> Copiar selecionados
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => startBulk("optimize", selectedItems)}>
-                <Sparkles className="mr-1.5 h-3.5 w-3.5" /> OTIMIZAR COM IA
+              <Button size="sm" variant="secondary" className="rounded-xl" onClick={() => startBulk("optimize", selectedItems)}>
+                <Sparkles className="h-3.5 w-3.5" /> Otimizar com IA
               </Button>
-              <Button size="sm" variant="outline" onClick={copyCodes}>
-                Copiar códigos
+              <Button size="sm" variant="outline" className="rounded-xl" onClick={copyCodes}>
+                <Clipboard className="h-3.5 w-3.5" /> Copiar códigos
               </Button>
-              <Button size="sm" variant="outline" onClick={exportCsv}>
-                <Download className="mr-1.5 h-3.5 w-3.5" /> EXPORTAR
+              <Button size="sm" variant="outline" className="rounded-xl" onClick={exportCsv}>
+                <Download className="h-3.5 w-3.5" /> Exportar
               </Button>
             </div>
           </div>
