@@ -46,13 +46,13 @@ const AI_USES = [
     icon: ImageIcon,
     title: "Gerar imagem com IA",
     description: "Crie imagens para deixar o anúncio mais profissional e atrativo.",
-    cost: "1 crédito por imagem",
+    cost: "3 créditos por imagem",
   },
   {
     icon: Layers3,
     title: "Gerar anúncio completo",
     description: "Monte o conteúdo do anúncio com IA e escolha quantas imagens deseja gerar.",
-    cost: "1 crédito da geração + 1 por imagem",
+    cost: "1 crédito da geração + 3 por imagem",
   },
 ] as const;
 
@@ -219,7 +219,7 @@ function AiCreditsPage() {
                       <span>{pack.ai_credits} créditos de IA adicionados ao saldo</span>
                     </div>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      Use em textos, otimizações, análises e também na geração de imagens com IA.
+                      Use em textos, otimizações e análises. Imagens usam 3 créditos por geração.
                     </p>
                     <Button
                       className="w-full"
@@ -248,8 +248,8 @@ function AiCreditsPage() {
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <p>1. Cada plano possui uma franquia de créditos de IA por ciclo.</p>
             <p>2. Antes de uma ação com IA, o sistema informa quantos créditos serão usados.</p>
-            <p>3. Gerar uma imagem com IA custa 1 crédito por imagem gerada.</p>
-            <p>4. Gerar um anúncio completo custa 1 crédito pela geração e mais 1 por imagem criada.</p>
+            <p>3. Gerar uma imagem com IA custa 3 créditos por imagem gerada.</p>
+            <p>4. Gerar um anúncio completo custa 1 crédito pela geração e mais 3 por imagem criada.</p>
             <p>5. Aplicar ou salvar um resultado já gerado não cobra o crédito novamente.</p>
             <p>6. Ao acabar, você pode comprar créditos extras sem trocar de plano.</p>
             <p>7. Os extras ficam separados da franquia do plano e valem por até 12 meses.</p>
