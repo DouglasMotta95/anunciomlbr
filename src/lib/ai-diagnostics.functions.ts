@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertCapability } from "@/lib/permissions.server";
 
 export type AiRuntimeHealth = {
   configured: boolean;
@@ -13,11 +14,13 @@ export type AiRuntimeHealth = {
 
 /**
  * Diagnóstico real da mesma rota de IA usada pelo produto.
- * Não consome crédito do usuário e nunca retorna/loga chaves.
+ * Restrito ao administrativo: não consome crédito e nunca retorna/loga chaves.
  */
 export const getAiRuntimeHealth = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async (): Promise<AiRuntimeHealth> => {
+  .handler(async ({ context }): Promise<AiRuntimeHealth> => {
+    await assertCapability(context, "admin.access");
+
     const { aiJson, aiProviderStatus } = await import("./ai.server");
     const status = aiProviderStatus();
 
