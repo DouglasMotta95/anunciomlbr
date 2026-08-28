@@ -2,7 +2,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const schema = z.object({ title: z.string().min(3), description: z.string().optional().nullable(), category: z.string().optional().nullable(), price_cents: z.number().optional().nullable() });
+const schema = z.object({
+  title: z.string().min(3),
+  description: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
+  price_cents: z.number().optional().nullable(),
+  attributes: z.unknown().optional(),
+  images_count: z.number().int().min(0).optional(),
+});
 export type AiOptimization = { score_before:number; score_after:number; title:string; description:string; keywords:string[]; attributes:string[]; improvements:string[] };
 type Ctx = { supabase:any; userId:string };
 
@@ -29,11 +36,14 @@ async function prepareAi(context: Ctx) {
 
 export const optimizeListing = createServerFn({ method:"POST" }).middleware([requireSupabaseAuth]).inputValidator((d:unknown)=>schema.parse(d)).handler(async ({data,context}):Promise<{ok:true;result:AiOptimization}|{ok:false;reason:string}>=>{
   const quota=await prepareAi(context as Ctx); if(!quota.ok)return quota;
-  const {aiJson}=await import("./ai.server");
-  const prompt=`Analise e otimize este anúncio do Mercado Livre.\nTítulo: ${data.title}\nDescrição: ${data.description??"(vazia)"}\nCategoria: ${data.category??"(não informada)"}\nPreço (centavos): ${data.price_cents??"(não informado)"}\n\nRetorne JSON com as chaves exatas:\n{"score_before":number(0-100),"score_after":number(0-100),"title":string(max 60 chars),"description":string,"keywords":string[],"attributes":string[],"improvements":string[]}`;
-  const out=await aiJson<AiOptimization>(prompt); if(!out.ok)return out; const r=out.result;
+  const {aiJson,cleanOptimizedTitle,optimizationPrompt}=await import("./ai.server");
+  const out=await aiJson<AiOptimization>(optimizationPrompt(data)); if(!out.ok)return out; const r=out.result;
   if(!r||typeof r.title!=="string"||typeof r.description!=="string")return {ok:false,reason:"A IA retornou uma resposta incompleta. Tente novamente."};
-  return {ok:true,result:{score_before:Number.isFinite(r.score_before)?Math.max(0,Math.min(100,r.score_before)):0,score_after:Number.isFinite(r.score_after)?Math.max(0,Math.min(100,r.score_after)):0,title:r.title.slice(0,60),description:r.description,keywords:Array.isArray(r.keywords)?r.keywords:[],attributes:Array.isArray(r.attributes)?r.attributes:[],improvements:Array.isArray(r.improvements)?r.improvements:[]}};
+  const title=cleanOptimizedTitle(r.title);
+  if(title.length<3)return {ok:false,reason:"A IA não retornou um título válido. Tente novamente."};
+  const before=Number.isFinite(r.score_before)?Math.max(0,Math.min(100,Number(r.score_before))):0;
+  const after=Number.isFinite(r.score_after)?Math.max(0,Math.min(100,Number(r.score_after))):before;
+  return {ok:true,result:{score_before:before,score_after:after,title,description:r.description.trim(),keywords:Array.isArray(r.keywords)?r.keywords.filter((v):v is string=>typeof v==="string"):[],attributes:Array.isArray(r.attributes)?r.attributes.filter((v):v is string=>typeof v==="string"):[],improvements:Array.isArray(r.improvements)?r.improvements.filter((v):v is string=>typeof v==="string"):[]}};
 });
 
 export const generateTitles=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).inputValidator((d:unknown)=>z.object({title:z.string().min(3),description:z.string().nullish(),category:z.string().nullish(),count:z.union([z.literal(5),z.literal(10),z.literal(20)])}).parse(d)).handler(async({data,context})=>{

@@ -16,6 +16,7 @@ type Ctx = {
   category?: string | null;
   priceCents?: number | null;
   imagesCount?: number;
+  attributes?: unknown;
 };
 
 const COUNTS = [5, 10, 20] as const;
@@ -223,6 +224,7 @@ export function AnalysisCard({ ctx }: { ctx: Ctx }) {
           title: ctx.title,
           description: ctx.description ?? null,
           category: ctx.category ?? null,
+          attributes: ctx.attributes,
           images_count: ctx.imagesCount ?? 0,
           price_cents: ctx.priceCents ?? null,
         },

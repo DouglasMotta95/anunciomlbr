@@ -33,6 +33,14 @@ async function processBulkJob(jobId:string,userId:string,kind:BulkJobKind,items:
 function normalizeHttps(value:unknown):string|null{if(typeof value!=="string"||!value)return null;return value.startsWith("http://")?`https://${value.slice(7)}`:value}
 function sourceImages(source:Record<string,unknown>):string[]{const provided=Array.isArray(source["images"])?(source["images"] as unknown[]).map(normalizeHttps).filter((v):v is string=>!!v):[];if(provided.length>0)return Array.from(new Set(provided));const thumbnail=normalizeHttps(source["thumbnail"]);return thumbnail?[thumbnail]:[]}
 
+async function consumeBulkAiCredit(userId:string){
+ const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
+ const {data,error}=await supabaseAdmin.rpc("consume_ai_credit",{p_user_id:userId,p_amount:1});
+ if(error){console.error("[AI quota bulk]",error.message);throw new Error("Não foi possível validar os créditos de IA.")}
+ const quota=Array.isArray(data)?data[0]:data;
+ if(!quota?.allowed)throw new Error(`Créditos de IA esgotados (${quota?.used??0}/${quota?.credit_limit??0}).`);
+}
+
 async function runBulkItem(kind:BulkJobKind,userId:string,item:BulkJobItem){
  const {supabaseAdmin}=await import("@/integrations/supabase/client.server");
  if(kind==="copy"){
@@ -41,16 +49,18 @@ async function runBulkItem(kind:BulkJobKind,userId:string,item:BulkJobItem){
  }
  if(kind==="duplicate"){
   const {data:listing,error:fetchError}=await supabaseAdmin.from("listings").select("title,description,price_cents,stock,sku,category,condition,images,attributes,cost_cents,fees_cents,ai_score,source_permalink").eq("id",item.id).eq("user_id",userId).maybeSingle();if(fetchError||!listing)throw new Error("Anúncio não encontrado.");
-  const {error}=await supabaseAdmin.from("listings").insert({...listing,user_id:userId,status:"draft",title:String(listing.title??item.label).slice(0,60)});if(error)throw new Error(error.message);return;
+  const {cleanOptimizedTitle}=await import("./ai.server");
+  const {error}=await supabaseAdmin.from("listings").insert({...listing,user_id:userId,status:"draft",title:cleanOptimizedTitle(String(listing.title??item.label))});if(error)throw new Error(error.message);return;
  }
  if(kind==="delete"){const {error}=await supabaseAdmin.from("listings").delete().eq("id",item.id).eq("user_id",userId);if(error)throw new Error(error.message);return}
  if(kind==="pause"||kind==="activate"){const {error}=await supabaseAdmin.from("listings").update({status:kind==="pause"?"paused":"active",updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(error)throw new Error(error.message);return}
  if(kind==="optimize"){
-  const {data:listing,error:fetchError}=await supabaseAdmin.from("listings").select("id,title,description,category,price_cents,attributes").eq("id",item.id).eq("user_id",userId).maybeSingle();if(fetchError||!listing)throw new Error("Anúncio não encontrado.");
-  const {aiJson}=await import("./ai.server");
-  const prompt=`Você é especialista em anúncios do Mercado Livre Brasil. Reescreva de verdade este anúncio para melhorar clareza, busca e conversão, sem inventar características e sem usar termos como copy, cópia, versão, otimizado ou IA no título. Preserve marca, modelo, medida e especificações importantes. O novo título deve ser claramente melhor que o atual, natural, com até 60 caracteres e priorizar as palavras que um comprador realmente pesquisaria. A descrição deve ficar organizada, objetiva e comercial, sem promessas falsas.\n\nTítulo atual: ${listing.title}\nDescrição atual: ${listing.description??"(vazia)"}\nCategoria: ${listing.category??"(não informada)"}\nPreço (centavos): ${listing.price_cents??"(não informado)"}\nAtributos: ${JSON.stringify(listing.attributes??[])}\n\nRetorne SOMENTE JSON válido com as chaves exatas:\n{"score_before":number,"score_after":number,"title":string,"description":string,"keywords":string[],"improvements":string[]}`;
-  const out=await aiJson<{title?:string;description?:string;score_after?:number}>(prompt);if(!out.ok)throw new Error(out.reason);const parsed=out.result;if(!parsed.title||!parsed.description)throw new Error("A IA não retornou título e descrição válidos.");
-  const cleanTitle=parsed.title.replace(/\s*\((?:copy|cópia)\)\s*$/i,"").trim().slice(0,60);
-  const {error:updateError}=await supabaseAdmin.from("listings").update({title:cleanTitle,description:parsed.description,ai_score:Number.isFinite(parsed.score_after)?parsed.score_after:null,updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(updateError)throw new Error(updateError.message);
+  const {data:listing,error:fetchError}=await supabaseAdmin.from("listings").select("id,title,description,category,price_cents,attributes,images").eq("id",item.id).eq("user_id",userId).maybeSingle();if(fetchError||!listing)throw new Error("Anúncio não encontrado.");
+  await consumeBulkAiCredit(userId);
+  const {aiJson,cleanOptimizedTitle,optimizationPrompt}=await import("./ai.server");
+  const imagesCount=Array.isArray(listing.images)?listing.images.length:0;
+  const out=await aiJson<{title?:string;description?:string;score_after?:number}>(optimizationPrompt({title:listing.title,description:listing.description,category:listing.category,price_cents:listing.price_cents,attributes:listing.attributes,images_count:imagesCount}));if(!out.ok)throw new Error(out.reason);const parsed=out.result;if(!parsed.title||!parsed.description)throw new Error("A IA não retornou título e descrição válidos.");
+  const cleanTitle=cleanOptimizedTitle(parsed.title);if(cleanTitle.length<3)throw new Error("A IA não retornou um título válido.");
+  const {error:updateError}=await supabaseAdmin.from("listings").update({title:cleanTitle,description:parsed.description.trim(),ai_score:Number.isFinite(parsed.score_after)?Math.max(0,Math.min(100,Number(parsed.score_after))):null,updated_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",userId);if(updateError)throw new Error(updateError.message);
  }
 }

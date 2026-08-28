@@ -109,6 +109,52 @@ export async function aiJson<T>(prompt: string): Promise<{ ok: true; result: T }
   return { ok: false, reason: "IA não configurada no servidor. Configure a chave de IA no ambiente de produção." };
 }
 
+export type OptimizationInput = {
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  price_cents?: number | null;
+  attributes?: unknown;
+  images_count?: number;
+};
+
+/** Prompt único para que editor e ações em massa tenham a mesma qualidade e as mesmas regras. */
+export function optimizationPrompt(input: OptimizationInput): string {
+  return `Otimize de verdade este anúncio do Mercado Livre Brasil, mas somente quando houver melhoria real possível.
+
+DADOS DO ANÚNCIO
+Título atual: ${input.title}
+Descrição atual: ${(input.description ?? "").slice(0, 4500) || "(vazia)"}
+Categoria: ${input.category ?? "(não informada)"}
+Preço (centavos): ${input.price_cents ?? "(não informado)"}
+Atributos disponíveis: ${JSON.stringify(input.attributes ?? []).slice(0, 2500)}
+Quantidade de imagens: ${input.images_count ?? "(não informada)"}
+
+REGRAS OBRIGATÓRIAS
+- Use SOMENTE fatos presentes nos dados acima. Nunca invente marca, modelo, material, medida, cor, compatibilidade, garantia, estoque, condição, acessórios ou qualquer especificação.
+- Preserve marca, modelo, medidas, códigos e características importantes que já existam.
+- Título com no máximo 60 caracteres, natural e focado no que o comprador realmente pesquisaria.
+- Priorize clareza, intenção de busca e termos relevantes; elimine repetição e palavras sem valor comercial.
+- Nunca acrescente '(copy)', '(cópia)', 'copy', 'cópia', 'IA', 'otimizado' ou 'versão otimizada' como enfeite no título.
+- Não prometa frete, prazo, desconto, preço promocional ou benefício que não esteja nos dados.
+- A descrição deve ser clara, organizada e comercial, sem links, telefones ou contatos externos.
+- Se o título atual já for forte, preserve os elementos bons e faça apenas mudanças que tenham justificativa real.
+- Não altere apenas para parecer diferente. score_after não pode ser maior sem melhorias concretas.
+- Em attributes, liste apenas atributos relevantes já presentes nos dados; não crie novos fatos.
+
+Retorne SOMENTE JSON válido com as chaves exatas:
+{"score_before":number,"score_after":number,"title":string,"description":string,"keywords":string[],"attributes":string[],"improvements":string[]}`;
+}
+
+export function cleanOptimizedTitle(value: string): string {
+  return value
+    .replace(/\s*\((?:copy|cópia)\)\s*$/gi, "")
+    .replace(/\s+\b(?:copy|cópia)\b\s*$/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+}
+
 export type TitleSuggestion = { title: string; score: number; keywords: string[] };
 export function titlesPrompt(input: { title: string; category?: string | null | undefined; description?: string | null | undefined; count: number }): string {
   return `Gere exatamente ${input.count} variações de título para este anúncio do Mercado Livre.\nTítulo atual: ${input.title}\nCategoria: ${input.category ?? "(não informada)"}\nDescrição (contexto): ${(input.description ?? "").slice(0, 900) || "(vazia)"}\n\nRegras: máximo 60 caracteres por título, sem emojis, sem promessas de frete/preço, sem repetir palavras desnecessárias.\nJSON: {"titles":[{"title":string,"score":number(0-100),"keywords":string[]}]}`;

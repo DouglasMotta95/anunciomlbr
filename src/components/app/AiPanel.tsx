@@ -26,12 +26,14 @@ type AiPanelProps = {
   description: string | null | undefined;
   category?: string | null;
   priceCents?: number | null;
+  attributes?: unknown;
+  imagesCount?: number;
   currentScore?: number | null;
   onApply: (result: AiOptimization) => void;
 };
 
 /** ANÚNCIO AI — analisa o anúncio e propõe melhorias. Nada é aplicado sem confirmação. */
-export function AiPanel({ title, description, category, priceCents, currentScore, onApply }: AiPanelProps) {
+export function AiPanel({ title, description, category, priceCents, attributes, imagesCount, currentScore, onApply }: AiPanelProps) {
   const optimize = useServerFn(optimizeListing);
   const [result, setResult] = useState<AiOptimization | null>(null);
   const [applied, setApplied] = useState(false);
@@ -45,6 +47,8 @@ export function AiPanel({ title, description, category, priceCents, currentScore
           description: description ?? undefined,
           category: category ?? undefined,
           price_cents: priceCents ?? undefined,
+          attributes,
+          images_count: imagesCount,
         },
       }),
     onSuccess: (res) => {
@@ -129,7 +133,7 @@ export function AiPanel({ title, description, category, priceCents, currentScore
 
           {result.attributes?.length > 0 && (
             <div>
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Atributos sugeridos</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">Atributos considerados</p>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
                 {result.attributes.map((attribute) => (
                   <Badge key={attribute} variant="outline" className="text-[10px]">
