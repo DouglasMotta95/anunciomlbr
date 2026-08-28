@@ -111,7 +111,7 @@ export function PlanPurchaseSection() {
 
                 <Button asChild size="lg" className={cn("mt-6 w-full gap-2 font-black", plan.highlighted && "shadow-glow")} variant={plan.highlighted ? "default" : "outline"}>
                   <Link to="/checkout" search={{ plan: plan.code, period }}>
-                    Comprar {plan.name} <ArrowRight className="h-4 w-4" />
+                    Comprar {plan.name} · {formatBRL(total)} <ArrowRight className="h-4 w-4" />
                   </Link>
                 </Button>
               </Card>
