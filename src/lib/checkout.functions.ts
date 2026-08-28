@@ -9,7 +9,6 @@ const PERIOD_MONTHS: Record<string, number> = {
   semiannual: 6,
   annual: 12,
 };
-const DEFAULT_PUBLIC_ORIGIN = "https://anunciomlbr.lovable.app";
 
 const schema = z.object({
   plan_id: z.string().uuid(),
@@ -22,6 +21,18 @@ const schema = z.object({
     .regex(/^[A-Za-z0-9_-]+$/)
     .optional(),
 });
+
+function publicOrigin(): string | null {
+  const raw = process.env["APP_PUBLIC_URL"]?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
 
 /** Cria uma preferência real no Mercado Pago; nunca simula aprovação ou pedido offline. */
 export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
@@ -67,6 +78,17 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
       };
     }
 
+    const origin = publicOrigin();
+    if (!origin) {
+      return {
+        configured: false as const,
+        payment_id: null,
+        amount_cents: amountCents,
+        checkout_url: null,
+        reason: "A URL pública do ANÚNCIO ML não está configurada para receber o retorno do pagamento.",
+      };
+    }
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: payment, error: paymentError } = await supabaseAdmin
       .from("payments")
@@ -83,7 +105,6 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
       .single();
     if (paymentError) throw new Error("Não foi possível registrar o pagamento.");
 
-    const origin = (process.env["APP_PUBLIC_URL"]?.trim() || DEFAULT_PUBLIC_ORIGIN).replace(/\/$/, "");
     const successUrl = `${origin}/checkout/success?payment_id=${payment.id}`;
     const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
