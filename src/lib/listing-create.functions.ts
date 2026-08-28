@@ -50,8 +50,8 @@ async function claimQuotaOrRollback(userId: string, listingId: string) {
     return {
       ok: false as const,
       reason: error
-        ? "Não foi possível validar o limite do seu plano agora."
-        : "Você atingiu o limite de anúncios deste ciclo. Faça upgrade ou adicione capacidade para criar novos anúncios.",
+        ? "Não foi possível validar sua franquia de criações agora. Tente novamente; se continuar, confira a Central da assinatura."
+        : "Você atingiu a franquia de criações e clonagens deste ciclo. Seus anúncios existentes continuam ativos. Compre anúncios extras na Central da assinatura ou faça upgrade para criar novos.",
     };
   }
 
@@ -104,13 +104,13 @@ async function createDraftForUser(userId: string, input: DraftInput) {
   return { ok: true as const, id: created.id, existed: false as const };
 }
 
-/** Cria/copia um anúncio e consome 1 unidade da franquia somente após a inserção ter sucesso. */
+/** Cria/importa/clona um anúncio e consome 1 unidade da franquia somente após a inserção ter sucesso. */
 export const createListingDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => draftSchema.parse(data))
   .handler(async ({ data, context }) => createDraftForUser(context.userId, data));
 
-/** Duplica um anúncio interno mantendo título limpo, imagens e atributos. */
+/** Duplica um anúncio interno mantendo título limpo, preço, imagens e atributos. */
 export const duplicateListingDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ listing_id: z.string().uuid() }).parse(data))

@@ -38,14 +38,14 @@ import {
   searchMercadoLivre,
   searchMercadoLivreProducts,
   searchMercadoLivreSeller,
-  type MlItem,
-} from "@/lib/ml.functions";
+} from "@/lib/ml-search-fixed.functions";
+import type { MlItem } from "@/lib/ml.functions";
 import { getProductImage } from "@/lib/product-image";
 import { listingStatusLabel } from "@/lib/status-labels";
 
-const title = "Buscar e copiar anúncios — ANÚNCIO ML";
+const title = "Buscar e clonar anúncios — ANÚNCIO ML";
 const description =
-  "Pesquise anúncios e produtos no Mercado Livre por palavra-chave, produto, ID, link ou vendedor.";
+  "Encontre anúncios do Mercado Livre por palavra-chave, produto, ID, link ou vendedor e clone a estrutura em um novo rascunho.";
 
 export const Route = createFileRoute("/_authenticated/buscar")({
   head: () => ({
@@ -63,48 +63,12 @@ export const Route = createFileRoute("/_authenticated/buscar")({
 type Mode = "keyword" | "produto" | "id" | "link" | "vendedor";
 
 const MODE_OPTIONS = [
-  {
-    value: "keyword" as const,
-    label: "Palavra-chave",
-    short: "Anúncios relacionados",
-    placeholder: "Ex.: fone bluetooth, air fryer",
-    icon: Tags,
-  },
-  {
-    value: "produto" as const,
-    label: "Produto",
-    short: "Produto de catálogo",
-    placeholder: "Ex.: iPhone 15 128GB",
-    icon: PackageSearch,
-  },
-  {
-    value: "id" as const,
-    label: "ID do anúncio",
-    short: "Busca exata por MLB",
-    placeholder: "Ex.: MLB1234567890",
-    icon: Hash,
-  },
-  {
-    value: "link" as const,
-    label: "Link",
-    short: "Cole a URL do anúncio",
-    placeholder: "https://produto.mercadolivre.com.br/...",
-    icon: Link2,
-  },
-  {
-    value: "vendedor" as const,
-    label: "Vendedor",
-    short: "Nickname ou ID",
-    placeholder: "Ex.: LOJAOFICIAL ou 123456789",
-    icon: Store,
-  },
-] satisfies Array<{
-  value: Mode;
-  label: string;
-  short: string;
-  placeholder: string;
-  icon: typeof Search;
-}>;
+  { value: "keyword" as const, label: "Palavra-chave", short: "Anúncios relacionados", placeholder: "Ex.: fone bluetooth, air fryer", icon: Tags },
+  { value: "produto" as const, label: "Produto", short: "Produto de catálogo", placeholder: "Ex.: iPhone 15 128GB", icon: PackageSearch },
+  { value: "id" as const, label: "ID do anúncio", short: "Busca exata por MLB", placeholder: "Ex.: MLB1234567890", icon: Hash },
+  { value: "link" as const, label: "Link", short: "Cole a URL do anúncio", placeholder: "https://produto.mercadolivre.com.br/...", icon: Link2 },
+  { value: "vendedor" as const, label: "Vendedor", short: "Nickname ou ID", placeholder: "Ex.: LOJAOFICIAL ou 123456789", icon: Store },
+] satisfies Array<{ value: Mode; label: string; short: string; placeholder: string; icon: typeof Search }>;
 
 function conditionLabel(condition: string | null): string | null {
   if (!condition) return null;
@@ -120,6 +84,11 @@ function getItemImages(item: MlItem): string[] {
   return item.thumbnail ? [item.thumbnail] : [];
 }
 
+/**
+ * Espelha os dados disponíveis no anúncio de origem. A clonagem mantém preço,
+ * categoria, condição, imagens, atributos e estoque retornados pela API, mas
+ * cria um novo rascunho independente dentro do ANÚNCIO ML.
+ */
 function mlDraftData(item: MlItem, dedupeSource: boolean) {
   return {
     title: item.title.replace(/\s*\((?:copy|cópia)\)\s*$/i, "").slice(0, 60),
@@ -167,12 +136,9 @@ function SearchPage() {
       setItems(result.items);
       setSelected({});
       setNotice(result.ok ? null : result.reason);
-      if (result.ok && result.items.length > 0) {
-        toast.success(`${result.items.length} resultado(s) encontrado(s)`);
-      }
+      if (result.ok && result.items.length > 0) toast.success(`${result.items.length} resultado(s) encontrado(s)`);
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Não foi possível buscar agora."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Não foi possível buscar agora."),
   });
 
   const selectedIds = Object.keys(selected).filter((id) => selected[id]);
@@ -192,9 +158,9 @@ function SearchPage() {
     onSuccess: ({ existed }) => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
       queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
-      toast.success(existed ? "Esse anúncio já estava nos seus rascunhos" : "Anúncio copiado para seus rascunhos");
+      toast.success(existed ? "Esse anúncio já estava nos seus rascunhos" : "Anúncio importado para seus rascunhos");
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao copiar anúncio."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao importar anúncio."),
   });
 
   const editOne = useMutation({
@@ -208,8 +174,7 @@ function SearchPage() {
       await queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
       navigate({ to: "/editor/$id", params: { id } });
     },
-    onError: (error) =>
-      toast.error(error instanceof Error ? error.message : "Não foi possível abrir o anúncio para edição."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Não foi possível abrir o anúncio para edição."),
   });
 
   const duplicateOne = useMutation({
@@ -221,9 +186,9 @@ function SearchPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["listings"] });
       queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
-      toast.success("Nova cópia criada nos rascunhos");
+      toast.success("Anúncio clonado como novo rascunho");
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao criar cópia."),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Falha ao clonar anúncio."),
   });
 
   const startBulk = async (kind: "copy" | "optimize", scope: MlItem[]) => {
@@ -237,7 +202,7 @@ function SearchPage() {
         .select("id, title, source_ml_id")
         .in("source_ml_id", mlIds);
       if (existingError) {
-        toast.error("Não foi possível verificar os anúncios já copiados.");
+        toast.error("Não foi possível verificar os anúncios já importados.");
         return;
       }
 
@@ -322,8 +287,8 @@ function SearchPage() {
 
   return (
     <AppShell
-      title="Buscar e copiar"
-      description="Escolha como deseja encontrar o anúncio. Cada modo usa a consulta adequada do Mercado Livre."
+      title="Buscar e clonar"
+      description="Encontre anúncios por diferentes caminhos e transforme qualquer resultado em um novo rascunho espelhado para sua operação."
     >
       <Card className="overflow-hidden border-primary/20">
         <CardContent className="space-y-5 p-4 sm:p-6">
@@ -348,9 +313,7 @@ function SearchPage() {
                   <Icon className="h-5 w-5 shrink-0" />
                   <span className="min-w-0">
                     <span className="block font-semibold">{option.label}</span>
-                    <span className={`mt-0.5 block text-[11px] font-normal ${active ? "text-primary-foreground/75" : "text-muted-foreground"}`}>
-                      {option.short}
-                    </span>
+                    <span className={`mt-0.5 block text-[11px] font-normal ${active ? "text-primary-foreground/75" : "text-muted-foreground"}`}>{option.short}</span>
                   </span>
                 </Button>
               );
@@ -366,12 +329,7 @@ function SearchPage() {
           >
             <div className="relative flex-1">
               <ActiveModeIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={activeModeOption.placeholder}
-                className="h-11 pl-10"
-              />
+              <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeModeOption.placeholder} className="h-11 pl-10" />
             </div>
             <Button type="submit" size="lg" className="h-11 rounded-xl px-6" disabled={runSearch.isPending || query.trim().length < 2}>
               {runSearch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -381,19 +339,16 @@ function SearchPage() {
 
           <p className="text-xs leading-5 text-muted-foreground">
             {mode === "keyword" && "Procura anúncios relacionados à expressão e complementa com produtos de catálogo quando disponíveis."}
-            {mode === "produto" && "Consulta o catálogo de produtos do Mercado Livre e traz o anúncio ativo associado quando existir."}
+            {mode === "produto" && "Consulta o catálogo de produtos e traz o anúncio ativo associado quando existir."}
             {mode === "id" && "Consulta diretamente o anúncio pelo código MLB informado."}
-            {mode === "link" && "Resolve links oficiais do Mercado Livre e links encurtados para localizar o anúncio."}
-            {mode === "vendedor" && "Busca as publicações ativas pelo nickname exato ou pelo ID numérico do vendedor."}
+            {mode === "link" && "Resolve links oficiais e links encurtados para localizar o anúncio."}
+            {mode === "vendedor" && "Busca as publicações ativas pelo nickname exato ou ID numérico do vendedor."}
+            {" "}Em qualquer resultado você pode importar, editar, otimizar ou clonar como novo rascunho.
           </p>
         </CardContent>
       </Card>
 
-      {notice && (
-        <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-muted-foreground">
-          {notice}
-        </div>
-      )}
+      {notice && <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-muted-foreground">{notice}</div>}
 
       {runSearch.isPending && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -412,16 +367,8 @@ function SearchPage() {
       {items.length > 0 && (
         <>
           <div className="mt-5 flex items-center gap-3 rounded-2xl border bg-card px-4 py-3">
-            <Checkbox
-              checked={selectedIds.length === items.length}
-              onCheckedChange={(checked) =>
-                setSelected(checked ? Object.fromEntries(items.map((item) => [item.id, true])) : {})
-              }
-              id="select-all"
-            />
-            <label htmlFor="select-all" className="cursor-pointer text-sm font-medium">
-              Selecionar todos <span className="text-muted-foreground">({items.length} resultados)</span>
-            </label>
+            <Checkbox checked={selectedIds.length === items.length} onCheckedChange={(checked) => setSelected(checked ? Object.fromEntries(items.map((item) => [item.id, true])) : {})} id="select-all" />
+            <label htmlFor="select-all" className="cursor-pointer text-sm font-medium">Selecionar todos <span className="text-muted-foreground">({items.length} resultados)</span></label>
           </div>
 
           <div className="mt-3 grid gap-4 pb-28 sm:grid-cols-2 xl:grid-cols-3">
@@ -431,24 +378,12 @@ function SearchPage() {
                 <Card key={item.id} className="group overflow-hidden transition-shadow hover:shadow-lg">
                   <CardContent className="p-0">
                     <div className="relative aspect-[16/9] overflow-hidden bg-muted">
-                      <Checkbox
-                        checked={!!selected[item.id]}
-                        onCheckedChange={(checked) => setSelected((prev) => ({ ...prev, [item.id]: !!checked }))}
-                        className="absolute left-3 top-3 z-10 bg-background shadow"
-                      />
-                      {image ? (
-                        <img src={image} alt={item.title} loading="lazy" className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-[1.03]" />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem imagem</div>
-                      )}
+                      <Checkbox checked={!!selected[item.id]} onCheckedChange={(checked) => setSelected((prev) => ({ ...prev, [item.id]: !!checked }))} className="absolute left-3 top-3 z-10 bg-background shadow" />
+                      {image ? <img src={image} alt={item.title} loading="lazy" className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-[1.03]" /> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Sem imagem</div>}
                     </div>
 
                     <div className="space-y-3 p-4">
-                      <div>
-                        <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5">{item.title}</p>
-                        <p className="mt-2 font-display text-xl font-extrabold">{formatBRL(item.price_cents)}</p>
-                      </div>
-
+                      <div><p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5">{item.title}</p><p className="mt-2 font-display text-xl font-extrabold">{formatBRL(item.price_cents)}</p></div>
                       <div className="flex flex-wrap gap-1.5">
                         {item.seller && <Badge variant="outline" className="max-w-full truncate text-[10px]">{item.seller}</Badge>}
                         {conditionLabel(item.condition) && <Badge variant="secondary" className="text-[10px]">{conditionLabel(item.condition)}</Badge>}
@@ -457,42 +392,18 @@ function SearchPage() {
                       <p className="font-mono text-[10px] text-muted-foreground">{item.id}</p>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          size="sm"
-                          className="rounded-xl"
-                          disabled={copyOne.isPending}
-                          onClick={() => copyOne.mutate(item)}
-                        >
-                          {copyOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
-                          Copiar anúncio
+                        <Button size="sm" className="rounded-xl" disabled={copyOne.isPending} onClick={() => copyOne.mutate(item)}>
+                          {copyOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />} Importar anúncio
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="rounded-xl"
-                          disabled={duplicateOne.isPending}
-                          onClick={() => duplicateOne.mutate(item)}
-                        >
-                          {duplicateOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Files className="h-3.5 w-3.5" />}
-                          Criar cópia
+                        <Button size="sm" variant="secondary" className="rounded-xl" disabled={duplicateOne.isPending} onClick={() => duplicateOne.mutate(item)}>
+                          {duplicateOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Files className="h-3.5 w-3.5" />} Clonar anúncio
                         </Button>
-                        <Button size="sm" variant="outline" className="rounded-xl" onClick={() => startBulk("optimize", [item])}>
-                          <Sparkles className="h-3.5 w-3.5" /> Otimizar IA
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-xl"
-                          disabled={editOne.isPending}
-                          onClick={() => editOne.mutate(item)}
-                        >
-                          {editOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Edit className="h-3.5 w-3.5" />}
-                          Editar
+                        <Button size="sm" variant="outline" className="rounded-xl" onClick={() => startBulk("optimize", [item])}><Sparkles className="h-3.5 w-3.5" /> Otimizar IA</Button>
+                        <Button size="sm" variant="outline" className="rounded-xl" disabled={editOne.isPending} onClick={() => editOne.mutate(item)}>
+                          {editOne.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Edit className="h-3.5 w-3.5" />} Editar
                         </Button>
                       </div>
-                      <Button size="sm" variant="ghost" className="w-full rounded-xl text-muted-foreground" onClick={() => copyToClipboard(item.id)}>
-                        <Clipboard className="h-3.5 w-3.5" /> Copiar código MLB
-                      </Button>
+                      <Button size="sm" variant="ghost" className="w-full rounded-xl text-muted-foreground" onClick={() => copyToClipboard(item.id)}><Clipboard className="h-3.5 w-3.5" /> Copiar código MLB</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -507,18 +418,10 @@ function SearchPage() {
           <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <p className="text-sm font-semibold">{selectedIds.length} anúncio(s) selecionado(s)</p>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-              <Button size="sm" className="rounded-xl" onClick={() => startBulk("copy", selectedItems)}>
-                <Copy className="h-3.5 w-3.5" /> Copiar selecionados
-              </Button>
-              <Button size="sm" variant="secondary" className="rounded-xl" onClick={() => startBulk("optimize", selectedItems)}>
-                <Sparkles className="h-3.5 w-3.5" /> Otimizar com IA
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl" onClick={copyCodes}>
-                <Clipboard className="h-3.5 w-3.5" /> Copiar códigos
-              </Button>
-              <Button size="sm" variant="outline" className="rounded-xl" onClick={exportCsv}>
-                <Download className="h-3.5 w-3.5" /> Exportar
-              </Button>
+              <Button size="sm" className="rounded-xl" onClick={() => startBulk("copy", selectedItems)}><Files className="h-3.5 w-3.5" /> Clonar selecionados</Button>
+              <Button size="sm" variant="secondary" className="rounded-xl" onClick={() => startBulk("optimize", selectedItems)}><Sparkles className="h-3.5 w-3.5" /> Otimizar com IA</Button>
+              <Button size="sm" variant="outline" className="rounded-xl" onClick={copyCodes}><Clipboard className="h-3.5 w-3.5" /> Copiar códigos</Button>
+              <Button size="sm" variant="outline" className="rounded-xl" onClick={exportCsv}><Download className="h-3.5 w-3.5" /> Exportar</Button>
             </div>
           </div>
         </div>
