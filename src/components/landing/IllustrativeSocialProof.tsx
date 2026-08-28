@@ -36,7 +36,7 @@ export function IllustrativeSocialProof() {
     };
   }, []);
 
-  const current = activity[index];
+  const current = activity[index] ?? activity[0]!;
 
   return (
     <section className="relative border-b border-border/60 py-16 sm:py-24">
