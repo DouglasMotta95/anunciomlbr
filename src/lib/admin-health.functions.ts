@@ -51,7 +51,7 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
         .select("id", { count: "exact", head: true })
         .in("kind", ["ml_notification", "ml_item_updated"])
         .gte("created_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
-      supabaseAdmin.from("plans").select("code,ai_credits,kind,active"),
+      supabaseAdmin.from("plans").select("code,ai_credits,kind,active,features"),
       supabaseAdmin.rpc("ai_credit_status", { _user_id: context.userId }),
       supabaseAdmin.storage.getBucket("ai-listing-images"),
     ]);
@@ -78,12 +78,17 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
     const packagesCurrent = EXPECTED_PACKAGES.every((code) =>
       catalogRows.some((plan: any) => plan.code === code && plan.active === true),
     );
-    const migrationsOk = !planCatalog.error && !aiRpc.error && !imageBucket.error && mainPlansCurrent && packagesCurrent;
+    const imageCostCatalogCurrent = ["ai_extra_100", "ai_extra_300", "ai_extra_750", "ai_extra_1500"].every((code) => {
+      const row = catalogRows.find((plan: any) => plan.code === code && plan.active === true);
+      return Array.isArray(row?.features) && row.features.some((feature: unknown) => String(feature).includes("3 créditos por imagem"));
+    });
+    const migrationsOk = !planCatalog.error && !aiRpc.error && !imageBucket.error && mainPlansCurrent && packagesCurrent && imageCostCatalogCurrent;
     const migrationDetail = migrationsOk
-      ? "Catálogo v2, RPC de créditos e bucket de imagens confirmados no ambiente"
+      ? "Catálogo v3, RPC de créditos e bucket de imagens confirmados no ambiente"
       : [
           !mainPlansCurrent ? "franquias dos planos desatualizadas" : null,
           !packagesCurrent ? "pacotes extras ausentes/desativados" : null,
+          !imageCostCatalogCurrent ? "catálogo ainda não informa 3 créditos por imagem" : null,
           aiRpc.error ? "RPC de créditos indisponível" : null,
           imageBucket.error ? "bucket de imagens IA indisponível" : null,
         ].filter(Boolean).join(" · ") || "não foi possível validar o estado do banco";
