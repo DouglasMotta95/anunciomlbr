@@ -25,6 +25,7 @@
     "noUncheckedSideEffectImports": true,
     "paths": {
       "@/lib/ml.functions": ["./src/lib/ml-search-fixed.functions.ts"],
+      "@/lib/ml-search-fixed.functions": ["./src/lib/ml-search-production.functions.ts"],
       "@/*": ["./src/*"]
     }
   }
