@@ -27,7 +27,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLicense } from "@/hooks/useLicense";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import { createMercadoPagoCheckout } from "@/lib/checkout.functions";
-import { daysUntil, formatBRL, formatDate, formatNumber } from "@/lib/format";
+import { formatBRL, formatDate, formatNumber } from "@/lib/format";
 import { activateLicense } from "@/lib/licenses.functions";
 import {
   periodMonthlyCents,
@@ -75,7 +75,10 @@ function LicensePage() {
   const activation = useMutation({
     mutationFn: (value: string) => activate({ data: { code: value } }),
     onSuccess: (result) => {
-      if (!result.ok) return toast.error("Chave não aceita", { description: result.reason });
+      if (!result.ok) {
+        toast.error("Chave não aceita", { description: result.reason });
+        return;
+      }
       void queryClient.invalidateQueries({ queryKey: ["license"] });
       void queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
       void queryClient.invalidateQueries({ queryKey: ["subscription-center"] });
@@ -84,7 +87,9 @@ function LicensePage() {
       });
       setCode("");
     },
-    onError: () => toast.error("Não foi possível validar a chave agora."),
+    onError: () => {
+      toast.error("Não foi possível validar a chave agora.");
+    },
   });
 
   const purchase = useMutation({
@@ -98,10 +103,11 @@ function LicensePage() {
         description: result.reason ?? "Não foi possível abrir o Mercado Pago agora.",
       });
     },
-    onError: (error) =>
+    onError: (error) => {
       toast.error("Falha ao iniciar o checkout.", {
         description: error instanceof Error ? error.message : undefined,
-      }),
+      });
+    },
   });
 
   const adsUsed = Number(quota?.used ?? 0);
@@ -110,7 +116,10 @@ function LicensePage() {
   const ai = subscription?.ai ?? { used: 0, limit: 0, remaining: 0 };
 
   return (
-    <AppShell title="Plano e licença" description="Capacidade de anúncios e IA sem informação misturada.">
+    <AppShell
+      title="Plano e licença"
+      description="Capacidade de anúncios e IA sem informação misturada."
+    >
       <div className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
         <Card className="border-primary/20">
           <CardHeader>
@@ -121,7 +130,9 @@ function LicensePage() {
               <div className="flex items-center gap-2">
                 <BadgeCheck className="h-5 w-5 text-primary" />
                 <div>
-                  <p className="font-display text-xl font-extrabold">{license?.plan?.name ?? "Teste grátis"}</p>
+                  <p className="font-display text-xl font-extrabold">
+                    {license?.plan?.name ?? "Teste grátis"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {license?.expires_at
                       ? `Válido até ${formatDate(license.expires_at)}`
@@ -158,7 +169,7 @@ function LicensePage() {
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/creditos-ia" as any>
+                <Link to="/creditos-ia">
                   <Sparkles className="mr-2 h-4 w-4" />Comprar créditos de IA
                 </Link>
               </Button>
@@ -187,7 +198,11 @@ function LicensePage() {
                   onChange={(event) => setCode(event.target.value.toUpperCase())}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={activation.isPending || code.trim().length < 6}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={activation.isPending || code.trim().length < 6}
+              >
                 {activation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -223,7 +238,8 @@ function LicensePage() {
           <div>
             <h2 className="font-display text-xl font-extrabold">Planos</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Compare capacidade de anúncios e créditos de IA. O teste grátis não faz parte do Starter.
+              Compare capacidade de anúncios e créditos de IA. O teste grátis não faz parte do
+              Starter.
             </p>
           </div>
           <Tabs value={period} onValueChange={(value) => setPeriod(value as BillingPeriod)}>
@@ -232,7 +248,9 @@ function LicensePage() {
                 <TabsTrigger key={item.period} value={item.period}>
                   {item.label}
                   {Number(item.discount_percent) > 0 && (
-                    <span className="ml-1 text-[10px] text-primary">-{Number(item.discount_percent)}%</span>
+                    <span className="ml-1 text-[10px] text-primary">
+                      -{Number(item.discount_percent)}%
+                    </span>
                   )}
                 </TabsTrigger>
               ))}
@@ -246,7 +264,9 @@ function LicensePage() {
           {plans.map((plan) => {
             const isCurrent = license?.plan?.id === plan.id;
             const total = discount ? periodTotalCents(plan, discount) : plan.price_monthly_cents;
-            const monthly = discount ? periodMonthlyCents(plan, discount) : plan.price_monthly_cents;
+            const monthly = discount
+              ? periodMonthlyCents(plan, discount)
+              : plan.price_monthly_cents;
             const savings = discount ? periodSavingsCents(plan, discount) : 0;
             return (
               <Card
@@ -263,7 +283,9 @@ function LicensePage() {
                   </div>
                   <p className="text-xs text-muted-foreground">{plan.tagline}</p>
                   <div className="pt-2">
-                    <span className="font-display text-3xl font-extrabold">{formatBRL(monthly)}</span>
+                    <span className="font-display text-3xl font-extrabold">
+                      {formatBRL(monthly)}
+                    </span>
                     <span className="text-sm text-muted-foreground">/mês</span>
                     {discount && discount.months > 1 && (
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -277,10 +299,18 @@ function LicensePage() {
                   <div className="grid grid-cols-2 gap-2">
                     <Capacity
                       icon={PackagePlus}
-                      value={plan.listing_limit == null ? "Ilimitados" : formatNumber(plan.listing_limit)}
+                      value={
+                        plan.listing_limit == null
+                          ? "Ilimitados"
+                          : formatNumber(plan.listing_limit)
+                      }
                       label="anúncios/ciclo"
                     />
-                    <Capacity icon={Bot} value={formatNumber(plan.ai_credits ?? 0)} label="créditos IA/ciclo" />
+                    <Capacity
+                      icon={Bot}
+                      value={formatNumber(plan.ai_credits ?? 0)}
+                      label="créditos IA/ciclo"
+                    />
                   </div>
                   <ul className="flex-1 space-y-2 text-sm text-muted-foreground">
                     {plan.features.slice(0, 4).map((feature) => (
@@ -351,7 +381,15 @@ function Usage({
   );
 }
 
-function Capacity({ icon: Icon, value, label }: { icon: typeof PackagePlus; value: string; label: string }) {
+function Capacity({
+  icon: Icon,
+  value,
+  label,
+}: {
+  icon: typeof PackagePlus;
+  value: string;
+  label: string;
+}) {
   return (
     <div className="rounded-xl border bg-muted/20 p-3">
       <Icon className="h-4 w-4 text-primary" />
