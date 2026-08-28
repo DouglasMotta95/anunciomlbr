@@ -1,7 +1,27 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import {
+  createFileRoute,
+  Link,
+  type LinkComponentReactProps,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowRight, ArrowUpRight, Bell, Boxes, Bot, CheckCircle2, Circle, ExternalLink, PackagePlus, Search, ShoppingBag, Sparkles, Trophy } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Bell,
+  Boxes,
+  Bot,
+  CheckCircle2,
+  Circle,
+  ExternalLink,
+  PackagePlus,
+  Search,
+  ShoppingBag,
+  Sparkles,
+  Trophy,
+  type LucideIcon,
+} from "lucide-react";
+
 import { AppShell } from "@/components/app/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,34 +35,638 @@ import { formatBRL, formatNumber } from "@/lib/format";
 import { getSellerGrowthOverview } from "@/lib/seller-growth.functions";
 import { getSubscriptionCenter } from "@/lib/subscription-center.functions";
 
-export const Route=createFileRoute("/_authenticated/dashboard")({head:()=>({meta:[{title:"Painel do vendedor — ANÚNCIO ML"},{name:"robots",content:"noindex"}]}),component:DashboardPage});
-function DashboardPage(){
- const {data:profile}=useProfile(),{data:license}=useLicense(),listingsQuery=useListings();
- const listings=listingsQuery.data??[];
- const overviewFn=useServerFn(getSellerGrowthOverview),platformFn=useServerFn(getDashboardPlatformMetrics),subscriptionFn=useServerFn(getSubscriptionCenter);
- const overviewQuery=useQuery({queryKey:["seller-growth","dashboard"],queryFn:()=>overviewFn(),staleTime:60000});
- const platformQuery=useQuery({queryKey:["dashboard-platform-metrics"],queryFn:()=>platformFn(),staleTime:60000});
- const subscriptionQuery=useQuery({queryKey:["subscription-center"],queryFn:()=>subscriptionFn(),staleTime:30000});
- const overview=overviewQuery.data,sales=overview?.sales,champions=(overview as any)?.champions??[],priorities=((overview as any)?.opportunities??[]).slice(0,4);
- const active=listings.filter(l=>l.status==="active").length,optimized=listings.filter(l=>l.ai_score!==null&&l.ai_score!==undefined&&Number(l.ai_score)>0).length;
- const remaining=overview?.quota.remaining??0,used=(overview?.quota as any)?.used??0,limit=(overview?.quota as any)?.quota??remaining+used,pct=limit?Math.min(100,Math.round((used/limit)*100)):0;
- const createdByPlatform=platformQuery.data?.created_by_platform??used,isFree=!license&&limit===10,lowFree=isFree&&remaining>0&&remaining<=3;
- const ai=subscriptionQuery.data?.ai??{limit:0,used:0,remaining:0},aiPct=ai.limit?Math.min(100,Math.round((ai.used/ai.limit)*100)):0;
- const connected=Boolean(overview?.connection?.connected),hasListings=listings.length>0,hasOptimized=optimized>0;
- const metricsLoading=listingsQuery.isLoading||platformQuery.isLoading;
- return <AppShell title={`Painel do vendedor${profile?.full_name?` · ${profile.full_name.split(" ")[0]}`:""}`} description="Sua operação do Mercado Livre organizada em uma única central." actions={<><Button asChild variant="outline" size="sm"><Link to="/notificacoes" as any><Bell className="mr-2 h-4 w-4"/>Alertas</Link></Button><Button asChild size="sm"><Link to="/buscar"><Search className="mr-2 h-4 w-4"/>Buscar e copiar</Link></Button></>}>
-  {isFree&&<Card className={`mb-4 ${lowFree?"border-amber-500/40 bg-amber-500/[.05]":"border-primary/25 bg-primary/[.035]"}`}><CardContent className="space-y-3 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-primary">Teste grátis</p><p className="mt-1 text-xl font-extrabold">{used} de 10 anúncios usados</p></div><Badge variant={lowFree?"destructive":"secondary"}>{remaining} restantes</Badge></div><Progress value={pct}/><p className="text-xs leading-5 text-muted-foreground">Cada nova criação ou cópia consome 1 unidade. Editar e publicar novamente o mesmo rascunho não consome outra.</p>{lowFree&&<Button asChild size="sm"><Link to="/licenca">Ver planos</Link></Button>}</CardContent></Card>}
-  <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[.13] via-card to-card p-5 shadow-sm sm:p-7"><div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl"/><div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div><Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">CENTRAL DE OPERAÇÃO</Badge><h2 className="mt-3 max-w-3xl text-2xl font-extrabold tracking-tight sm:text-3xl">Controle, copie e melhore seus anúncios sem perder tempo.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Os números abaixo usam dados reais disponíveis na sua conta. Anúncios antigos do Mercado Livre não entram na franquia de criação do ANÚNCIO ML.</p></div><Button asChild variant="secondary"><Link to="/crescimento">Ver oportunidades<ArrowUpRight className="ml-2 h-4 w-4"/></Link></Button></div></section>
-  <Card className="mt-4 border-primary/20"><CardHeader className="pb-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><CardTitle>Comece por aqui</CardTitle><p className="mt-1 text-xs text-muted-foreground">O caminho mais rápido para colocar a plataforma para trabalhar.</p></div><Badge variant={connected&&hasListings?"secondary":"outline"}>{connected&&hasListings?"Operação iniciada":"Configuração inicial"}</Badge></div></CardHeader><CardContent><div className="grid gap-3 md:grid-cols-4"><Journey done={connected} number="1" title="Conectar Mercado Livre" text={connected?"Conta conectada":"Autorize sua conta para sincronizar dados."} to="/integracoes"/><Journey done={hasListings} number="2" title="Buscar e copiar" text="Encontre um anúncio por termo, ID, link ou vendedor." to="/buscar"/><Journey done={hasOptimized} number="3" title="Otimizar com IA" text="Melhore título e conteúdo sem inventar características." to="/anuncios"/><Journey done={Boolean(sales?.available)} number="4" title="Acompanhar resultados" text="Veja vendas, saúde e oportunidades da operação." to="/crescimento"/></div></CardContent></Card>
-  <Card className="mt-4 overflow-hidden border-primary/25"><CardHeader className="border-b bg-primary/[.04]"><div className="flex flex-wrap items-center justify-between gap-2"><div><CardTitle>Faça agora</CardTitle><p className="mt-1 text-xs text-muted-foreground">Prioridades calculadas com os dados disponíveis na sua conta.</p></div><Button asChild size="sm" variant="outline"><Link to="/crescimento">Ver central completa<ArrowRight className="ml-1.5 h-3.5 w-3.5"/></Link></Button></div></CardHeader><CardContent className="pt-5">{overviewQuery.isLoading?<div className="grid gap-3 md:grid-cols-2">{[0,1,2,3].map(i=><Skeleton key={i} className="h-24 rounded-2xl"/>)}</div>:priorities.length?<div className="grid gap-3 md:grid-cols-2">{priorities.map((item:any)=><div key={item.key} className="flex items-start justify-between gap-3 rounded-2xl border bg-card p-4"><div className="min-w-0"><div className="flex items-center gap-2"><Badge variant={item.severity==="high"?"destructive":item.severity==="medium"?"secondary":"outline"}>{formatNumber(item.count??0)}</Badge><p className="font-semibold">{item.title}</p></div><p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p></div><Button asChild size="sm" className="shrink-0"><Link to={item.action_to as "/anuncios"}>Resolver</Link></Button></div>)}</div>:<div className="rounded-2xl border border-dashed p-6 text-center"><CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500"/><p className="mt-2 font-semibold">Nenhuma prioridade crítica agora</p><p className="mt-1 text-xs text-muted-foreground">Continue acompanhando vendas, estoque, perguntas e saúde dos anúncios.</p></div>}</CardContent></Card>
-  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric loading={metricsLoading} label="Anúncios criados" value={formatNumber(createdByPlatform)} hint="criados ou copiados pelo ANÚNCIO ML" icon={PackagePlus}/><Metric loading={listingsQuery.isLoading} label="Anúncios ativos" value={formatNumber(active)} hint="inclui anúncios sincronizados da sua conta" icon={Boxes}/><Metric loading={listingsQuery.isLoading} label="Otimizados por IA" value={formatNumber(optimized)} hint="anúncios que já receberam avaliação/otimização" icon={Bot}/><Metric loading={overviewQuery.isLoading} label="Faturamento · 30 dias" value={sales?.available?formatBRL(sales.revenue_cents):"—"} hint={sales?.available?"valor real dos pedidos consultados no Mercado Livre":"aguardando dados reais de vendas"} icon={ShoppingBag}/></div>
-  <div className="mt-4 grid gap-4 xl:grid-cols-3"><Card className="overflow-hidden border-primary/25 xl:col-span-2"><CardHeader className="border-b bg-primary/[.035]"><div className="flex items-center justify-between"><CardTitle>Franquia de anúncios</CardTitle><Badge variant={pct>=85?"destructive":"secondary"}>{pct}% usado</Badge></div></CardHeader><CardContent className="space-y-4 pt-6"><div className="flex items-end justify-between gap-4"><div><p className="text-4xl font-extrabold tracking-tight">{formatNumber(used)} <span className="text-lg font-medium text-muted-foreground">/ {formatNumber(limit)}</span></p><p className="mt-1 text-sm text-muted-foreground">novas criações e cópias utilizadas</p></div><strong className="text-sm text-primary">{formatNumber(remaining)} disponíveis</strong></div><Progress value={pct} className="h-2.5"/><p className="rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">Editar um anúncio existente não gasta outra unidade. Anúncios antigos sincronizados do Mercado Livre também não consomem sua franquia.</p>{pct>=70&&<Button asChild><Link to="/assinatura" as any>Ver upgrade ou comprar extras</Link></Button>}</CardContent></Card><Card><CardHeader><div className="flex items-center justify-between gap-2"><CardTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary"/>Créditos de IA</CardTitle><Badge variant={aiPct>=85?"destructive":"outline"}>{aiPct}%</Badge></div></CardHeader><CardContent className="space-y-4">{subscriptionQuery.isLoading?<Skeleton className="h-9 w-32"/>:<p className="text-3xl font-extrabold">{formatNumber(ai.used)} <span className="text-base font-medium text-muted-foreground">/ {formatNumber(ai.limit)}</span></p>}<Progress value={aiPct}/><p className="text-xs leading-5 text-muted-foreground">IA possui saldo separado da franquia de anúncios. Textos usam 1 crédito por ação e imagens usam 3 por geração.</p><Button asChild size="sm" variant="outline" className="w-full"><Link to="/creditos-ia" as any>Gerenciar créditos de IA</Link></Button></CardContent></Card></div>
-  <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_.9fr]"><Card><CardHeader><CardTitle>Vendas · últimos 30 dias</CardTitle></CardHeader><CardContent className="space-y-4">{overviewQuery.isLoading?<div className="space-y-3"><Skeleton className="h-6 w-full"/><Skeleton className="h-6 w-full"/><Skeleton className="h-6 w-full"/><Skeleton className="h-6 w-full"/></div>:overviewQuery.isError?<DataUnavailable text="Não foi possível consultar as vendas agora."/>:sales?.available?<><Row label="Pedidos" value={formatNumber(sales.orders)}/><Row label="Unidades vendidas" value={formatNumber(sales.units)}/><Row label="Faturamento" value={formatBRL(sales.revenue_cents)}/><Row label="Ticket médio" value={formatBRL(sales.ticket_cents)}/></>:<DataUnavailable text={connected?"Os dados de vendas estão indisponíveis no momento.":"Conecte o Mercado Livre para carregar vendas reais."}/>}<Button asChild variant="outline" className="w-full"><Link to={connected?"/vendas":"/integracoes"}>{connected?"Abrir vendas e pedidos":"Conectar Mercado Livre"}</Link></Button></CardContent></Card><Card><CardHeader><CardTitle>Ações rápidas</CardTitle></CardHeader><CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1"><Quick to="/buscar" icon={Search} label="Buscar e copiar" description="Use anúncio, ID, link ou vendedor como base." primary/><Quick to="/anuncios/novo" icon={PackagePlus} label="Criar anúncio do zero" description="Comece um novo rascunho manualmente."/><Quick to="/anuncios" icon={Sparkles} label="Otimizar meus anúncios" description="Edite, crie variações e use IA."/><Quick to="/crescimento" icon={Trophy} label="Central de crescimento" description="Prioridades, saúde e oportunidades."/></CardContent></Card></div>
-  <Card className="mt-4 overflow-hidden border-primary/20"><CardHeader className="border-b bg-primary/[.03]"><div className="flex items-center gap-2 text-primary"><Trophy className="h-5 w-5"/><CardTitle>Anúncios campeões de venda</CardTitle></div></CardHeader><CardContent className="pt-6">{overviewQuery.isLoading?<div className="grid gap-4 md:grid-cols-3">{[0,1,2].map(i=><Skeleton key={i} className="h-40 rounded-2xl"/>)}</div>:sales?.available&&champions.length?<div className="grid gap-4 md:grid-cols-3">{champions.slice(0,3).map((c:any,i:number)=><div key={c.listing_id??c.ml_item_id??i} className="group overflow-hidden rounded-2xl border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-lg"><div className="flex gap-3 p-3">{c.image?<img src={c.image} alt={c.title} className="h-20 w-20 shrink-0 rounded-xl border bg-white object-contain"/>:<div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-muted"><ShoppingBag className="h-6 w-6 text-muted-foreground"/></div>}<div className="min-w-0 flex-1"><Badge>#{i+1} campeão</Badge><p className="mt-2 line-clamp-2 text-sm font-semibold">{c.title}</p><p className="mt-1 text-xs text-muted-foreground">{formatNumber(c.units)} vendidos</p><p className="mt-1 font-bold text-primary">{formatBRL(c.revenue_cents)}</p></div></div><div className="grid gap-2 border-t p-3 sm:grid-cols-2">{c.listing_id?<Button asChild size="sm" variant="outline"><Link to="/editor/$id" params={{id:c.listing_id}}>Abrir no gerenciador</Link></Button>:<Button size="sm" variant="outline" disabled>Sem cópia local</Button>}{c.permalink?<Button asChild size="sm"><a href={c.permalink} target="_blank" rel="noopener noreferrer">Ver no Mercado Livre<ExternalLink className="ml-2 h-3.5 w-3.5"/></a></Button>:<Button size="sm" disabled>Link indisponível</Button>}</div></div>)}</div>:<div className="rounded-2xl border border-dashed p-7 text-center"><Trophy className="mx-auto h-8 w-8 text-muted-foreground"/><p className="mt-3 font-semibold">{sales?.available?"Ainda não há campeões para destacar":"Ranking aguardando dados de vendas"}</p><p className="mt-1 text-sm text-muted-foreground">{sales?.available?"Quando houver vendas no período, os produtos com melhor desempenho aparecerão aqui.":"Não exibimos ranking ou vendas estimadas como se fossem dados reais."}</p></div>}</CardContent></Card>
- </AppShell>
+export const Route = createFileRoute("/_authenticated/dashboard")({
+  head: () => ({
+    meta: [
+      { title: "Painel do vendedor — ANÚNCIO ML" },
+      { name: "robots", content: "noindex" },
+    ],
+  }),
+  component: DashboardPage,
+});
+
+type DashboardTo = LinkComponentReactProps["to"];
+
+type JourneyProps = {
+  done: boolean;
+  number: string;
+  title: string;
+  text: string;
+  to: DashboardTo;
+};
+
+type MetricProps = {
+  label: string;
+  value: string;
+  hint: string;
+  icon: LucideIcon;
+  loading?: boolean;
+};
+
+type QuickProps = {
+  to: DashboardTo;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  primary?: boolean;
+};
+
+function priorityDestination(value: unknown): DashboardTo {
+  switch (value) {
+    case "/assinatura":
+      return "/assinatura";
+    case "/buscar":
+      return "/buscar";
+    case "/crescimento":
+      return "/crescimento";
+    case "/estoque":
+      return "/estoque";
+    case "/integracoes":
+      return "/integracoes";
+    case "/notificacoes":
+      return "/notificacoes";
+    case "/perguntas":
+      return "/perguntas";
+    case "/saude-anuncios":
+      return "/saude-anuncios";
+    case "/vendas":
+      return "/vendas";
+    case "/anuncios":
+    default:
+      return "/anuncios";
+  }
 }
-function Journey({done,number,title,text,to}:any){return <Link to={to} className="group rounded-2xl border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-sm"><div className="flex items-center justify-between"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-extrabold text-primary">{number}</span>{done?<CheckCircle2 className="h-5 w-5 text-emerald-500"/>:<Circle className="h-5 w-5 text-muted-foreground/50"/>}</div><p className="mt-3 text-sm font-bold">{title}</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p><span className="mt-3 flex items-center text-xs font-semibold text-primary">Abrir<ArrowRight className="ml-1 h-3.5 w-3.5 transition-transform group-hover:translate-x-1"/></span></Link>}
-function Metric({label,value,hint,icon:Icon,loading=false}:any){return <Card className="group transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"><CardContent className="p-5"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>{loading?<Skeleton className="mt-2 h-9 w-32"/>:<p className="mt-2 text-3xl font-extrabold tracking-tight">{value}</p>}<p className="mt-1 max-w-[230px] text-xs leading-5 text-muted-foreground">{hint}</p></div><div className="rounded-2xl bg-primary/10 p-2.5"><Icon className="h-5 w-5 text-primary"/></div></div></CardContent></Card>}
-function Row({label,value}:any){return <div className="flex items-center justify-between gap-3 border-b pb-3 text-sm last:border-0"><span className="text-muted-foreground">{label}</span><strong>{value}</strong></div>}
-function DataUnavailable({text}:{text:string}){return <div className="rounded-2xl border border-dashed p-5 text-center"><p className="text-sm font-semibold">Dados indisponíveis</p><p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p></div>}
-function Quick({to,label,description,icon:Icon,primary=false}:any){return <Button asChild variant={primary?"default":"outline"} className="group h-auto justify-start rounded-2xl p-4 text-left"><Link to={to}><span className={primary?"mr-3 rounded-xl bg-primary-foreground/15 p-2":"mr-3 rounded-xl bg-primary/10 p-2"}><Icon className={primary?"h-5 w-5 text-primary-foreground":"h-5 w-5 text-primary"}/></span><span><strong className="block">{label}</strong><span className={primary?"mt-1 block whitespace-normal text-xs font-normal leading-5 text-primary-foreground/75":"mt-1 block whitespace-normal text-xs font-normal leading-5 text-muted-foreground"}>{description}</span></span></Link></Button>}
+
+function DashboardPage() {
+  const { data: profile } = useProfile();
+  const { data: license } = useLicense();
+  const listingsQuery = useListings();
+  const listings = listingsQuery.data ?? [];
+
+  const overviewFn = useServerFn(getSellerGrowthOverview);
+  const platformFn = useServerFn(getDashboardPlatformMetrics);
+  const subscriptionFn = useServerFn(getSubscriptionCenter);
+  const overviewQuery = useQuery({
+    queryKey: ["seller-growth", "dashboard"],
+    queryFn: () => overviewFn(),
+    staleTime: 60_000,
+  });
+  const platformQuery = useQuery({
+    queryKey: ["dashboard-platform-metrics"],
+    queryFn: () => platformFn(),
+    staleTime: 60_000,
+  });
+  const subscriptionQuery = useQuery({
+    queryKey: ["subscription-center"],
+    queryFn: () => subscriptionFn(),
+    staleTime: 30_000,
+  });
+
+  const overview = overviewQuery.data;
+  const sales = overview?.sales;
+  const champions = (overview as any)?.champions ?? [];
+  const priorities = ((overview as any)?.opportunities ?? []).slice(0, 4);
+  const active = listings.filter((listing) => listing.status === "active").length;
+  const optimized = listings.filter(
+    (listing) =>
+      listing.ai_score !== null &&
+      listing.ai_score !== undefined &&
+      Number(listing.ai_score) > 0,
+  ).length;
+  const remaining = overview?.quota.remaining ?? 0;
+  const used = (overview?.quota as any)?.used ?? 0;
+  const limit = (overview?.quota as any)?.quota ?? remaining + used;
+  const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const createdByPlatform = platformQuery.data?.created_by_platform ?? used;
+  const isFree = !license && limit === 10;
+  const lowFree = isFree && remaining > 0 && remaining <= 3;
+  const ai = subscriptionQuery.data?.ai ?? { limit: 0, used: 0, remaining: 0 };
+  const aiPct = ai.limit ? Math.min(100, Math.round((ai.used / ai.limit) * 100)) : 0;
+  const connected = Boolean(overview?.connection?.connected);
+  const hasListings = listings.length > 0;
+  const hasOptimized = optimized > 0;
+  const metricsLoading = listingsQuery.isLoading || platformQuery.isLoading;
+
+  return (
+    <AppShell
+      title={`Painel do vendedor${profile?.full_name ? ` · ${profile.full_name.split(" ")[0]}` : ""}`}
+      description="Sua operação do Mercado Livre organizada em uma única central."
+      actions={
+        <>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/notificacoes">
+              <Bell className="mr-2 h-4 w-4" />Alertas
+            </Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link to="/buscar">
+              <Search className="mr-2 h-4 w-4" />Buscar e copiar
+            </Link>
+          </Button>
+        </>
+      }
+    >
+      {isFree && (
+        <Card
+          className={`mb-4 ${lowFree ? "border-amber-500/40 bg-amber-500/[.05]" : "border-primary/25 bg-primary/[.035]"}`}
+        >
+          <CardContent className="space-y-3 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-primary">Teste grátis</p>
+                <p className="mt-1 text-xl font-extrabold">{used} de 10 anúncios usados</p>
+              </div>
+              <Badge variant={lowFree ? "destructive" : "secondary"}>{remaining} restantes</Badge>
+            </div>
+            <Progress value={pct} />
+            <p className="text-xs leading-5 text-muted-foreground">
+              Cada nova criação ou cópia consome 1 unidade. Editar e publicar novamente o mesmo
+              rascunho não consome outra.
+            </p>
+            {lowFree && (
+              <Button asChild size="sm">
+                <Link to="/licenca">Ver planos</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[.13] via-card to-card p-5 shadow-sm sm:p-7">
+        <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+              CENTRAL DE OPERAÇÃO
+            </Badge>
+            <h2 className="mt-3 max-w-3xl text-2xl font-extrabold tracking-tight sm:text-3xl">
+              Controle, copie e melhore seus anúncios sem perder tempo.
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+              Os números abaixo usam dados reais disponíveis na sua conta. Anúncios antigos do
+              Mercado Livre não entram na franquia de criação do ANÚNCIO ML.
+            </p>
+          </div>
+          <Button asChild variant="secondary">
+            <Link to="/crescimento">
+              Ver oportunidades<ArrowUpRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </section>
+
+      <Card className="mt-4 border-primary/20">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>Comece por aqui</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                O caminho mais rápido para colocar a plataforma para trabalhar.
+              </p>
+            </div>
+            <Badge variant={connected && hasListings ? "secondary" : "outline"}>
+              {connected && hasListings ? "Operação iniciada" : "Configuração inicial"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-4">
+            <Journey
+              done={connected}
+              number="1"
+              title="Conectar Mercado Livre"
+              text={connected ? "Conta conectada" : "Autorize sua conta para sincronizar dados."}
+              to="/integracoes"
+            />
+            <Journey
+              done={hasListings}
+              number="2"
+              title="Buscar e copiar"
+              text="Encontre um anúncio por termo, ID, link ou vendedor."
+              to="/buscar"
+            />
+            <Journey
+              done={hasOptimized}
+              number="3"
+              title="Otimizar com IA"
+              text="Melhore título e conteúdo sem inventar características."
+              to="/anuncios"
+            />
+            <Journey
+              done={Boolean(sales?.available)}
+              number="4"
+              title="Acompanhar resultados"
+              text="Veja vendas, saúde e oportunidades da operação."
+              to="/crescimento"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4 overflow-hidden border-primary/25">
+        <CardHeader className="border-b bg-primary/[.04]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle>Faça agora</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Prioridades calculadas com os dados disponíveis na sua conta.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/crescimento">
+                Ver central completa<ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-5">
+          {overviewQuery.isLoading ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {[0, 1, 2, 3].map((index) => (
+                <Skeleton key={index} className="h-24 rounded-2xl" />
+              ))}
+            </div>
+          ) : priorities.length ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {priorities.map((item: any) => (
+                <div
+                  key={item.key}
+                  className="flex items-start justify-between gap-3 rounded-2xl border bg-card p-4"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={
+                          item.severity === "high"
+                            ? "destructive"
+                            : item.severity === "medium"
+                              ? "secondary"
+                              : "outline"
+                        }
+                      >
+                        {formatNumber(item.count ?? 0)}
+                      </Badge>
+                      <p className="font-semibold">{item.title}</p>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
+                  </div>
+                  <Button asChild size="sm" className="shrink-0">
+                    <Link to={priorityDestination(item.action_to)}>Resolver</Link>
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed p-6 text-center">
+              <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+              <p className="mt-2 font-semibold">Nenhuma prioridade crítica agora</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Continue acompanhando vendas, estoque, perguntas e saúde dos anúncios.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric
+          loading={metricsLoading}
+          label="Anúncios criados"
+          value={formatNumber(createdByPlatform)}
+          hint="criados ou copiados pelo ANÚNCIO ML"
+          icon={PackagePlus}
+        />
+        <Metric
+          loading={listingsQuery.isLoading}
+          label="Anúncios ativos"
+          value={formatNumber(active)}
+          hint="inclui anúncios sincronizados da sua conta"
+          icon={Boxes}
+        />
+        <Metric
+          loading={listingsQuery.isLoading}
+          label="Otimizados por IA"
+          value={formatNumber(optimized)}
+          hint="anúncios que já receberam avaliação/otimização"
+          icon={Bot}
+        />
+        <Metric
+          loading={overviewQuery.isLoading}
+          label="Faturamento · 30 dias"
+          value={sales?.available ? formatBRL(sales.revenue_cents) : "—"}
+          hint={
+            sales?.available
+              ? "valor real dos pedidos consultados no Mercado Livre"
+              : "aguardando dados reais de vendas"
+          }
+          icon={ShoppingBag}
+        />
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+        <Card className="overflow-hidden border-primary/25 xl:col-span-2">
+          <CardHeader className="border-b bg-primary/[.035]">
+            <div className="flex items-center justify-between">
+              <CardTitle>Franquia de anúncios</CardTitle>
+              <Badge variant={pct >= 85 ? "destructive" : "secondary"}>{pct}% usado</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-6">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-4xl font-extrabold tracking-tight">
+                  {formatNumber(used)}{" "}
+                  <span className="text-lg font-medium text-muted-foreground">
+                    / {formatNumber(limit)}
+                  </span>
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  novas criações e cópias utilizadas
+                </p>
+              </div>
+              <strong className="text-sm text-primary">{formatNumber(remaining)} disponíveis</strong>
+            </div>
+            <Progress value={pct} className="h-2.5" />
+            <p className="rounded-xl bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+              Editar um anúncio existente não gasta outra unidade. Anúncios antigos sincronizados do
+              Mercado Livre também não consomem sua franquia.
+            </p>
+            {pct >= 70 && (
+              <Button asChild>
+                <Link to="/assinatura">Ver upgrade ou comprar extras</Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />Créditos de IA
+              </CardTitle>
+              <Badge variant={aiPct >= 85 ? "destructive" : "outline"}>{aiPct}%</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {subscriptionQuery.isLoading ? (
+              <Skeleton className="h-9 w-32" />
+            ) : (
+              <p className="text-3xl font-extrabold">
+                {formatNumber(ai.used)}{" "}
+                <span className="text-base font-medium text-muted-foreground">
+                  / {formatNumber(ai.limit)}
+                </span>
+              </p>
+            )}
+            <Progress value={aiPct} />
+            <p className="text-xs leading-5 text-muted-foreground">
+              IA possui saldo separado da franquia de anúncios. Textos usam 1 crédito por ação e
+              imagens usam 3 por geração.
+            </p>
+            <Button asChild size="sm" variant="outline" className="w-full">
+              <Link to="/creditos-ia">Gerenciar créditos de IA</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
+        <Card>
+          <CardHeader><CardTitle>Vendas · últimos 30 dias</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            {overviewQuery.isLoading ? (
+              <div className="space-y-3">
+                {[0, 1, 2, 3].map((index) => <Skeleton key={index} className="h-6 w-full" />)}
+              </div>
+            ) : overviewQuery.isError ? (
+              <DataUnavailable text="Não foi possível consultar as vendas agora." />
+            ) : sales?.available ? (
+              <>
+                <Row label="Pedidos" value={formatNumber(sales.orders)} />
+                <Row label="Unidades vendidas" value={formatNumber(sales.units)} />
+                <Row label="Faturamento" value={formatBRL(sales.revenue_cents)} />
+                <Row label="Ticket médio" value={formatBRL(sales.ticket_cents)} />
+              </>
+            ) : (
+              <DataUnavailable
+                text={
+                  connected
+                    ? "Os dados de vendas estão indisponíveis no momento."
+                    : "Conecte o Mercado Livre para carregar vendas reais."
+                }
+              />
+            )}
+            <Button asChild variant="outline" className="w-full">
+              {connected ? (
+                <Link to="/vendas">Abrir vendas e pedidos</Link>
+              ) : (
+                <Link to="/integracoes">Conectar Mercado Livre</Link>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader><CardTitle>Ações rápidas</CardTitle></CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <Quick
+              to="/buscar"
+              icon={Search}
+              label="Buscar e copiar"
+              description="Use anúncio, ID, link ou vendedor como base."
+              primary
+            />
+            <Button asChild variant="outline" className="group h-auto justify-start rounded-2xl p-4 text-left">
+              <Link to="/editor/$id" params={{ id: "novo" }}>
+                <span className="mr-3 rounded-xl bg-primary/10 p-2">
+                  <PackagePlus className="h-5 w-5 text-primary" />
+                </span>
+                <span>
+                  <strong className="block">Criar anúncio do zero</strong>
+                  <span className="mt-1 block whitespace-normal text-xs font-normal leading-5 text-muted-foreground">
+                    Comece um novo rascunho manualmente.
+                  </span>
+                </span>
+              </Link>
+            </Button>
+            <Quick
+              to="/anuncios"
+              icon={Sparkles}
+              label="Otimizar meus anúncios"
+              description="Edite, crie variações e use IA."
+            />
+            <Quick
+              to="/crescimento"
+              icon={Trophy}
+              label="Central de crescimento"
+              description="Prioridades, saúde e oportunidades."
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="mt-4 overflow-hidden border-primary/20">
+        <CardHeader className="border-b bg-primary/[.03]">
+          <div className="flex items-center gap-2 text-primary">
+            <Trophy className="h-5 w-5" />
+            <CardTitle>Anúncios campeões de venda</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {overviewQuery.isLoading ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              {[0, 1, 2].map((index) => (
+                <Skeleton key={index} className="h-40 rounded-2xl" />
+              ))}
+            </div>
+          ) : sales?.available && champions.length ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              {champions.slice(0, 3).map((champion: any, index: number) => (
+                <div
+                  key={champion.listing_id ?? champion.ml_item_id ?? index}
+                  className="group overflow-hidden rounded-2xl border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-lg"
+                >
+                  <div className="flex gap-3 p-3">
+                    {champion.image ? (
+                      <img
+                        src={champion.image}
+                        alt={champion.title}
+                        className="h-20 w-20 shrink-0 rounded-xl border bg-white object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-muted">
+                        <ShoppingBag className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <Badge>#{index + 1} campeão</Badge>
+                      <p className="mt-2 line-clamp-2 text-sm font-semibold">{champion.title}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {formatNumber(champion.units)} vendidos
+                      </p>
+                      <p className="mt-1 font-bold text-primary">{formatBRL(champion.revenue_cents)}</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 border-t p-3 sm:grid-cols-2">
+                    {champion.listing_id ? (
+                      <Button asChild size="sm" variant="outline">
+                        <Link to="/editor/$id" params={{ id: champion.listing_id }}>
+                          Abrir no gerenciador
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" disabled>Sem cópia local</Button>
+                    )}
+                    {champion.permalink ? (
+                      <Button asChild size="sm">
+                        <a href={champion.permalink} target="_blank" rel="noopener noreferrer">
+                          Ver no Mercado Livre<ExternalLink className="ml-2 h-3.5 w-3.5" />
+                        </a>
+                      </Button>
+                    ) : (
+                      <Button size="sm" disabled>Link indisponível</Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed p-7 text-center">
+              <Trophy className="mx-auto h-8 w-8 text-muted-foreground" />
+              <p className="mt-3 font-semibold">
+                {sales?.available ? "Ainda não há campeões para destacar" : "Ranking aguardando dados de vendas"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {sales?.available
+                  ? "Quando houver vendas no período, os produtos com melhor desempenho aparecerão aqui."
+                  : "Não exibimos ranking ou vendas estimadas como se fossem dados reais."}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </AppShell>
+  );
+}
+
+function Journey({ done, number, title, text, to }: JourneyProps) {
+  return (
+    <Link
+      to={to}
+      className="group rounded-2xl border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-sm"
+    >
+      <div className="flex items-center justify-between">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-extrabold text-primary">
+          {number}
+        </span>
+        {done ? (
+          <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+        ) : (
+          <Circle className="h-5 w-5 text-muted-foreground/50" />
+        )}
+      </div>
+      <p className="mt-3 text-sm font-bold">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p>
+      <span className="mt-3 flex items-center text-xs font-semibold text-primary">
+        Abrir<ArrowRight className="ml-1 h-3.5 w-3.5 transition-transform group-hover:translate-x-1" />
+      </span>
+    </Link>
+  );
+}
+
+function Metric({ label, value, hint, icon: Icon, loading = false }: MetricProps) {
+  return (
+    <Card className="group transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+            {loading ? <Skeleton className="mt-2 h-9 w-32" /> : <p className="mt-2 text-3xl font-extrabold tracking-tight">{value}</p>}
+            <p className="mt-1 max-w-[230px] text-xs leading-5 text-muted-foreground">{hint}</p>
+          </div>
+          <div className="rounded-2xl bg-primary/10 p-2.5"><Icon className="h-5 w-5 text-primary" /></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b pb-3 text-sm last:border-0">
+      <span className="text-muted-foreground">{label}</span><strong>{value}</strong>
+    </div>
+  );
+}
+
+function DataUnavailable({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed p-5 text-center">
+      <p className="text-sm font-semibold">Dados indisponíveis</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+function Quick({ to, label, description, icon: Icon, primary = false }: QuickProps) {
+  return (
+    <Button
+      asChild
+      variant={primary ? "default" : "outline"}
+      className="group h-auto justify-start rounded-2xl p-4 text-left"
+    >
+      <Link to={to}>
+        <span className={primary ? "mr-3 rounded-xl bg-primary-foreground/15 p-2" : "mr-3 rounded-xl bg-primary/10 p-2"}>
+          <Icon className={primary ? "h-5 w-5 text-primary-foreground" : "h-5 w-5 text-primary"} />
+        </span>
+        <span>
+          <strong className="block">{label}</strong>
+          <span className={primary ? "mt-1 block whitespace-normal text-xs font-normal leading-5 text-primary-foreground/75" : "mt-1 block whitespace-normal text-xs font-normal leading-5 text-muted-foreground"}>
+            {description}
+          </span>
+        </span>
+      </Link>
+    </Button>
+  );
+}
