@@ -14,16 +14,28 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedAdminComercialRouteImport } from './routes/_authenticated/admin-comercial'
+import { Route as AuthenticatedAdminRevendedoresRouteImport } from './routes/_authenticated/admin-revendedores'
 import { Route as AuthenticatedAnunciosRouteImport } from './routes/_authenticated/anuncios'
+import { Route as AuthenticatedAssinaturaRouteImport } from './routes/_authenticated/assinatura'
 import { Route as AuthenticatedBuscarRouteImport } from './routes/_authenticated/buscar'
+import { Route as AuthenticatedCancelamentoRouteImport } from './routes/_authenticated/cancelamento'
 import { Route as AuthenticatedContaRouteImport } from './routes/_authenticated/conta'
+import { Route as AuthenticatedCreditosRouteImport } from './routes/_authenticated/creditos'
+import { Route as AuthenticatedCrescimentoRouteImport } from './routes/_authenticated/crescimento'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedEstoqueRouteImport } from './routes/_authenticated/estoque'
+import { Route as AuthenticatedIndicacoesRouteImport } from './routes/_authenticated/indicacoes'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
 import { Route as AuthenticatedLicencaRouteImport } from './routes/_authenticated/licenca'
 import { Route as AuthenticatedMlStartRouteImport } from './routes/_authenticated/ml-start'
+import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedPerguntasRouteImport } from './routes/_authenticated/perguntas'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedResultadosRouteImport } from './routes/_authenticated/resultados'
+import { Route as AuthenticatedRevendedorRouteImport } from './routes/_authenticated/revendedor'
+import { Route as AuthenticatedSaudeAnunciosRouteImport } from './routes/_authenticated/saude-anuncios'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
 import { Route as CheckoutIndexRouteImport } from './routes/checkout/index'
@@ -57,9 +69,26 @@ const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminComercialRoute =
+  AuthenticatedAdminComercialRouteImport.update({
+    id: '/admin-comercial',
+    path: '/admin-comercial',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminRevendedoresRoute =
+  AuthenticatedAdminRevendedoresRouteImport.update({
+    id: '/admin-revendedores',
+    path: '/admin-revendedores',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAnunciosRoute = AuthenticatedAnunciosRouteImport.update({
   id: '/anuncios',
   path: '/anuncios',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAssinaturaRoute = AuthenticatedAssinaturaRouteImport.update({
+  id: '/assinatura',
+  path: '/assinatura',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedBuscarRoute = AuthenticatedBuscarRouteImport.update({
@@ -67,11 +96,28 @@ const AuthenticatedBuscarRoute = AuthenticatedBuscarRouteImport.update({
   path: '/buscar',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCancelamentoRoute =
+  AuthenticatedCancelamentoRouteImport.update({
+    id: '/cancelamento',
+    path: '/cancelamento',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedContaRoute = AuthenticatedContaRouteImport.update({
   id: '/conta',
   path: '/conta',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCreditosRoute = AuthenticatedCreditosRouteImport.update({
+  id: '/creditos',
+  path: '/creditos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCrescimentoRoute =
+  AuthenticatedCrescimentoRouteImport.update({
+    id: '/crescimento',
+    path: '/crescimento',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -80,6 +126,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedEstoqueRoute = AuthenticatedEstoqueRouteImport.update({
   id: '/estoque',
   path: '/estoque',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedIndicacoesRoute = AuthenticatedIndicacoesRouteImport.update({
+  id: '/indicacoes',
+  path: '/indicacoes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedIntegracoesRoute =
@@ -98,9 +149,20 @@ const AuthenticatedMlStartRoute = AuthenticatedMlStartRouteImport.update({
   path: '/ml-start',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedNotificacoesRoute =
+  AuthenticatedNotificacoesRouteImport.update({
+    id: '/notificacoes',
+    path: '/notificacoes',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPerguntasRoute = AuthenticatedPerguntasRouteImport.update({
+  id: '/perguntas',
+  path: '/perguntas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
@@ -108,6 +170,22 @@ const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   path: '/relatorios',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedResultadosRoute = AuthenticatedResultadosRouteImport.update({
+  id: '/resultados',
+  path: '/resultados',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedRevendedorRoute = AuthenticatedRevendedorRouteImport.update({
+  id: '/revendedor',
+  path: '/revendedor',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSaudeAnunciosRoute =
+  AuthenticatedSaudeAnunciosRouteImport.update({
+    id: '/saude-anuncios',
+    path: '/saude-anuncios',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVendasRoute = AuthenticatedVendasRouteImport.update({
   id: '/vendas',
   path: '/vendas',
@@ -156,16 +234,28 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
+  '/assinatura': typeof AuthenticatedAssinaturaRoute
   '/buscar': typeof AuthenticatedBuscarRoute
+  '/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/conta': typeof AuthenticatedContaRoute
+  '/creditos': typeof AuthenticatedCreditosRoute
+  '/crescimento': typeof AuthenticatedCrescimentoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
+  '/indicacoes': typeof AuthenticatedIndicacoesRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/licenca': typeof AuthenticatedLicencaRoute
   '/ml-start': typeof AuthenticatedMlStartRoute
+  '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/perguntas': typeof AuthenticatedPerguntasRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/resultados': typeof AuthenticatedResultadosRoute
+  '/revendedor': typeof AuthenticatedRevendedorRoute
+  '/saude-anuncios': typeof AuthenticatedSaudeAnunciosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -180,16 +270,28 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRoute
+  '/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
+  '/assinatura': typeof AuthenticatedAssinaturaRoute
   '/buscar': typeof AuthenticatedBuscarRoute
+  '/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/conta': typeof AuthenticatedContaRoute
+  '/creditos': typeof AuthenticatedCreditosRoute
+  '/crescimento': typeof AuthenticatedCrescimentoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
+  '/indicacoes': typeof AuthenticatedIndicacoesRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/licenca': typeof AuthenticatedLicencaRoute
   '/ml-start': typeof AuthenticatedMlStartRoute
+  '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/perguntas': typeof AuthenticatedPerguntasRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/resultados': typeof AuthenticatedResultadosRoute
+  '/revendedor': typeof AuthenticatedRevendedorRoute
+  '/saude-anuncios': typeof AuthenticatedSaudeAnunciosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -206,16 +308,28 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/_authenticated/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/_authenticated/anuncios': typeof AuthenticatedAnunciosRoute
+  '/_authenticated/assinatura': typeof AuthenticatedAssinaturaRoute
   '/_authenticated/buscar': typeof AuthenticatedBuscarRoute
+  '/_authenticated/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/_authenticated/conta': typeof AuthenticatedContaRoute
+  '/_authenticated/creditos': typeof AuthenticatedCreditosRoute
+  '/_authenticated/crescimento': typeof AuthenticatedCrescimentoRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/estoque': typeof AuthenticatedEstoqueRoute
+  '/_authenticated/indicacoes': typeof AuthenticatedIndicacoesRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/licenca': typeof AuthenticatedLicencaRoute
   '/_authenticated/ml-start': typeof AuthenticatedMlStartRoute
+  '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/perguntas': typeof AuthenticatedPerguntasRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
+  '/_authenticated/resultados': typeof AuthenticatedResultadosRoute
+  '/_authenticated/revendedor': typeof AuthenticatedRevendedorRoute
+  '/_authenticated/saude-anuncios': typeof AuthenticatedSaudeAnunciosRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
   '/checkout/success': typeof CheckoutSuccessRoute
@@ -232,16 +346,28 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/admin'
+    | '/admin-comercial'
+    | '/admin-revendedores'
     | '/anuncios'
+    | '/assinatura'
     | '/buscar'
+    | '/cancelamento'
     | '/conta'
+    | '/creditos'
+    | '/crescimento'
     | '/dashboard'
     | '/estoque'
+    | '/indicacoes'
     | '/integracoes'
     | '/licenca'
     | '/ml-start'
+    | '/notificacoes'
     | '/onboarding'
+    | '/perguntas'
     | '/relatorios'
+    | '/resultados'
+    | '/revendedor'
+    | '/saude-anuncios'
     | '/vendas'
     | '/admin/login'
     | '/checkout/success'
@@ -256,16 +382,28 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/admin'
+    | '/admin-comercial'
+    | '/admin-revendedores'
     | '/anuncios'
+    | '/assinatura'
     | '/buscar'
+    | '/cancelamento'
     | '/conta'
+    | '/creditos'
+    | '/crescimento'
     | '/dashboard'
     | '/estoque'
+    | '/indicacoes'
     | '/integracoes'
     | '/licenca'
     | '/ml-start'
+    | '/notificacoes'
     | '/onboarding'
+    | '/perguntas'
     | '/relatorios'
+    | '/resultados'
+    | '/revendedor'
+    | '/saude-anuncios'
     | '/vendas'
     | '/admin/login'
     | '/checkout/success'
@@ -281,16 +419,28 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/_authenticated/admin'
+    | '/_authenticated/admin-comercial'
+    | '/_authenticated/admin-revendedores'
     | '/_authenticated/anuncios'
+    | '/_authenticated/assinatura'
     | '/_authenticated/buscar'
+    | '/_authenticated/cancelamento'
     | '/_authenticated/conta'
+    | '/_authenticated/creditos'
+    | '/_authenticated/crescimento'
     | '/_authenticated/dashboard'
     | '/_authenticated/estoque'
+    | '/_authenticated/indicacoes'
     | '/_authenticated/integracoes'
     | '/_authenticated/licenca'
     | '/_authenticated/ml-start'
+    | '/_authenticated/notificacoes'
     | '/_authenticated/onboarding'
+    | '/_authenticated/perguntas'
     | '/_authenticated/relatorios'
+    | '/_authenticated/resultados'
+    | '/_authenticated/revendedor'
+    | '/_authenticated/saude-anuncios'
     | '/_authenticated/vendas'
     | '/admin/login'
     | '/checkout/success'
@@ -351,11 +501,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin-comercial': {
+      id: '/_authenticated/admin-comercial'
+      path: '/admin-comercial'
+      fullPath: '/admin-comercial'
+      preLoaderRoute: typeof AuthenticatedAdminComercialRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin-revendedores': {
+      id: '/_authenticated/admin-revendedores'
+      path: '/admin-revendedores'
+      fullPath: '/admin-revendedores'
+      preLoaderRoute: typeof AuthenticatedAdminRevendedoresRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/anuncios': {
       id: '/_authenticated/anuncios'
       path: '/anuncios'
       fullPath: '/anuncios'
       preLoaderRoute: typeof AuthenticatedAnunciosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/assinatura': {
+      id: '/_authenticated/assinatura'
+      path: '/assinatura'
+      fullPath: '/assinatura'
+      preLoaderRoute: typeof AuthenticatedAssinaturaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/buscar': {
@@ -365,11 +536,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBuscarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/cancelamento': {
+      id: '/_authenticated/cancelamento'
+      path: '/cancelamento'
+      fullPath: '/cancelamento'
+      preLoaderRoute: typeof AuthenticatedCancelamentoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/conta': {
       id: '/_authenticated/conta'
       path: '/conta'
       fullPath: '/conta'
       preLoaderRoute: typeof AuthenticatedContaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/creditos': {
+      id: '/_authenticated/creditos'
+      path: '/creditos'
+      fullPath: '/creditos'
+      preLoaderRoute: typeof AuthenticatedCreditosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/crescimento': {
+      id: '/_authenticated/crescimento'
+      path: '/crescimento'
+      fullPath: '/crescimento'
+      preLoaderRoute: typeof AuthenticatedCrescimentoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -384,6 +576,13 @@ declare module '@tanstack/react-router' {
       path: '/estoque'
       fullPath: '/estoque'
       preLoaderRoute: typeof AuthenticatedEstoqueRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/indicacoes': {
+      id: '/_authenticated/indicacoes'
+      path: '/indicacoes'
+      fullPath: '/indicacoes'
+      preLoaderRoute: typeof AuthenticatedIndicacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/integracoes': {
@@ -407,6 +606,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMlStartRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/notificacoes': {
+      id: '/_authenticated/notificacoes'
+      path: '/notificacoes'
+      fullPath: '/notificacoes'
+      preLoaderRoute: typeof AuthenticatedNotificacoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
       path: '/onboarding'
@@ -414,11 +620,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/perguntas': {
+      id: '/_authenticated/perguntas'
+      path: '/perguntas'
+      fullPath: '/perguntas'
+      preLoaderRoute: typeof AuthenticatedPerguntasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/relatorios': {
       id: '/_authenticated/relatorios'
       path: '/relatorios'
       fullPath: '/relatorios'
       preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/resultados': {
+      id: '/_authenticated/resultados'
+      path: '/resultados'
+      fullPath: '/resultados'
+      preLoaderRoute: typeof AuthenticatedResultadosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/revendedor': {
+      id: '/_authenticated/revendedor'
+      path: '/revendedor'
+      fullPath: '/revendedor'
+      preLoaderRoute: typeof AuthenticatedRevendedorRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/saude-anuncios': {
+      id: '/_authenticated/saude-anuncios'
+      path: '/saude-anuncios'
+      fullPath: '/saude-anuncios'
+      preLoaderRoute: typeof AuthenticatedSaudeAnunciosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/vendas': {
@@ -482,32 +716,56 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedAdminComercialRoute: typeof AuthenticatedAdminComercialRoute
+  AuthenticatedAdminRevendedoresRoute: typeof AuthenticatedAdminRevendedoresRoute
   AuthenticatedAnunciosRoute: typeof AuthenticatedAnunciosRoute
+  AuthenticatedAssinaturaRoute: typeof AuthenticatedAssinaturaRoute
   AuthenticatedBuscarRoute: typeof AuthenticatedBuscarRoute
+  AuthenticatedCancelamentoRoute: typeof AuthenticatedCancelamentoRoute
   AuthenticatedContaRoute: typeof AuthenticatedContaRoute
+  AuthenticatedCreditosRoute: typeof AuthenticatedCreditosRoute
+  AuthenticatedCrescimentoRoute: typeof AuthenticatedCrescimentoRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEstoqueRoute: typeof AuthenticatedEstoqueRoute
+  AuthenticatedIndicacoesRoute: typeof AuthenticatedIndicacoesRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedLicencaRoute: typeof AuthenticatedLicencaRoute
   AuthenticatedMlStartRoute: typeof AuthenticatedMlStartRoute
+  AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedPerguntasRoute: typeof AuthenticatedPerguntasRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
+  AuthenticatedResultadosRoute: typeof AuthenticatedResultadosRoute
+  AuthenticatedRevendedorRoute: typeof AuthenticatedRevendedorRoute
+  AuthenticatedSaudeAnunciosRoute: typeof AuthenticatedSaudeAnunciosRoute
   AuthenticatedVendasRoute: typeof AuthenticatedVendasRoute
   AuthenticatedEditorIdRoute: typeof AuthenticatedEditorIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedAdminComercialRoute: AuthenticatedAdminComercialRoute,
+  AuthenticatedAdminRevendedoresRoute: AuthenticatedAdminRevendedoresRoute,
   AuthenticatedAnunciosRoute: AuthenticatedAnunciosRoute,
+  AuthenticatedAssinaturaRoute: AuthenticatedAssinaturaRoute,
   AuthenticatedBuscarRoute: AuthenticatedBuscarRoute,
+  AuthenticatedCancelamentoRoute: AuthenticatedCancelamentoRoute,
   AuthenticatedContaRoute: AuthenticatedContaRoute,
+  AuthenticatedCreditosRoute: AuthenticatedCreditosRoute,
+  AuthenticatedCrescimentoRoute: AuthenticatedCrescimentoRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEstoqueRoute: AuthenticatedEstoqueRoute,
+  AuthenticatedIndicacoesRoute: AuthenticatedIndicacoesRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedLicencaRoute: AuthenticatedLicencaRoute,
   AuthenticatedMlStartRoute: AuthenticatedMlStartRoute,
+  AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedPerguntasRoute: AuthenticatedPerguntasRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
+  AuthenticatedResultadosRoute: AuthenticatedResultadosRoute,
+  AuthenticatedRevendedorRoute: AuthenticatedRevendedorRoute,
+  AuthenticatedSaudeAnunciosRoute: AuthenticatedSaudeAnunciosRoute,
   AuthenticatedVendasRoute: AuthenticatedVendasRoute,
   AuthenticatedEditorIdRoute: AuthenticatedEditorIdRoute,
 }
