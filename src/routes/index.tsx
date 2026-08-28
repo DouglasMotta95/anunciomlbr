@@ -1,6 +1,5 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ShieldCheck } from "lucide-react";
 
 import { SessionSplash } from "@/components/SessionSplash";
 import { VisitTracker } from "@/components/VisitTracker";
@@ -68,22 +67,12 @@ function Landing() {
         <Reveal><FinalCta /></Reveal>
       </main>
 
-      <div className="border-y border-border/50 bg-surface/30 px-4 py-5">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold">Administração do ANÚNCIO ML</p>
-            <p className="text-xs text-muted-foreground">Acesso exclusivo da equipe administrativa.</p>
-          </div>
-          <Link
-            to="/admin/login"
-            className="inline-flex shrink-0 items-center rounded-xl border border-primary/25 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-all hover:-translate-y-0.5 hover:bg-primary/15"
-          >
-            <ShieldCheck className="mr-2 h-4 w-4" /> Painel administrativo
-          </Link>
-        </div>
-      </div>
-
       <LandingFooter />
+      <div className="mx-auto max-w-6xl px-4 pb-5 text-right">
+        <Link to="/admin/login" className="text-[10px] text-muted-foreground/35 transition hover:text-muted-foreground" rel="nofollow">
+          Área administrativa
+        </Link>
+      </div>
       <MobileStickyCta />
     </div>
   );
