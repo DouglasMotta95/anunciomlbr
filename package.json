@@ -9,6 +9,8 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test:gemini": "bun test tests/gemini-call.test.ts",
     "audit:ui": "node scripts/audit-ui.mjs",
     "audit:flows": "node scripts/audit-critical-flows.mjs",
     "audit:security": "node scripts/audit-security.mjs",
