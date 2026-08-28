@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Copy, Download, Files, Pause, Play, PlusCircle, Sparkles, Tag, Trash2 } from "lucide-react";
+import { Copy, Download, Files, Loader2, Pause, Play, PlusCircle, Sparkles, Tag, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useListings } from "@/hooks/useLicense";
 import { startBulkJob } from "@/lib/bulk.functions";
 import { formatBRL, formatDate } from "@/lib/format";
+import { createAiListingVariants } from "@/lib/listing-variants.functions";
 import { getProductImage } from "@/lib/product-image";
 
 const title = "Meus anúncios — ANÚNCIO ML";
@@ -63,6 +64,7 @@ function ListingsPage() {
   const queryClient = useQueryClient();
   const { data: listings = [], isLoading } = useListings();
   const startJob = useServerFn(startBulkJob);
+  const variantsFn = useServerFn(createAiListingVariants);
 
   const [tab, setTab] = useState<(typeof TABS)[number]["value"]>("all");
   const [page, setPage] = useState(1);
@@ -94,6 +96,29 @@ function ListingsPage() {
       toast.success("Anúncio excluído");
     },
     onError: () => toast.error("Não foi possível excluir."),
+  });
+
+  const variants = useMutation({
+    mutationFn: async (count: 5 | 10) => {
+      const listing = selectedListings[0];
+      if (!listing || selectedListings.length !== 1) throw new Error("Selecione apenas um anúncio.");
+      const result = await variantsFn({ data: { listingId: listing.id, count } });
+      if (!result.ok) throw new Error(result.reason);
+      return result;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
+      toast.success(`${result.created.length} variações criadas`, {
+        description: "Cada rascunho recebeu um título diferente gerado pela IA.",
+      });
+      setSelected({});
+    },
+    onError: (error) => {
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
+      toast.error(error instanceof Error ? error.message : "Não foi possível criar as variações.");
+    },
   });
 
   const startBulk = async (kind: "pause" | "activate" | "delete" | "duplicate" | "optimize") => {
@@ -290,12 +315,27 @@ function ListingsPage() {
       {selectedIds.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-            <p className="text-sm font-semibold">{selectedIds.length} anúncios selecionados</p>
+            <div>
+              <p className="text-sm font-semibold">{selectedIds.length} anúncio(s) selecionado(s)</p>
+              {selectedIds.length === 1 && <p className="text-xs text-muted-foreground">Crie 5 ou 10 rascunhos com títulos diferentes gerados pela IA.</p>}
+            </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => startBulk("duplicate")}>
-                <Files className="mr-1.5 h-3.5 w-3.5" /> Criar cópias
+              {selectedIds.length === 1 && (
+                <>
+                  <Button size="sm" variant="secondary" disabled={variants.isPending} onClick={() => variants.mutate(5)}>
+                    {variants.isPending && variants.variables === 5 ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin"/> : <Sparkles className="mr-1.5 h-3.5 w-3.5"/>}
+                    5 variações IA
+                  </Button>
+                  <Button size="sm" variant="secondary" disabled={variants.isPending} onClick={() => variants.mutate(10)}>
+                    {variants.isPending && variants.variables === 10 ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin"/> : <Sparkles className="mr-1.5 h-3.5 w-3.5"/>}
+                    10 variações IA
+                  </Button>
+                </>
+              )}
+              <Button size="sm" onClick={() => startBulk("duplicate")} disabled={variants.isPending}>
+                <Files className="mr-1.5 h-3.5 w-3.5" /> Criar cópias iguais
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => startBulk("optimize")}>
+              <Button size="sm" variant="secondary" onClick={() => startBulk("optimize")} disabled={variants.isPending}>
                 <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Otimizar com IA
               </Button>
               <Button size="sm" variant="outline" onClick={() => startBulk("activate")}>
