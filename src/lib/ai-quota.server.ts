@@ -13,14 +13,16 @@ function monthStart(): string {
 async function resolvePaidLimit(db: Db, userId: string): Promise<number> {
   const { data: subscription } = await db
     .from("subscriptions")
-    .select("status,current_period_end,plans(ai_credits)")
+    .select("status,current_period_end,plans(ai_credits,kind)")
     .eq("user_id", userId)
     .in("status", ["active", "trialing"])
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const subscriptionLimit = Number(subscription?.plans?.ai_credits ?? 0);
-  if (subscriptionLimit > 0 && (!subscription?.current_period_end || new Date(subscription.current_period_end) > new Date())) return subscriptionLimit;
+    .limit(5);
+  const activeSubscription = (subscription ?? []).find(
+    (row: any) => !["ad_package", "ai_package"].includes(row?.plans?.kind) && (!row?.current_period_end || new Date(row.current_period_end) > new Date()),
+  );
+  const subscriptionLimit = Number(activeSubscription?.plans?.ai_credits ?? 0);
+  if (subscriptionLimit > 0) return subscriptionLimit;
 
   const { data: license } = await db
     .from("licenses")
@@ -28,23 +30,49 @@ async function resolvePaidLimit(db: Db, userId: string): Promise<number> {
     .eq("user_id", userId)
     .eq("status", "active")
     .order("expires_at", { ascending: false })
-    .limit(5);
-  const active = (license ?? []).find((row: any) => row?.plans?.kind !== "ad_package" && (!row.expires_at || new Date(row.expires_at) > new Date()));
+    .limit(20);
+  const active = (license ?? []).find(
+    (row: any) => !["ad_package", "ai_package"].includes(row?.plans?.kind) && (!row.expires_at || new Date(row.expires_at) > new Date()),
+  );
   return Number(active?.plans?.ai_credits ?? 0);
+}
+
+async function resolveExtraAi(db: Db, userId: string): Promise<{ total: number; used: number; remaining: number }> {
+  const { data, error } = await db
+    .from("licenses")
+    .select("ai_credits_used,expires_at,plans(ai_credits,kind)")
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .order("expires_at", { ascending: true });
+  if (error) return { total: 0, used: 0, remaining: 0 };
+  let total = 0;
+  let used = 0;
+  for (const row of data ?? []) {
+    if (row?.plans?.kind !== "ai_package") continue;
+    if (row.expires_at && new Date(row.expires_at) <= new Date()) continue;
+    const credits = Number(row?.plans?.ai_credits ?? 0);
+    const consumed = Math.min(Number(row?.ai_credits_used ?? 0), credits);
+    total += credits;
+    used += consumed;
+  }
+  return { total, used, remaining: Math.max(total - used, 0) };
 }
 
 async function fallbackStatus(db: Db, userId: string): Promise<AiQuotaState> {
   const paidLimit = await resolvePaidLimit(db, userId);
-  const creditLimit = paidLimit > 0 ? paidLimit : 10;
+  const baseLimit = paidLimit > 0 ? paidLimit : 10;
   const periodStart = paidLimit > 0 ? monthStart() : "1970-01-01";
-  const { data: usage } = await db
-    .from("ai_credit_usage")
-    .select("used")
-    .eq("user_id", userId)
-    .eq("period_start", periodStart)
-    .maybeSingle();
-  const used = Number(usage?.used ?? 0);
-  return { used, credit_limit: creditLimit, remaining: Math.max(creditLimit - used, 0), source: "fallback" };
+  const [{ data: usage }, extra] = await Promise.all([
+    db.from("ai_credit_usage").select("used").eq("user_id", userId).eq("period_start", periodStart).maybeSingle(),
+    resolveExtraAi(db, userId),
+  ]);
+  const baseUsed = Number(usage?.used ?? 0);
+  return {
+    used: baseUsed + extra.used,
+    credit_limit: baseLimit + extra.total,
+    remaining: Math.max(baseLimit - baseUsed, 0) + extra.remaining,
+    source: "fallback",
+  };
 }
 
 export async function getAiQuota(userId: string): Promise<AiQuotaState> {
@@ -64,11 +92,20 @@ export async function getAiQuota(userId: string): Promise<AiQuotaState> {
   return fallbackStatus(db, userId);
 }
 
-export async function consumeAiQuota(userId: string, amount = 1): Promise<{ ok: true; quota: AiQuotaState } | { ok: false; reason: string; quota?: AiQuotaState }> {
+export async function consumeAiQuota(
+  userId: string,
+  amount = 1,
+): Promise<{ ok: true; quota: AiQuotaState } | { ok: false; reason: string; quota?: AiQuotaState }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const db = supabaseAdmin as Db;
   const status = await getAiQuota(userId);
-  if (status.remaining < amount) return { ok: false, reason: `Créditos de IA esgotados (${status.used}/${status.credit_limit}).`, quota: status };
+  if (status.remaining < amount) {
+    return {
+      ok: false,
+      reason: `Créditos de IA esgotados (${status.used}/${status.credit_limit}). Compre créditos extras em “Créditos de IA” ou faça upgrade do plano.`,
+      quota: status,
+    };
+  }
 
   const { data, error } = await db.rpc("consume_ai_credit", { p_user_id: userId, p_amount: amount });
   const row = first(data as any);
@@ -83,7 +120,20 @@ export async function consumeAiQuota(userId: string, amount = 1): Promise<{ ok: 
       },
     };
   }
+  if (!error && row && row.allowed === false) {
+    return {
+      ok: false,
+      reason: `Créditos de IA esgotados (${Number(row.used ?? status.used)}/${Number(row.credit_limit ?? status.credit_limit)}). Compre créditos extras em “Créditos de IA” ou faça upgrade do plano.`,
+      quota: {
+        used: Number(row.used ?? status.used),
+        credit_limit: Number(row.credit_limit ?? status.credit_limit),
+        remaining: Number(row.remaining ?? 0),
+        source: "rpc",
+      },
+    };
+  }
 
+  // Compatibilidade para bancos que ainda não receberam a migration nova.
   const paidLimit = await resolvePaidLimit(db, userId);
   const periodStart = paidLimit > 0 ? monthStart() : "1970-01-01";
   const { data: current } = await db
@@ -94,15 +144,23 @@ export async function consumeAiQuota(userId: string, amount = 1): Promise<{ ok: 
     .maybeSingle();
   const used = Number(current?.used ?? 0);
   const limit = paidLimit > 0 ? paidLimit : 10;
-  if (used + amount > limit) return { ok: false, reason: `Créditos de IA esgotados (${used}/${limit}).` };
+  if (used + amount > limit) {
+    return { ok: false, reason: `Créditos de IA esgotados (${used}/${limit}). Compre créditos extras de IA ou faça upgrade do plano.` };
+  }
 
   const nextUsed = used + amount;
   const { error: upsertError } = await db
     .from("ai_credit_usage")
-    .upsert({ user_id: userId, period_start: periodStart, used: nextUsed, updated_at: new Date().toISOString() }, { onConflict: "user_id,period_start" });
+    .upsert(
+      { user_id: userId, period_start: periodStart, used: nextUsed, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,period_start" },
+    );
   if (upsertError) {
     console.error("[AI quota fallback consume]", upsertError.message);
     return { ok: false, reason: "A IA respondeu, mas não foi possível registrar o uso do crédito." };
   }
-  return { ok: true, quota: { used: nextUsed, credit_limit: limit, remaining: Math.max(limit - nextUsed, 0), source: "fallback" } };
+  return {
+    ok: true,
+    quota: { used: nextUsed, credit_limit: limit, remaining: Math.max(limit - nextUsed, 0), source: "fallback" },
+  };
 }
