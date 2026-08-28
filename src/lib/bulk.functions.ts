@@ -291,7 +291,7 @@ async function runBulkItem(kind: BulkJobKind, userId: string, item: BulkJobItem)
     const nextStatus = kind === "pause" ? "paused" : kind === "activate" ? "active" : "closed";
     const { error } = await supabaseAdmin
       .from("listings")
-      .update({ status: nextStatus, updated_at: new Date().toISOString() })
+      .update({ status: nextStatus as never, updated_at: new Date().toISOString() })
       .eq("id", item.id)
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
