@@ -16,7 +16,8 @@ export const startBulkJob=createServerFn({method:"POST"}).middleware([requireSup
  const items:BulkJobItem[]=data.items.map(item=>({id:item.id,label:item.label,status:"queued",message:null,source:item.source??null}));
  const {data:job,error}=await supabaseAdmin.from("bulk_jobs").insert({user_id:context.userId,kind:data.kind,status:"queued",total:items.length,processed:0,failed:0,payload:{items} as never}).select("id").single();
  if(error||!job)return {ok:false as const,reason:"Não foi possível criar o processamento."};
- if(data.kind==="optimize")await processBulkJob(job.id,context.userId,data.kind,items);else void processBulkJob(job.id,context.userId,data.kind,items);
+ // Não dispara trabalho solto depois da resposta: runtimes serverless podem congelar a execução.
+ await processBulkJob(job.id,context.userId,data.kind,items);
  return {ok:true as const,jobId:job.id};
 });
 

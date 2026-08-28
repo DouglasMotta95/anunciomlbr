@@ -25,8 +25,18 @@ export function useAuth(): AuthState {
   });
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        // Derruba a sessão na UI imediatamente e remove qualquer dado privado da conta anterior.
+        queryClient.setQueryData(["auth-session"], null);
+        queryClient.removeQueries({
+          predicate: (query) => query.queryKey[0] !== "auth-session",
+        });
+        return;
+      }
+
+      if (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
+        queryClient.setQueryData(["auth-session"], session ?? null);
         queryClient.invalidateQueries({ queryKey: ["auth-session"] });
       }
     });
@@ -44,7 +54,6 @@ export function useIsAdmin() {
     enabled: !!user,
     staleTime: 60_000,
     queryFn: async () => {
-      // Autorização validada no backend (bearer token + has_role no banco).
       const { isAdmin } = await checkAdmin();
       return isAdmin;
     },

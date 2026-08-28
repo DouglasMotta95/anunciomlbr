@@ -1,5 +1,6 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Navigate, Outlet, redirect } from "@tanstack/react-router";
 
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -9,5 +10,12 @@ export const Route = createFileRoute("/_authenticated")({
     if (error || !data.user) throw redirect({ to: "/auth" });
     return { user: data.user };
   },
-  component: () => <Outlet />,
+  component: AuthenticatedBoundary,
 });
+
+function AuthenticatedBoundary() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/auth" replace />;
+  return <Outlet />;
+}
