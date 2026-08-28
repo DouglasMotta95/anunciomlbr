@@ -9,7 +9,7 @@ export async function issueLicenseForPayment(paymentId: string): Promise<IssueRe
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: payment } = await supabaseAdmin
     .from("payments")
-    .select("*, plans(code,kind,period_months)")
+    .select("*, plans(code,kind,period_months,ad_quota,ai_credits)")
     .eq("id", paymentId)
     .maybeSingle();
   if (!payment) return { ok: false, reason: "unknown_payment" };
@@ -19,7 +19,10 @@ export async function issueLicenseForPayment(paymentId: string): Promise<IssueRe
   const { data: existing } = await supabaseAdmin.from("licenses").select("code").eq("note", paymentNote).maybeSingle();
   if (existing) return { ok: true, license_code: existing.code, created: false };
 
-  const isAddon = payment.plans?.kind === "ad_package";
+  const kind = payment.plans?.kind ?? "plan";
+  const isAdAddon = kind === "ad_package";
+  const isAiAddon = kind === "ai_package";
+  const isAddon = isAdAddon || isAiAddon;
   const months = isAddon ? (payment.plans?.period_months ?? 12) : (PERIOD_MONTHS[payment.period] ?? 1);
   const startsAt = new Date();
   const expiresAt = new Date(startsAt);
@@ -36,6 +39,9 @@ export async function issueLicenseForPayment(paymentId: string): Promise<IssueRe
     activated_at: payment.user_id ? startsAt.toISOString() : null,
     starts_at: startsAt.toISOString(),
     expires_at: expiresAt.toISOString(),
+    ads_quota: isAdAddon ? Number(payment.plans?.ad_quota ?? 0) : null,
+    ads_used: 0,
+    ai_credits_used: 0,
     note: paymentNote,
   });
   if (licenseError) {
@@ -53,9 +59,11 @@ export async function issueLicenseForPayment(paymentId: string): Promise<IssueRe
       .select("id, note, plans!inner(kind)")
       .eq("user_id", payment.user_id)
       .eq("status", "active")
-      .neq("note", paymentNote)
-      .neq("plans.kind", "ad_package");
-    const oldIds = (oldMain ?? []).map((row: { id: string }) => row.id).filter(Boolean);
+      .neq("note", paymentNote);
+    const oldIds = (oldMain ?? [])
+      .filter((row: any) => !["ad_package", "ai_package"].includes(row?.plans?.kind))
+      .map((row: { id: string }) => row.id)
+      .filter(Boolean);
     if (oldIds.length) await supabaseAdmin.from("licenses").update({ status: "cancelled" }).in("id", oldIds);
   }
 
@@ -66,11 +74,22 @@ export async function issueLicenseForPayment(paymentId: string): Promise<IssueRe
   }
 
   if (payment.user_id) {
+    const message = isAdAddon
+      ? "Pagamento aprovado e anúncios extras adicionados ao saldo"
+      : isAiAddon
+        ? "Pagamento aprovado e créditos extras de IA adicionados ao saldo"
+        : "Pagamento aprovado e plano liberado automaticamente";
     await supabaseAdmin.from("activity_events").insert({
       user_id: payment.user_id,
-      kind: isAddon ? "ad_package_approved" : "payment_approved",
-      message: isAddon ? "Pagamento aprovado e anúncios extras adicionados automaticamente" : "Pagamento aprovado e plano liberado automaticamente",
-      meta: { payment_id: payment.id, license_code: code, purchase_kind: isAddon ? "ad_package" : "plan" },
+      kind: isAdAddon ? "ad_package_approved" : isAiAddon ? "ai_package_approved" : "payment_approved",
+      message,
+      meta: {
+        payment_id: payment.id,
+        license_code: code,
+        purchase_kind: isAdAddon ? "ad_package" : isAiAddon ? "ai_package" : "plan",
+        ad_quota: isAdAddon ? Number(payment.plans?.ad_quota ?? 0) : null,
+        ai_credits: isAiAddon ? Number(payment.plans?.ai_credits ?? 0) : null,
+      },
     });
   }
 
@@ -80,15 +99,24 @@ export async function issueLicenseForPayment(paymentId: string): Promise<IssueRe
 export async function syncPaymentWithMercadoPago(paymentId: string) {
   const accessToken = process.env["MERCADOPAGO_ACCESS_TOKEN"];
   if (!accessToken) return { status: null as string | null, license_code: null as string | null };
-  const response = await fetch(`https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(paymentId)}&sort=date_created&criteria=desc`, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!response.ok) { console.error("Mercado Pago search failed", response.status); return { status: null, license_code: null }; }
+  const response = await fetch(
+    `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(paymentId)}&sort=date_created&criteria=desc`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!response.ok) {
+    console.error("Mercado Pago search failed", response.status);
+    return { status: null, license_code: null };
+  }
   const body = (await response.json()) as { results?: Array<{ id?: number | string; status?: string }> };
   const results = body.results ?? [];
   const approved = results.find((r) => r.status === "approved");
   const mpPayment = approved ?? results[0];
   if (!mpPayment?.status) return { status: null, license_code: null };
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  await supabaseAdmin.from("payments").update({ status: mpPayment.status, provider_ref: mpPayment.id ? String(mpPayment.id) : null }).eq("id", paymentId);
+  await supabaseAdmin
+    .from("payments")
+    .update({ status: mpPayment.status, provider_ref: mpPayment.id ? String(mpPayment.id) : null })
+    .eq("id", paymentId);
   if (mpPayment.status !== "approved") return { status: mpPayment.status, license_code: null };
   const issued = await issueLicenseForPayment(paymentId);
   return { status: mpPayment.status, license_code: issued.ok ? issued.license_code : null };
