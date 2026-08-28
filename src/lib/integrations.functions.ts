@@ -10,17 +10,26 @@ export const getIntegrationsStatus = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const hasMlCredentials = !!process.env["ML_CLIENT_ID"] && !!process.env["ML_REDIRECT_URI"];
     const hasMercadoPagoToken = !!process.env["MERCADOPAGO_ACCESS_TOKEN"];
-    const aiConfigured = !!process.env["GEMINI_API_KEY"] || !!process.env["LOVABLE_API_KEY"] || !!process.env["OPENAI_API_KEY"];
+    const aiConfigured =
+      !!process.env["GEMINI_API_KEY"] ||
+      !!process.env["LOVABLE_API_KEY"] ||
+      !!process.env["OPENAI_API_KEY"];
 
     const { data: mlConnection } = await context.supabase
       .from("ml_connections")
-      .select("connected,last_sync_at,nickname,access_token")
+      .select("connected,last_sync_at,nickname")
       .eq("user_id", context.userId)
       .maybeSingle();
 
-    // Uma conexão OAuth que já possui token válido no backend não deve aparecer como
-    // "desconectada" somente porque um flag legado ficou desatualizado.
-    const mlConnected = !!mlConnection && (!!mlConnection.connected || !!mlConnection.access_token);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: tokenRow } = await supabaseAdmin
+      .from("ml_tokens")
+      .select("user_id")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    // O token permanece exclusivamente no backend. O cliente recebe apenas um booleano.
+    const mlConnected = !!mlConnection && (mlConnection.connected || !!tokenRow);
 
     return {
       mercadoLivre: {
