@@ -5,6 +5,7 @@ import { ShieldCheck } from "lucide-react";
 import { SessionSplash } from "@/components/SessionSplash";
 import { VisitTracker } from "@/components/VisitTracker";
 import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landing/ConversionSections";
+import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
 import { Reveal } from "@/components/landing/Reveal";
@@ -12,7 +13,6 @@ import { VerifiedFeaturesSection } from "@/components/landing/VerifiedFeaturesSe
 import { VideoDemoSection } from "@/components/landing/VideoDemoSection";
 import {
   ComparisonSection,
-  FaqSection,
   FinalCta,
   LandingFooter,
   LandingNav,
@@ -23,7 +23,7 @@ import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
 const title = "ANÚNCIO ML — Encontre, copie, otimize e publique anúncios";
 const description =
-  "Plataforma para vendedores do Mercado Livre: busque anúncios, copie em massa, otimize com IA e gerencie vendas, estoque e performance. Comece com 10 anúncios grátis.";
+  "Plataforma independente para vendedores do Mercado Livre: busque anúncios, crie cópias, otimize com IA e acompanhe sua operação. Comece com 10 anúncios para testar.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -61,7 +61,7 @@ function Landing() {
         <Reveal><ComparisonSection /></Reveal>
         <Reveal><PricingSection /></Reveal>
         <Reveal><PlanPeriodComparisonSection /></Reveal>
-        <Reveal><FaqSection /></Reveal>
+        <Reveal><LaunchFaqSection /></Reveal>
         <Reveal><PreSaleSupport /></Reveal>
         <Reveal><FinalCta /></Reveal>
       </main>
