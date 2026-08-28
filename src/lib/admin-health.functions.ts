@@ -25,14 +25,24 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
       supabaseAdmin.from("licenses").select("id", { count: "exact", head: true }).or(`status.eq.expired,and(status.eq.active,expires_at.lt.${now.toISOString()})`),
       supabaseAdmin.from("payments").select("id", { count: "exact", head: true }).in("status", ["rejected", "cancelled"]),
       supabaseAdmin.from("payments").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      supabaseAdmin.from("activity_events").select("id", { count: "exact", head: true }).eq("kind", "ml_webhook").gte("created_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
+      supabaseAdmin
+        .from("activity_events")
+        .select("id", { count: "exact", head: true })
+        .in("kind", ["ml_notification", "ml_item_updated"])
+        .gte("created_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
     ]);
+
+    const aiProvider = process.env["LOVABLE_API_KEY"]
+      ? "Lovable AI"
+      : process.env["GEMINI_API_KEY"] || process.env["GOOGLE_API_KEY"]
+        ? "Gemini"
+        : null;
 
     const config = {
       supabase: !!process.env["SUPABASE_URL"] && !!process.env["SUPABASE_SERVICE_ROLE_KEY"],
       mercadoLivre: !!process.env["ML_CLIENT_ID"] && !!process.env["ML_CLIENT_SECRET"] && !!process.env["ML_REDIRECT_URI"],
       mercadoPago: !!process.env["MERCADOPAGO_ACCESS_TOKEN"],
-      ai: !!process.env["LOVABLE_API_KEY"] || !!process.env["OPENAI_API_KEY"],
+      ai: !!aiProvider,
       webhookMercadoPago: !!process.env["MERCADOPAGO_WEBHOOK_SECRET"],
     };
 
@@ -40,7 +50,7 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
       { key: "supabase", label: "Supabase / Banco", state: config.supabase ? "ok" : "error", detail: config.supabase ? "Backend configurado" : "Configuração do backend incompleta" },
       { key: "mercadoLivre", label: "Mercado Livre", state: config.mercadoLivre ? "ok" : "error", detail: config.mercadoLivre ? `${mlConnected.count ?? 0} conta(s) conectada(s)` : "Credenciais OAuth incompletas" },
       { key: "mercadoPago", label: "Mercado Pago", state: config.mercadoPago ? "ok" : "warning", detail: config.mercadoPago ? "Token configurado" : "Token de pagamento ausente" },
-      { key: "ai", label: "Inteligência artificial", state: config.ai ? "ok" : "warning", detail: config.ai ? "Gateway de IA configurado" : "Chave de IA ausente" },
+      { key: "ai", label: "Inteligência artificial", state: config.ai ? "ok" : "warning", detail: aiProvider ? `${aiProvider} configurado` : "Chave de IA ausente" },
       { key: "webhook", label: "Webhook Mercado Pago", state: config.webhookMercadoPago ? "ok" : "warning", detail: config.webhookMercadoPago ? "Assinatura configurada" : "Secret de assinatura não configurado" },
     ] as Array<{ key: string; label: string; state: HealthState; detail: string }>;
 

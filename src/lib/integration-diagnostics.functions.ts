@@ -8,8 +8,17 @@ export const getMercadoLivreCapabilityHealth=createServerFn({method:'GET'}).midd
   const {getValidMlAccessToken}=await import('@/lib/ml.server')
   const tokenState=await getValidMlAccessToken(context.userId)
   if(!tokenState.ok)return {connected:true,token:'expired' as const,search:'blocked' as const,sales:'blocked' as const,last_sync_at:connection.last_sync_at??null,listings_count:connection.listings_count??0,reason:tokenState.reason}
-  let search:'ok'|'error'='ok',sales:'ok'|'permission'|'error'='error'
-  try{const r=await fetch('https://api.mercadolibre.com/sites/MLB/search?q=teste&limit=1',{headers:{Accept:'application/json'}});if(!r.ok)search='error'}catch{search='error'}
-  if(connection.ml_user_id){try{const r=await fetch(`https://api.mercadolibre.com/orders/search?seller=${encodeURIComponent(String(connection.ml_user_id))}&limit=1`,{headers:{Authorization:`Bearer ${tokenState.accessToken}`,Accept:'application/json'}});sales=r.ok?'ok':r.status===401||r.status===403?'permission':'error'}catch{sales='error'}}
+  let search:'ok'|'error'='error',sales:'ok'|'permission'|'error'='error'
+  const headers={Authorization:`Bearer ${tokenState.accessToken}`,Accept:'application/json'}
+  try{
+    const url=new URL('https://api.mercadolibre.com/products/search')
+    url.searchParams.set('status','active')
+    url.searchParams.set('site_id','MLB')
+    url.searchParams.set('q','teste')
+    url.searchParams.set('limit','1')
+    const r=await fetch(url,{headers})
+    search=r.ok?'ok':'error'
+  }catch{search='error'}
+  if(connection.ml_user_id){try{const r=await fetch(`https://api.mercadolibre.com/orders/search?seller=${encodeURIComponent(String(connection.ml_user_id))}&limit=1`,{headers});sales=r.ok?'ok':r.status===401||r.status===403?'permission':'error'}catch{sales='error'}}
   return {connected:true,token:'ok' as const,search,sales,last_sync_at:connection.last_sync_at??null,listings_count:connection.listings_count??0}
 })

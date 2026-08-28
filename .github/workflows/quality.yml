@@ -16,8 +16,16 @@ jobs:
         continue-on-error: true
         run: bun run lint
       - name: Auditoria de botões e ações
-        continue-on-error: true
-        run: bun run audit:ui
+        shell: bash
+        run: |
+          set -o pipefail
+          bun run audit:ui 2>&1 | tee audit-ui.log
+      - name: Salvar log da auditoria de ações
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-ui-audit-log
+          path: audit-ui.log
       - name: Build de produção
         shell: bash
         run: |

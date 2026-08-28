@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { BadgeCheck, Check, Copy, KeyRound, Loader2, ShoppingCart } from "lucide-react";
 import { useState } from "react";
@@ -11,20 +11,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLicense } from "@/hooks/useLicense";
-import { useProfile } from "@/hooks/useAuth";
-import { Progress } from "@/components/ui/progress";
 import { usePeriods, usePlans } from "@/hooks/usePlans";
 import { createMercadoPagoCheckout } from "@/lib/checkout.functions";
-import { activateLicense } from "@/lib/licenses.functions";
 import { formatBRL, formatDate, daysUntil } from "@/lib/format";
+import { activateLicense } from "@/lib/licenses.functions";
 import {
   periodMonthlyCents,
   periodSavingsCents,
   periodTotalCents,
   type BillingPeriod,
 } from "@/lib/pricing";
+import { getAdQuota } from "@/lib/quota.functions";
 import { cn } from "@/lib/utils";
 
 const title = "Plano e licença — ANÚNCIO ML";
@@ -47,11 +47,12 @@ export const Route = createFileRoute("/_authenticated/licenca")({
 function LicensePage() {
   const queryClient = useQueryClient();
   const { data: license } = useLicense();
-  const { data: profile } = useProfile();
   const { data: plans = [] } = usePlans();
   const { data: periods = [] } = usePeriods();
   const activate = useServerFn(activateLicense);
   const checkout = useServerFn(createMercadoPagoCheckout);
+  const quotaFn = useServerFn(getAdQuota);
+  const { data: quota } = useQuery({ queryKey: ["ad-quota"], queryFn: () => quotaFn({}) });
 
   const [code, setCode] = useState("");
   const [period, setPeriod] = useState<BillingPeriod>("monthly");
@@ -65,8 +66,9 @@ function LicensePage() {
         toast.error("Chave não aceita", { description: result.reason });
         return;
       }
-      queryClient.invalidateQueries({ queryKey: ["license"] });
-      queryClient.invalidateQueries({ queryKey: ["activity"] });
+      void queryClient.invalidateQueries({ queryKey: ["license"] });
+      void queryClient.invalidateQueries({ queryKey: ["activity"] });
+      void queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
       toast.success("Licença ativada!", {
         description: `Plano ${result.license.plan ?? ""} válido até ${formatDate(result.license.expires_at)}`,
       });
@@ -82,12 +84,14 @@ function LicensePage() {
         window.location.href = result.checkout_url;
         return;
       }
-      toast.info("Pagamento pendente de configuração", {
-        description:
-          "O checkout do Mercado Pago ainda não está configurado nesta instalação. Sua intenção de compra foi registrada e você pode ativar por chave de licença.",
+      toast.error("Pagamento indisponível", {
+        description: result.reason ?? "Não foi possível abrir o Mercado Pago agora. Tente novamente em instantes.",
       });
     },
-    onError: () => toast.error("Falha ao iniciar o checkout."),
+    onError: (error) =>
+      toast.error("Falha ao iniciar o checkout.", {
+        description: error instanceof Error ? error.message : undefined,
+      }),
   });
 
   return (
@@ -167,23 +171,17 @@ function LicensePage() {
             ) : (
               <>
                 <p className="text-muted-foreground">Nenhuma licença ativa. Você está no teste gratuito.</p>
-                {profile && (
+                {quota && (
                   <div className="space-y-1">
-                    <Progress
-                      value={
-                        profile.free_listings_limit > 0
-                          ? Math.min(100, (profile.free_listings_used / profile.free_listings_limit) * 100)
-                          : 0
-                      }
-                    />
+                    <Progress value={quota.quota > 0 ? Math.min(100, (quota.used / quota.quota) * 100) : 0} />
                     <p className="text-xs text-muted-foreground">
-                      {profile.free_listings_used}/{profile.free_listings_limit} anúncios do teste gratuito usados
+                      {quota.used}/{quota.quota} anúncios da franquia de criação e cópias usados
                     </p>
                   </div>
                 )}
-                {profile && profile.free_listings_used >= profile.free_listings_limit && (
+                {quota && quota.remaining <= 0 && (
                   <p className="text-sm font-medium text-destructive">
-                    Seu teste gratuito terminou. Escolha um plano para continuar.
+                    Sua franquia de novas criações terminou. Rascunhos existentes ainda podem ser publicados; escolha um plano ou compre capacidade para criar novas cópias.
                   </p>
                 )}
               </>
