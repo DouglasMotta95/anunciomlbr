@@ -3,31 +3,44 @@ import type { SearchMlItem } from "@/lib/ml-search-production.functions";
 /**
  * Descoberta de ANÚNCIOS PÚBLICOS REAIS do Mercado Livre.
  *
- * Diagnóstico (agosto/2026, validado em produção com token de app, de usuário e anônimo):
- * - GET /sites/MLB/search?q=... => 403 {"error":"forbidden"} em TODOS os casos.
- *   O endpoint de busca pública por palavra-chave foi descontinuado para aplicações de terceiros.
- * - GET /items/{id} e /items?ids=... de anúncios de OUTROS vendedores => 403 access_denied.
- * - GET /products/search (catálogo) => 200.
- * - GET /products/{catalog_id}/items => 200 e devolve as OFERTAS REAIS (item_id MLB, seller_id,
- *   preço, preço original, frete, condição, garantia) publicadas por vendedores reais.
- * - GET /users/{seller_id} => 200 (nickname do vendedor real).
- * - GET /highlights/MLB/category/{cat} => 200 (mais produtos com oferta ativa).
+ * Estratégia, em ordem:
+ * 1) Busca pública do próprio marketplace (lista.mercadolivre.com.br/<termo>), equivalente à barra de busca.
+ * 2) Extrai somente anúncios com item_id MLB, título/preço/link/imagem públicos.
+ * 3) Tenta enriquecer/validar cada MLB pela API oficial quando o recurso estiver liberado.
+ * 4) Se a página pública estiver indisponível no servidor, usa catálogo apenas como ÍNDICE para chegar
+ *    às ofertas reais (/products/{catalog_id}/items), nunca devolvendo o produto genérico do catálogo.
  *
- * Por isso a descoberta usa o catálogo apenas como ÍNDICE e devolve sempre anúncios MLB reais
- * (item_id de vendedores reais), nunca o registro genérico de catálogo.
+ * Não há bypass de CAPTCHA/anti-bot: se a página pública negar acesso, o fluxo cai para a API oficial.
  */
 
 const ML_API = "https://api.mercadolibre.com";
-const USER_AGENT = "ANUNCIO-ML/1.0";
+const ML_LIST = "https://lista.mercadolivre.com.br";
+const API_USER_AGENT = "ANUNCIO-ML/1.0";
+const WEB_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
 type TokenKind = "user" | "app" | "anonymous";
 type Attempt = { status: number | "network_error"; body: unknown; tokenKind: TokenKind };
+
+type PublicCard = {
+  id: string;
+  title: string;
+  price_cents: number | null;
+  permalink: string | null;
+  thumbnail: string | null;
+};
 
 export type DiscoveryOutcome = {
   ok: boolean;
   reason: string | null;
   items: SearchMlItem[];
-  diagnostics: { statuses: number[]; products: number; offers: number };
+  diagnostics: {
+    statuses: number[];
+    products: number;
+    offers: number;
+    publicSearchStatus: number | "network_error" | null;
+    publicCandidates: number;
+  };
 };
 
 const sellerCache = new Map<string, { value: string | null; expires: number }>();
@@ -47,7 +60,7 @@ async function tokensFor(userId: string) {
 }
 
 function headersFor(token?: string) {
-  const out: Record<string, string> = { Accept: "application/json", "User-Agent": USER_AGENT };
+  const out: Record<string, string> = { Accept: "application/json", "User-Agent": API_USER_AGENT };
   if (token) out["Authorization"] = `Bearer ${token}`;
   return out;
 }
@@ -63,10 +76,12 @@ async function mlGet(
       const response = await fetch(`${ML_API}${path}`, { headers: headersFor(entry.token) });
       statuses.push(response.status);
       const body = await response.json().catch(() => null);
+      console.info("[ML public discovery]", { endpoint: path, status: response.status, token_type: entry.kind });
       last = { status: response.status, body, tokenKind: entry.kind };
       if (response.ok) return last;
       if (![401, 403].includes(response.status)) return last;
     } catch {
+      console.info("[ML public discovery]", { endpoint: path, status: "network_error", token_type: entry.kind });
       last = { status: "network_error", body: null, tokenKind: entry.kind };
     }
   }
@@ -108,6 +123,158 @@ function isRelevant(query: string, title: string) {
   return score >= 60;
 }
 
+function decodeHtml(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&#x27;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function stripTags(value: string) {
+  return decodeHtml(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
+}
+
+function slugifySearch(query: string) {
+  return normalize(query).replace(/\s+/g, "-");
+}
+
+function normalizeItemId(value: string | null | undefined) {
+  if (!value) return null;
+  const match = value.toUpperCase().match(/MLB[-_ ]?(\d{6,})/);
+  return match ? `MLB${match[1]}` : null;
+}
+
+function idFromUrl(url: string | null) {
+  if (!url) return null;
+  const decoded = decodeHtml(url);
+  const itemParam = decoded.match(/[?&](?:item_id|itemId)=((?:MLB)[-_ ]?\d{6,})/i)?.[1];
+  return normalizeItemId(itemParam ?? decoded);
+}
+
+function safeWebUrl(value: string | null | undefined) {
+  if (!value) return null;
+  const decoded = decodeHtml(value).replace(/\\u0026/g, "&").replace(/\\\//g, "/");
+  if (decoded.startsWith("//")) return `https:${decoded}`;
+  if (/^https:\/\//i.test(decoded)) return decoded;
+  if (/^http:\/\//i.test(decoded)) return `https://${decoded.slice(7)}`;
+  return null;
+}
+
+function priceToCents(raw: string | number | null | undefined) {
+  if (typeof raw === "number" && Number.isFinite(raw)) return Math.round(raw * 100);
+  if (typeof raw !== "string") return null;
+  const text = stripTags(raw).replace(/R\$/gi, "").replace(/\s/g, "");
+  if (!text) return null;
+  let normalized = text;
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(text)) normalized = text.replace(/\./g, "").replace(",", ".");
+  else if (/^\d+(,\d{1,2})$/.test(text)) normalized = text.replace(",", ".");
+  else normalized = text.replace(/[^0-9.]/g, "");
+  const value = Number(normalized);
+  return Number.isFinite(value) && value > 0 ? Math.round(value * 100) : null;
+}
+
+function extractJsonLdCards(html: string, query: string) {
+  const cards: PublicCard[] = [];
+  const scripts = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+
+  const visit = (value: unknown) => {
+    if (!value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      for (const entry of value) visit(entry);
+      return;
+    }
+    const row = value as Record<string, unknown>;
+    const candidate = (row["item"] && typeof row["item"] === "object" ? row["item"] : row) as Record<string, unknown>;
+    const url = safeWebUrl(typeof candidate["url"] === "string" ? candidate["url"] : typeof row["url"] === "string" ? row["url"] : null);
+    const id = idFromUrl(url) ?? normalizeItemId(typeof candidate["sku"] === "string" ? candidate["sku"] : null);
+    const title = typeof candidate["name"] === "string" ? candidate["name"].trim() : "";
+    const offers = candidate["offers"] as Record<string, unknown> | undefined;
+    const imageRaw = Array.isArray(candidate["image"]) ? candidate["image"][0] : candidate["image"];
+    if (id && title && isRelevant(query, title)) {
+      cards.push({
+        id,
+        title,
+        price_cents: priceToCents(typeof offers?.["price"] === "number" || typeof offers?.["price"] === "string" ? (offers["price"] as number | string) : null),
+        permalink: url,
+        thumbnail: safeWebUrl(typeof imageRaw === "string" ? imageRaw : null),
+      });
+    }
+    for (const child of Object.values(row)) visit(child);
+  };
+
+  for (const script of scripts) {
+    try {
+      visit(JSON.parse(decodeHtml(script[1] ?? "")) as unknown);
+    } catch {}
+  }
+  return cards;
+}
+
+function extractHtmlCards(html: string, query: string) {
+  const cards: PublicCard[] = [];
+  const blocks = Array.from(html.matchAll(/<(?:li|div)[^>]+class=["'][^"']*(?:ui-search-layout__item|poly-card)[^"']*["'][^>]*>([\s\S]*?)(?=<\/(?:li|div)>)/gi)).map((match) => match[0]);
+  const sources = blocks.length ? blocks : [html];
+
+  for (const block of sources) {
+    const hrefMatch = block.match(/href=["']([^"']+)["']/i);
+    const href = safeWebUrl(hrefMatch?.[1] ?? null);
+    const id = idFromUrl(href) ?? normalizeItemId(block);
+    if (!id) continue;
+
+    const titleMatch = block.match(/class=["'][^"']*(?:ui-search-item__title|poly-component__title)[^"']*["'][^>]*>([\s\S]*?)<\//i)
+      ?? block.match(/(?:title|aria-label)=["']([^"']{3,180})["']/i);
+    const title = stripTags(titleMatch?.[1] ?? "").slice(0, 180);
+    if (!title || !isRelevant(query, title)) continue;
+
+    const fraction = block.match(/class=["'][^"']*andes-money-amount__fraction[^"']*["'][^>]*>([\s\S]*?)<\//i)?.[1] ?? null;
+    const cents = block.match(/class=["'][^"']*andes-money-amount__cents[^"']*["'][^>]*>([\s\S]*?)<\//i)?.[1] ?? null;
+    let price_cents = priceToCents(fraction);
+    if (price_cents != null && cents) {
+      const parsedCents = Number(stripTags(cents).replace(/\D/g, "").slice(0, 2));
+      if (Number.isFinite(parsedCents)) price_cents += parsedCents;
+    }
+
+    const img = block.match(/(?:data-src|src)=["'](https?:\/\/[^"']+)["']/i)?.[1] ?? null;
+    cards.push({ id, title, price_cents, permalink: href, thumbnail: safeWebUrl(img) });
+    if (blocks.length === 0 && cards.length >= 80) break;
+  }
+  return cards;
+}
+
+async function searchPublicMarketplace(query: string, desired: number) {
+  const slug = slugifySearch(query);
+  if (!slug) return { status: null as number | "network_error" | null, cards: [] as PublicCard[], url: null as string | null };
+  const url = `${ML_LIST}/${encodeURIComponent(slug).replace(/%2D/g, "-")}`;
+  try {
+    const response = await fetch(url, {
+      redirect: "follow",
+      headers: {
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.7",
+        "Cache-Control": "no-cache",
+        "User-Agent": WEB_USER_AGENT,
+      },
+    });
+    console.info("[ML public marketplace]", { endpoint: url, status: response.status });
+    if (!response.ok) return { status: response.status, cards: [] as PublicCard[], url };
+    const html = await response.text();
+    const merged = [...extractJsonLdCards(html, query), ...extractHtmlCards(html, query)];
+    const cards = Array.from(new Map(merged.map((card) => [card.id, card])).values())
+      .sort((a, b) => {
+        const diff = relevanceScore(query, b.title) - relevanceScore(query, a.title);
+        if (diff) return diff;
+        return Number(b.price_cents != null) - Number(a.price_cents != null);
+      })
+      .slice(0, Math.max(desired * 2, 40));
+    return { status: response.status, cards, url };
+  } catch {
+    console.info("[ML public marketplace]", { endpoint: url, status: "network_error" });
+    return { status: "network_error" as const, cards: [] as PublicCard[], url };
+  }
+}
+
 type ProductRow = {
   id?: string;
   name?: string;
@@ -129,6 +296,22 @@ type OfferRow = {
   official_store_id?: number | null;
   shipping?: { free_shipping?: boolean };
   warranty?: string;
+};
+
+type ItemApiRow = {
+  id?: string;
+  title?: string;
+  price?: number;
+  permalink?: string;
+  thumbnail?: string;
+  category_id?: string;
+  seller_id?: number | string;
+  condition?: string;
+  available_quantity?: number;
+  sold_quantity?: number;
+  status?: string;
+  pictures?: Array<{ secure_url?: string; url?: string }>;
+  attributes?: SearchMlItem["attributes"];
 };
 
 function pictureUrls(product: ProductRow) {
@@ -157,6 +340,71 @@ async function sellerNickname(
   return value;
 }
 
+async function fetchItemsByIds(
+  ids: string[],
+  tokens: Array<{ token: string; kind: TokenKind }>,
+  statuses: number[],
+) {
+  const unique = Array.from(new Set(ids.map((id) => normalizeItemId(id)).filter((id): id is string => !!id)));
+  const output = new Map<string, SearchMlItem>();
+  for (let index = 0; index < unique.length; index += 20) {
+    const chunk = unique.slice(index, index + 20);
+    const attempt = await mlGet(`/items?ids=${encodeURIComponent(chunk.join(","))}&include_attributes=all`, tokens, statuses);
+    if (attempt.status !== 200 || !Array.isArray(attempt.body)) continue;
+    for (const row of attempt.body as Array<{ code?: number; body?: ItemApiRow }>) {
+      if (row.code !== 200 || !row.body) continue;
+      const raw = row.body;
+      const id = normalizeItemId(raw.id);
+      if (!id || !raw.title) continue;
+      const sellerId = raw.seller_id != null ? String(raw.seller_id) : null;
+      const images = (raw.pictures ?? [])
+        .map((picture) => safeWebUrl(picture.secure_url ?? picture.url ?? null))
+        .filter((value): value is string => !!value);
+      const seller = sellerId ? await sellerNickname(sellerId, tokens, statuses) : null;
+      output.set(id, {
+        id,
+        title: raw.title,
+        price_cents: typeof raw.price === "number" ? Math.round(raw.price * 100) : null,
+        thumbnail: safeWebUrl(raw.thumbnail ?? null) ?? images[0] ?? null,
+        permalink: safeWebUrl(raw.permalink ?? null) ?? itemPermalink(id),
+        category: raw.category_id ?? null,
+        seller,
+        seller_id: sellerId,
+        condition: raw.condition ?? null,
+        available_quantity: typeof raw.available_quantity === "number" ? raw.available_quantity : null,
+        sold_quantity: typeof raw.sold_quantity === "number" ? raw.sold_quantity : null,
+        status: raw.status ?? null,
+        images,
+        attributes: Array.isArray(raw.attributes) ? raw.attributes : [],
+        source_kind: "marketplace",
+        verified_item: true,
+      });
+    }
+  }
+  return output;
+}
+
+function publicCardToItem(card: PublicCard): SearchMlItem {
+  return {
+    id: card.id,
+    title: card.title,
+    price_cents: card.price_cents,
+    thumbnail: card.thumbnail,
+    permalink: card.permalink ?? itemPermalink(card.id),
+    category: null,
+    seller: null,
+    seller_id: null,
+    condition: null,
+    available_quantity: null,
+    sold_quantity: null,
+    status: "active",
+    images: card.thumbnail ? [card.thumbnail] : [],
+    attributes: [],
+    source_kind: "marketplace",
+    verified_item: false,
+  };
+}
+
 async function searchCatalogProducts(
   query: string,
   tokens: Array<{ token: string; kind: TokenKind }>,
@@ -165,13 +413,7 @@ async function searchCatalogProducts(
 ) {
   const rows: ProductRow[] = [];
   for (let page = 0; page < pages; page += 1) {
-    const params = new URLSearchParams({
-      status: "active",
-      site_id: "MLB",
-      q: query,
-      limit: "50",
-      offset: String(page * 50),
-    });
+    const params = new URLSearchParams({ status: "active", site_id: "MLB", q: query, limit: "50", offset: String(page * 50) });
     const attempt = await mlGet(`/products/search?${params.toString()}`, tokens, statuses);
     if (attempt.status !== 200) break;
     const body = attempt.body as { results?: ProductRow[] } | null;
@@ -190,17 +432,12 @@ async function highlightProducts(
   const params = new URLSearchParams({ q: query, limit: "5" });
   const discovery = await mlGet(`/sites/MLB/domain_discovery/search?${params.toString()}`, tokens, statuses);
   const rows = Array.isArray(discovery.body) ? (discovery.body as Array<{ category_id?: unknown }>) : [];
-  const categories = Array.from(
-    new Set(rows.map((row) => (typeof row.category_id === "string" ? row.category_id : null)).filter((v): v is string => !!v)),
-  ).slice(0, 3);
-
+  const categories = Array.from(new Set(rows.map((row) => (typeof row.category_id === "string" ? row.category_id : null)).filter((v): v is string => !!v))).slice(0, 3);
   const ids: string[] = [];
   for (const category of categories) {
     const attempt = await mlGet(`/highlights/MLB/category/${category}`, tokens, statuses);
     const body = attempt.body as { content?: Array<{ id?: string; type?: string }> } | null;
-    for (const entry of body?.content ?? []) {
-      if (entry.type === "PRODUCT" && entry.id) ids.push(entry.id);
-    }
+    for (const entry of body?.content ?? []) if (entry.type === "PRODUCT" && entry.id) ids.push(entry.id);
   }
   return Array.from(new Set(ids)).slice(0, 30);
 }
@@ -228,7 +465,7 @@ async function offersOf(
 }
 
 function toSearchItem(offer: OfferRow, product: ProductRow, seller: string | null): SearchMlItem | null {
-  const id = typeof offer.item_id === "string" ? offer.item_id : null;
+  const id = normalizeItemId(offer.item_id);
   if (!id || typeof offer.price !== "number") return null;
   const images = pictureUrls(product);
   return {
@@ -260,23 +497,12 @@ async function mapWithConcurrency<T, R>(list: T[], size: number, worker: (value:
   return out;
 }
 
-/** Descobre anúncios reais (item_id MLB de vendedores reais) para uma palavra-chave. */
-export async function discoverPublicAds(
-  userId: string,
+async function catalogFallback(
   query: string,
   desired: number,
-): Promise<DiscoveryOutcome> {
-  const statuses: number[] = [];
-  const tokens = await tokensFor(userId);
-  if (!tokens.length) {
-    return {
-      ok: false,
-      reason: "Conecte sua conta do Mercado Livre para buscar anúncios reais pela API oficial.",
-      items: [],
-      diagnostics: { statuses, products: 0, offers: 0 },
-    };
-  }
-
+  tokens: Array<{ token: string; kind: TokenKind }>,
+  statuses: number[],
+) {
   const catalog = await searchCatalogProducts(query, tokens, statuses, desired > 40 ? 3 : 2);
   let candidates = catalog
     .filter((row) => !!row.id && isRelevant(query, String(row.name ?? "")))
@@ -296,7 +522,6 @@ export async function discoverPublicAds(
 
   const productLimit = Math.min(Math.max(Math.ceil(desired / 3), 6), 18);
   const chosen = candidates.slice(0, productLimit);
-
   const perProduct = Math.min(Math.max(Math.ceil(desired / Math.max(chosen.length, 1)), 3), 20);
   const groups = await mapWithConcurrency(chosen, 4, async (candidate) => {
     const [product, offers] = await Promise.all([
@@ -306,11 +531,7 @@ export async function discoverPublicAds(
     return { product: product ?? candidate.row, offers };
   });
 
-  const sellerIds = Array.from(
-    new Set(
-      groups.flatMap((group) => group.offers.map((offer) => (offer.seller_id != null ? String(offer.seller_id) : null))).filter((v): v is string => !!v),
-    ),
-  ).slice(0, 40);
+  const sellerIds = Array.from(new Set(groups.flatMap((group) => group.offers.map((offer) => (offer.seller_id != null ? String(offer.seller_id) : null))).filter((v): v is string => !!v))).slice(0, 40);
   const nicknames = new Map<string, string | null>();
   await mapWithConcurrency(sellerIds, 6, async (sellerId) => {
     nicknames.set(sellerId, await sellerNickname(sellerId, tokens, statuses));
@@ -326,8 +547,54 @@ export async function discoverPublicAds(
       if (item) items.push(item);
     }
   }
+  return { items, productCount: chosen.length, offerCount };
+}
 
-  const unique = Array.from(new Map(items.map((item) => [item.id, item])).values())
+/** Descobre anúncios públicos reais para uma palavra-chave, priorizando a mesma URL da busca do marketplace. */
+export async function discoverPublicAds(userId: string, query: string, desired: number): Promise<DiscoveryOutcome> {
+  const statuses: number[] = [];
+  const tokens = await tokensFor(userId);
+  if (!tokens.length) {
+    return {
+      ok: false,
+      reason: "Conecte sua conta do Mercado Livre para buscar anúncios reais.",
+      items: [],
+      diagnostics: { statuses, products: 0, offers: 0, publicSearchStatus: null, publicCandidates: 0 },
+    };
+  }
+
+  const publicSearch = await searchPublicMarketplace(query, desired);
+  if (publicSearch.cards.length) {
+    const apiById = await fetchItemsByIds(publicSearch.cards.map((card) => card.id), tokens, statuses);
+    const items = publicSearch.cards.map((card) => apiById.get(card.id) ?? publicCardToItem(card));
+    const unique = Array.from(new Map(items.map((item) => [item.id, item])).values())
+      .filter((item) => isRelevant(query, item.title))
+      .sort((a, b) => {
+        const diff = relevanceScore(query, b.title) - relevanceScore(query, a.title);
+        if (diff) return diff;
+        return Number(b.verified_item === true) - Number(a.verified_item === true);
+      })
+      .slice(0, desired);
+
+    if (unique.length) {
+      return {
+        ok: true,
+        reason: "Resultados encontrados pela busca pública do Mercado Livre; anúncios MLB enriquecidos pela API oficial quando permitido.",
+        items: unique,
+        diagnostics: {
+          statuses,
+          products: 0,
+          offers: unique.length,
+          publicSearchStatus: publicSearch.status,
+          publicCandidates: publicSearch.cards.length,
+        },
+      };
+    }
+  }
+
+  const fallback = await catalogFallback(query, desired, tokens, statuses);
+  const unique = Array.from(new Map(fallback.items.map((item) => [item.id, item])).values())
+    .filter((item) => isRelevant(query, item.title))
     .sort((a, b) => {
       const diff = relevanceScore(query, b.title) - relevanceScore(query, a.title);
       if (diff) return diff;
@@ -340,14 +607,33 @@ export async function discoverPublicAds(
       ? "O Mercado Livre limitou temporariamente as consultas. Aguarde alguns instantes e tente novamente."
       : statuses.includes(401)
         ? "A autorização do Mercado Livre precisa ser renovada. Reconecte sua conta em Integrações."
-        : "Nenhum anúncio público real foi encontrado para este termo. Tente uma palavra-chave mais específica de produto (ex.: “iPhone 15 128GB”).";
-    return { ok: false, reason, items: [], diagnostics: { statuses, products: chosen.length, offers: offerCount } };
+        : publicSearch.status === 403
+          ? "A página pública do Mercado Livre bloqueou a consulta pelo servidor e a API oficial não retornou ofertas compatíveis para este termo."
+          : "Nenhum anúncio público real foi encontrado para este termo agora.";
+    return {
+      ok: false,
+      reason,
+      items: [],
+      diagnostics: {
+        statuses,
+        products: fallback.productCount,
+        offers: fallback.offerCount,
+        publicSearchStatus: publicSearch.status,
+        publicCandidates: publicSearch.cards.length,
+      },
+    };
   }
 
   return {
     ok: true,
-    reason: "Anúncios reais de vendedores do Mercado Livre, validados pela API oficial.",
+    reason: "Anúncios reais de vendedores do Mercado Livre encontrados por ofertas oficiais do marketplace.",
     items: unique,
-    diagnostics: { statuses, products: chosen.length, offers: offerCount },
+    diagnostics: {
+      statuses,
+      products: fallback.productCount,
+      offers: fallback.offerCount,
+      publicSearchStatus: publicSearch.status,
+      publicCandidates: publicSearch.cards.length,
+    },
   };
 }
