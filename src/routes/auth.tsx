@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -11,10 +12,10 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth, useProfile } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
+import { checkIsAdmin } from "@/lib/roles.functions";
 
 const searchSchema = z.object({ mode: z.enum(["login", "signup"]).optional(), ref: z.string().trim().min(3).max(32).optional() });
 const title = "Entrar ou criar conta — ANÚNCIO ML";
@@ -30,7 +31,10 @@ function AuthPage() {
   const { mode, ref } = Route.useSearch();
   const navigate = useNavigate();
   const { user, loading: sessionLoading } = useAuth();
-  const { data: profile, isLoading: profileLoading } = useProfile();
+  const checkAdmin = useServerFn(checkIsAdmin);
+  const entrySessionHandled = useRef(false);
+  const loginStartedHere = useRef(false);
+  const [preparingCustomerLogin, setPreparingCustomerLogin] = useState(true);
   const [isSignup, setIsSignup] = useState(mode === "signup" || !!ref);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -39,19 +43,24 @@ function AuthPage() {
   const [terms, setTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
-
-  // O /auth é exclusivamente a porta de entrada do cliente. Mesmo que a conta
-  // também possua papel administrativo, quem entrou por aqui segue para o
-  // onboarding/dashboard normal. O painel admin possui login próprio em /admin/login.
+  // /auth é uma entrada pública EXCLUSIVA do cliente. Ao chegar aqui por meio
+  // do site público, qualquer sessão anterior (inclusive uma sessão admin que
+  // ficou salva no navegador) é encerrada uma única vez antes de mostrar o form.
+  // Uma sessão criada pelo próprio formulário desta página não é encerrada.
   useEffect(() => {
-    if (!user || profileLoading) return;
-    void navigate({ to: profile?.onboarding_done ? "/dashboard" : "/onboarding", replace: true });
-  }, [user, profileLoading, profile?.onboarding_done, navigate]);
+    if (sessionLoading || entrySessionHandled.current) return;
+    entrySessionHandled.current = true;
 
-  if (mounted && (user || (sessionLoading && hasStoredSession() && !hasAuthErrorInUrl()))) return <SessionSplash />;
+    const prepare = async () => {
+      if (user && !loginStartedHere.current) {
+        await supabase.auth.signOut();
+      }
+      setPreparingCustomerLogin(false);
+    };
+
+    void prepare();
+  }, [sessionLoading, user]);
 
   async function customerDestination(userId: string) {
     const { data } = await supabase
@@ -60,6 +69,15 @@ function AuthPage() {
       .eq("id", userId)
       .maybeSingle();
     return data?.onboarding_done ? "/dashboard" : "/onboarding";
+  }
+
+  async function ensureCustomerSession() {
+    const result = await checkAdmin();
+    if (result.isAdmin) {
+      await supabase.auth.signOut();
+      loginStartedHere.current = false;
+      throw new Error("Este acesso é reservado ao painel de clientes. Use o acesso administrativo separado.");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -76,6 +94,7 @@ function AuthPage() {
           return;
         }
         const referral = ref?.trim().toUpperCase() || undefined;
+        loginStartedHere.current = true;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -86,20 +105,25 @@ function AuthPage() {
         });
         if (error) throw error;
         if (!data.session || !data.user) {
+          loginStartedHere.current = false;
           toast.success(referral ? "Conta criada com indicação registrada. Confira seu e-mail para confirmar." : "Conta criada. Confira seu e-mail para confirmar e continuar.");
           setIsSignup(false);
           return;
         }
+        await ensureCustomerSession();
         void navigate({ to: "/onboarding", replace: true });
         return;
       }
 
+      loginStartedHere.current = true;
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.user) throw new Error("Não foi possível concluir o acesso.");
+      await ensureCustomerSession();
       const destination = await customerDestination(data.user.id);
       void navigate({ to: destination, replace: true });
     } catch (error) {
+      loginStartedHere.current = false;
       toast.error(error instanceof Error ? error.message : "Não foi possível continuar.");
     } finally {
       setLoading(false);
@@ -112,6 +136,7 @@ function AuthPage() {
       return;
     }
     setGoogleLoading(true);
+    loginStartedHere.current = true;
     try {
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
       const redirectPath = isSignup ? "/onboarding" : "/auth";
@@ -128,13 +153,14 @@ function AuthPage() {
       if (result.redirected) return;
       const { data } = await supabase.auth.getSession();
       if (!data.session?.user) {
-        toast.error("Não foi possível concluir o login com o Google.");
-        return;
+        throw new Error("Não foi possível concluir o login com o Google.");
       }
+      await ensureCustomerSession();
       const destination = isSignup ? "/onboarding" : await customerDestination(data.session.user.id);
       void navigate({ to: destination, replace: true });
-    } catch {
-      toast.error("Não foi possível entrar com o Google", { description: "Verifique sua conexão e tente novamente." });
+    } catch (error) {
+      loginStartedHere.current = false;
+      toast.error(error instanceof Error ? error.message : "Não foi possível entrar com o Google.");
     } finally {
       setGoogleLoading(false);
     }
@@ -150,13 +176,15 @@ function AuthPage() {
     else toast.success("Enviamos um link de recuperação para o seu e-mail.");
   }
 
+  if (sessionLoading || preparingCustomerLogin) return <SessionSplash />;
+
   return (
     <div className="grid-noise flex min-h-screen items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="mb-6 flex flex-col items-center gap-2 text-center"><Logo /><p className="text-xs text-muted-foreground">{SLOGAN}</p></div>
         <Card className="glass-panel p-6">
           <h1 className="font-display text-xl font-extrabold">{isSignup ? "Criar minha conta" : "Entrar"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{isSignup ? (ref ? "Você foi indicado. Crie sua conta e comece com 10 anúncios gratuitos." : "Ganhe 10 anúncios gratuitos para testar.") : "Acesse seu painel."}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{isSignup ? (ref ? "Você foi indicado. Crie sua conta e comece com 10 anúncios gratuitos." : "Ganhe 10 anúncios gratuitos para testar.") : "Acesse seu painel de cliente."}</p>
           {ref && isSignup && <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs"><span className="text-muted-foreground">Código de indicação: </span><strong className="font-mono text-primary">{ref.toUpperCase()}</strong></div>}
           <form onSubmit={handleSubmit} className="mt-5 space-y-3">
             {isSignup && <div className="space-y-1.5"><Label htmlFor="name">Nome</Label><Input id="name" value={name} onChange={(e) => setName(e.target.value)} required /></div>}
