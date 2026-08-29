@@ -111,6 +111,7 @@ function AuthPage() {
     };
 
     void prepare();
+    return undefined;
   }, [sessionLoading, user]);
 
   async function handleSubmit(e: React.FormEvent) {
