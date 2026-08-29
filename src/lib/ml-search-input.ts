@@ -62,7 +62,15 @@ function searchQueryFromUrl(url: URL) {
 function sellerFromUrl(url: URL) {
   const sellerId = url.searchParams.get("seller_id") ?? url.searchParams.get("sellerId");
   if (sellerId && /^\d{5,}$/.test(sellerId)) return { sellerId, sellerNickname: null as string | null };
+
   const segments = url.pathname.split("/").map((part) => decodeURIComponent(part).trim()).filter(Boolean);
+  const hostPrefix = url.hostname.toLowerCase().split(".")[0];
+  if (/^(perfil|profile|loja|store|eshops)$/i.test(hostPrefix ?? "") && segments[0]) {
+    const value = segments[0].replace(/^@/, "");
+    if (/^\d{5,}$/.test(value)) return { sellerId: value, sellerNickname: null as string | null };
+    return { sellerId: null as string | null, sellerNickname: value };
+  }
+
   const sellerMarker = segments.findIndex((part) => /^(perfil|profile|loja|store|seller|vendedor)$/i.test(part));
   if (sellerMarker >= 0 && segments[sellerMarker + 1]) {
     const value = segments[sellerMarker + 1]!.replace(/^@/, "");
@@ -82,6 +90,7 @@ export function parseMlSearchInput(input: string): ParsedMlSearchInput {
   if (url && ML_HOST_RE.test(url.hostname)) {
     const itemId = normalizeItemId(`${url.pathname}${url.search}`);
     if (itemId) return { raw, cleaned, type: "item_url", itemId, sellerId: null, sellerNickname: null, searchQuery: null, normalizedUrl: url.toString() };
+    if (url.hostname.toLowerCase() === "meli.la") return { raw, cleaned, type: "item_url", itemId: null, sellerId: null, sellerNickname: null, searchQuery: null, normalizedUrl: url.toString() };
     const searchQuery = searchQueryFromUrl(url);
     if (searchQuery) return { raw, cleaned, type: "search_url", itemId: null, sellerId: null, sellerNickname: null, searchQuery, normalizedUrl: url.toString() };
     const seller = sellerFromUrl(url);
