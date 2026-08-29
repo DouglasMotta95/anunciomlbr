@@ -20,6 +20,7 @@ import { checkIsAdmin } from "@/lib/roles.functions";
 const searchSchema = z.object({ mode: z.enum(["login", "signup"]).optional(), ref: z.string().trim().min(3).max(32).optional() });
 const title = "Entrar ou criar conta — ANÚNCIO ML";
 const description = "Acesse sua conta ANÚNCIO ML ou crie a sua em segundos e ganhe 10 anúncios gratuitos para testar a plataforma.";
+const CUSTOMER_OAUTH_INTENT = "anuncioml_customer_oauth_intent";
 
 export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
@@ -44,24 +45,6 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  // /auth é uma entrada pública EXCLUSIVA do cliente. Ao chegar aqui por meio
-  // do site público, qualquer sessão anterior (inclusive uma sessão admin que
-  // ficou salva no navegador) é encerrada uma única vez antes de mostrar o form.
-  // Uma sessão criada pelo próprio formulário desta página não é encerrada.
-  useEffect(() => {
-    if (sessionLoading || entrySessionHandled.current) return;
-    entrySessionHandled.current = true;
-
-    const prepare = async () => {
-      if (user && !loginStartedHere.current) {
-        await supabase.auth.signOut();
-      }
-      setPreparingCustomerLogin(false);
-    };
-
-    void prepare();
-  }, [sessionLoading, user]);
-
   async function customerDestination(userId: string) {
     const { data } = await supabase
       .from("profiles")
@@ -79,6 +62,43 @@ function AuthPage() {
       throw new Error("Este acesso é reservado ao painel de clientes. Use o acesso administrativo separado.");
     }
   }
+
+  // /auth é uma entrada pública exclusiva do cliente. Uma sessão antiga salva no
+  // navegador é encerrada ao abrir a tela. A exceção é o retorno do OAuth Google:
+  // nesse caso preservamos a sessão recém-criada, validamos que não é admin e
+  // seguimos automaticamente para onboarding/dashboard.
+  useEffect(() => {
+    if (sessionLoading || entrySessionHandled.current) return;
+
+    const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) as "login" | "signup" | null;
+    if (oauthIntent && !user) return;
+
+    entrySessionHandled.current = true;
+
+    const prepare = async () => {
+      if (oauthIntent && user) {
+        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+        loginStartedHere.current = true;
+        try {
+          await ensureCustomerSession();
+          const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(user.id);
+          void navigate({ to: destination, replace: true });
+          return;
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Não foi possível concluir o acesso com Google.");
+          setPreparingCustomerLogin(false);
+          return;
+        }
+      }
+
+      if (user && !loginStartedHere.current) {
+        await supabase.auth.signOut();
+      }
+      setPreparingCustomerLogin(false);
+    };
+
+    void prepare();
+  }, [sessionLoading, user]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -137,11 +157,16 @@ function AuthPage() {
     }
     setGoogleLoading(true);
     loginStartedHere.current = true;
+    const oauthIntent: "login" | "signup" = isSignup ? "signup" : "login";
+    sessionStorage.setItem(CUSTOMER_OAUTH_INTENT, oauthIntent);
     try {
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
-      const redirectPath = isSignup ? "/onboarding" : "/auth";
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}${redirectPath}` });
+
+      // O callback volta sempre para /auth. Assim ele passa pela mesma validação
+      // de cliente antes de entrar em qualquer rota autenticada.
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth` });
       if (result.error) {
+        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         const message = String(result.error.message ?? "").toLowerCase();
         if (message.includes("cancel") || message.includes("closed") || message.includes("denied") || message.includes("access_denied") || message.includes("abort")) {
           toast.info("Login cancelado", { description: "Você pode tentar novamente quando quiser." });
@@ -151,14 +176,18 @@ function AuthPage() {
         return;
       }
       if (result.redirected) return;
+
       const { data } = await supabase.auth.getSession();
       if (!data.session?.user) {
+        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         throw new Error("Não foi possível concluir o login com o Google.");
       }
+      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       await ensureCustomerSession();
-      const destination = isSignup ? "/onboarding" : await customerDestination(data.session.user.id);
+      const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(data.session.user.id);
       void navigate({ to: destination, replace: true });
     } catch (error) {
+      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       loginStartedHere.current = false;
       toast.error(error instanceof Error ? error.message : "Não foi possível entrar com o Google.");
     } finally {
