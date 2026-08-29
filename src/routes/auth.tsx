@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -12,10 +11,9 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth, useIsAdmin, useProfile } from "@/hooks/useAuth";
+import { useAuth, useProfile } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { checkIsAdmin } from "@/lib/roles.functions";
 import { hasAuthErrorInUrl, hasStoredSession } from "@/lib/session";
 
 const searchSchema = z.object({ mode: z.enum(["login", "signup"]).optional(), ref: z.string().trim().min(3).max(32).optional() });
@@ -32,9 +30,7 @@ function AuthPage() {
   const { mode, ref } = Route.useSearch();
   const navigate = useNavigate();
   const { user, loading: sessionLoading } = useAuth();
-  const { data: isAdmin, isLoading: roleLoading } = useIsAdmin();
   const { data: profile, isLoading: profileLoading } = useProfile();
-  const checkAdmin = useServerFn(checkIsAdmin);
   const [isSignup, setIsSignup] = useState(mode === "signup" || !!ref);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -47,16 +43,24 @@ function AuthPage() {
 
   useEffect(() => setMounted(true), []);
 
+  // O /auth é exclusivamente a porta de entrada do cliente. Mesmo que a conta
+  // também possua papel administrativo, quem entrou por aqui segue para o
+  // onboarding/dashboard normal. O painel admin possui login próprio em /admin/login.
   useEffect(() => {
-    if (!user || roleLoading || profileLoading) return;
-    if (isAdmin) {
-      void navigate({ to: "/admin", replace: true });
-      return;
-    }
+    if (!user || profileLoading) return;
     void navigate({ to: profile?.onboarding_done ? "/dashboard" : "/onboarding", replace: true });
-  }, [user, isAdmin, roleLoading, profileLoading, profile?.onboarding_done, navigate]);
+  }, [user, profileLoading, profile?.onboarding_done, navigate]);
 
   if (mounted && (user || (sessionLoading && hasStoredSession() && !hasAuthErrorInUrl()))) return <SessionSplash />;
+
+  async function customerDestination(userId: string) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("onboarding_done")
+      .eq("id", userId)
+      .maybeSingle();
+    return data?.onboarding_done ? "/dashboard" : "/onboarding";
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -81,8 +85,8 @@ function AuthPage() {
           },
         });
         if (error) throw error;
-        if (!data.session) {
-          toast.success(referral ? "Conta criada com indicação registrada. Confira seu e-mail para confirmar." : "Confira seu e-mail para confirmar a conta.");
+        if (!data.session || !data.user) {
+          toast.success(referral ? "Conta criada com indicação registrada. Confira seu e-mail para confirmar." : "Conta criada. Confira seu e-mail para confirmar e continuar.");
           setIsSignup(false);
           return;
         }
@@ -90,10 +94,11 @@ function AuthPage() {
         return;
       }
 
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      const { isAdmin: adminSession } = await checkAdmin();
-      if (adminSession) void navigate({ to: "/admin", replace: true });
+      if (!data.user) throw new Error("Não foi possível concluir o acesso.");
+      const destination = await customerDestination(data.user.id);
+      void navigate({ to: destination, replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível continuar.");
     } finally {
@@ -122,16 +127,12 @@ function AuthPage() {
       }
       if (result.redirected) return;
       const { data } = await supabase.auth.getSession();
-      if (!data.session) {
+      if (!data.session?.user) {
         toast.error("Não foi possível concluir o login com o Google.");
         return;
       }
-      const { isAdmin: adminSession } = await checkAdmin();
-      if (adminSession) {
-        void navigate({ to: "/admin", replace: true });
-      } else {
-        void navigate({ to: isSignup ? "/onboarding" : "/dashboard", replace: true });
-      }
+      const destination = isSignup ? "/onboarding" : await customerDestination(data.session.user.id);
+      void navigate({ to: destination, replace: true });
     } catch {
       toast.error("Não foi possível entrar com o Google", { description: "Verifique sua conexão e tente novamente." });
     } finally {
