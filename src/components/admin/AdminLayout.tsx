@@ -18,33 +18,38 @@ type NavGroup = { title: string; items: NavItem[] };
 
 const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
-    title: "Principal",
+    title: "Visão geral",
     items: [
-      { label: "Início", icon: LayoutDashboard, section: "dashboard" },
+      { label: "Dashboard", icon: LayoutDashboard, section: "dashboard" },
+      { label: "Saúde da plataforma", icon: HeartPulse, section: "saude" },
+    ],
+  },
+  {
+    title: "Gestão de clientes",
+    items: [
       { label: "Clientes", icon: Users, section: "clientes" },
-      { label: "Gerar licenças", icon: KeyRound, section: "licencas" },
       { label: "Créditos de clientes", icon: Coins, section: "creditos" },
+      { label: "Licenças", icon: KeyRound, section: "licencas" },
+      { label: "Assinaturas", icon: BadgeDollarSign, section: "assinaturas" },
+      { label: "Clientes inativos", icon: UserMinus, section: "inativos" },
+      { label: "Testes grátis", icon: Ticket, section: "testes" },
+    ],
+  },
+  {
+    title: "Financeiro e comercial",
+    items: [
       { label: "Pagamentos", icon: CreditCard, section: "pagamentos" },
+      { label: "Planos e pacotes", icon: Package, section: "planos" },
+      { label: "Revendedores", icon: Store, section: "revendedores" },
+      { label: "Assistente comercial", icon: Bot, section: "assistente" },
     ],
   },
   {
     title: "Operação",
     items: [
-      { label: "Saúde da plataforma", icon: HeartPulse, section: "saude" },
-      { label: "Analytics", icon: BarChart3, section: "analytics" },
       { label: "Anúncios e IA", icon: FileText, section: "anuncios" },
+      { label: "Analytics", icon: BarChart3, section: "analytics" },
       { label: "Sessões e alertas", icon: Radar, section: "sessoes" },
-    ],
-  },
-  {
-    title: "Clientes e receita",
-    items: [
-      { label: "Inativos", icon: UserMinus, section: "inativos" },
-      { label: "Testes grátis", icon: Ticket, section: "testes" },
-      { label: "Revendedores", icon: Store, section: "revendedores" },
-      { label: "Assistente comercial", icon: Bot, section: "assistente" },
-      { label: "Assinaturas", icon: BadgeDollarSign, section: "assinaturas" },
-      { label: "Planos e pacotes", icon: Package, section: "planos" },
     ],
   },
   {
@@ -52,8 +57,8 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Integrações", icon: Store, section: "integracoes" },
       { label: "Logs e atividade", icon: ScrollText, section: "logs" },
-      { label: "Suporte", icon: LifeBuoy, section: "suporte" },
       { label: "Configurações", icon: Settings, section: "configuracoes" },
+      { label: "Suporte", icon: LifeBuoy, section: "suporte" },
     ],
   },
 ];
@@ -68,7 +73,7 @@ function HealthCenter() {
     refetchInterval: 60000,
   });
 
-  if (isLoading) return <div className="rounded-xl border p-6 text-sm text-muted-foreground">Verificando serviços...</div>;
+  if (isLoading) return <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">Verificando serviços...</div>;
   const stateIcon = (state: string) => state === "ok" ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : state === "warning" ? <TriangleAlert className="h-4 w-4 text-amber-500" /> : <XCircle className="h-4 w-4 text-destructive" />;
   const stateLabel = (state: string) => state === "ok" ? "Operacional" : state === "warning" ? "Atenção" : "Falha";
 
@@ -85,7 +90,7 @@ function HealthCenter() {
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {(data?.services ?? []).map((service) => (
-          <Card key={service.key}>
+          <Card key={service.key} className="rounded-2xl">
             <CardContent className="flex items-start justify-between gap-3 pt-6">
               <div><p className="font-semibold">{service.label}</p><p className="mt-1 text-xs text-muted-foreground">{service.detail}</p></div>
               <Badge variant="outline" className="gap-1.5">{stateIcon(service.state)}{stateLabel(service.state)}</Badge>
@@ -93,11 +98,11 @@ function HealthCenter() {
           </Card>
         ))}
       </div>
-      <Card>
+      <Card className="rounded-2xl">
         <CardHeader><CardTitle className="text-base">Atenção necessária</CardTitle></CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           {(data?.attention ?? []).map((item) => (
-            <div key={item.label} className="flex items-center justify-between rounded-lg border p-3">
+            <div key={item.label} className="flex items-center justify-between rounded-xl border p-3">
               <div className="flex items-center gap-2">{item.severity === "warning" ? <TriangleAlert className="h-4 w-4 text-amber-500" /> : <CheckCircle2 className="h-4 w-4 text-emerald-500" />}<span className="text-sm">{item.label}</span></div>
               <strong className="text-sm">{item.count}</strong>
             </div>
@@ -115,6 +120,7 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { data: hasAdminAccess, isLoading: checkingAdminAccess } = useIsAdmin();
   const current = ALL_ITEMS.find((item) => item.section === activeSection);
+  const currentGroup = ADMIN_NAV_GROUPS.find((group) => group.items.some((item) => item.section === activeSection));
 
   useEffect(() => {
     if (!checkingAdminAccess && hasAdminAccess !== true) navigate({ to: "/dashboard", replace: true });
@@ -138,61 +144,85 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
   if (checkingAdminAccess || hasAdminAccess !== true) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto flex max-w-[1480px]">
-        <aside className="sticky top-0 hidden h-screen w-[286px] shrink-0 flex-col justify-between overflow-y-auto border-r bg-card/30 p-5 lg:flex">
-          <div className="space-y-6">
+    <div className="min-h-screen bg-muted/20">
+      <div className="mx-auto flex max-w-[1600px]">
+        <aside className="sticky top-0 hidden h-screen w-[272px] shrink-0 flex-col border-r bg-background lg:flex">
+          <div className="border-b px-5 py-5">
             <Logo to="/admin" />
-            <div className="rounded-xl border border-primary/25 bg-primary/10 px-3 py-3">
-              <p className="text-xs font-bold uppercase tracking-wider text-primary">ADMINISTRAÇÃO</p>
-              <p className="mt-1 text-xs text-muted-foreground">Área exclusiva da operação ANÚNCIO ML.</p>
+            <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-primary">Admin</p>
+                <Badge variant="outline" className="h-5 px-1.5 text-[10px]">Operação</Badge>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">Central de gestão do ANÚNCIO ML.</p>
             </div>
-            <nav className="space-y-5">
-              {ADMIN_NAV_GROUPS.map((group) => (
-                <div key={group.title} className="space-y-1">
-                  <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{group.title}</p>
-                  {group.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = activeSection === item.section;
-                    return (
-                      <button key={item.section} type="button" onClick={() => chooseSection(item.section)} className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground", active && "bg-primary/10 text-foreground ring-1 ring-primary/25")}>
-                        <Icon className={cn("h-4 w-4", active && "text-primary")} />{item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </nav>
           </div>
-          <div className="space-y-3 pt-6">
-            <div className="rounded-xl border bg-muted/20 p-3 text-xs text-muted-foreground">Sessão administrativa. Use a navegação lateral para abrir clientes, pagamentos, planos e operação.</div>
-            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={signOut}><LogOut className="mr-2 h-4 w-4" />Sair do admin</Button>
+
+          <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+            {ADMIN_NAV_GROUPS.map((group) => (
+              <div key={group.title} className="space-y-1">
+                <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">{group.title}</p>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = activeSection === item.section;
+                  return (
+                    <button
+                      key={item.section}
+                      type="button"
+                      onClick={() => chooseSection(item.section)}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all",
+                        active
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+
+          <div className="border-t p-3">
+            <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" onClick={signOut}>
+              <LogOut className="mr-2 h-4 w-4" />Sair do painel
+            </Button>
           </div>
         </aside>
 
         <main className="min-w-0 flex-1">
-          <header className="sticky top-0 z-20 border-b bg-background/90 px-4 py-4 backdrop-blur-xl sm:px-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-primary">CENTRAL ADMINISTRATIVA · ANÚNCIO ML</p>
-                <h1 className="font-display text-xl font-bold tracking-tight">{current?.label ?? "Painel administrativo"}</h1>
-                <p className="text-sm text-muted-foreground">Clientes, licenças, pagamentos e operação da plataforma em um ambiente separado.</p>
+          <header className="sticky top-0 z-20 border-b bg-background/95 px-4 py-4 backdrop-blur-xl sm:px-6">
+            <div className="mx-auto max-w-[1260px]">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Administração</span>
+                    <span>›</span>
+                    <span className="font-medium text-foreground">{currentGroup?.title ?? "Painel"}</span>
+                  </div>
+                  <h1 className="truncate font-display text-xl font-extrabold tracking-tight sm:text-2xl">{current?.label ?? "Painel administrativo"}</h1>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => chooseSection("clientes")}><Users className="mr-2 h-4 w-4" />Clientes</Button>
+                  <Button size="sm" variant="outline" onClick={() => chooseSection("creditos")}><Coins className="mr-2 h-4 w-4" />Créditos</Button>
+                  <Button size="sm" onClick={() => chooseSection("licencas")}><KeyRound className="mr-2 h-4 w-4" />Licenças</Button>
+                  <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sair do painel administrativo"><LogOut className="h-4 w-4" /></Button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => chooseSection("licencas")}><KeyRound className="mr-2 h-4 w-4" />Gerar licença</Button>
-                <Button size="sm" variant="outline" onClick={() => chooseSection("creditos")}><Coins className="mr-2 h-4 w-4" />Créditos</Button>
-                <Button size="sm" variant="outline" onClick={() => chooseSection("clientes")}><Users className="mr-2 h-4 w-4" />Ver clientes</Button>
-                <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sair do painel administrativo"><LogOut className="h-4 w-4" /></Button>
+
+              <div className="mt-3 lg:hidden">
+                <Select value={activeSection} onValueChange={chooseSection}>
+                  <SelectTrigger className="bg-background"><SelectValue placeholder="Selecione a seção" /></SelectTrigger>
+                  <SelectContent>{ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => <SelectItem key={item.section} value={item.section}>{group.title} · {item.label}</SelectItem>))}</SelectContent>
+                </Select>
               </div>
-            </div>
-            <div className="mt-3 lg:hidden">
-              <Select value={activeSection} onValueChange={chooseSection}>
-                <SelectTrigger><SelectValue placeholder="Selecione a seção" /></SelectTrigger>
-                <SelectContent>{ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => <SelectItem key={item.section} value={item.section}>{group.title} · {item.label}</SelectItem>))}</SelectContent>
-              </Select>
             </div>
           </header>
-          <div data-admin-content className="p-4 pb-10 sm:p-5">
+
+          <div data-admin-content className="mx-auto max-w-[1260px] p-4 pb-10 sm:p-6">
             {activeSection === "saude" ? <HealthCenter /> : children}
           </div>
         </main>
