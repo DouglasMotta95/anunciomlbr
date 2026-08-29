@@ -23,12 +23,11 @@ export const Route = createFileRoute("/_authenticated")({
     }
 
     const adminPath = isAdminRoute(location.pathname);
-    if (admin && !adminPath) throw redirect({ to: "/admin", replace: true });
 
-    // Se uma sessão de vendedor tentar abrir uma rota administrativa, envie
-    // primeiro para o login administrativo separado. Essa tela limpa a sessão
-    // atual antes de pedir as credenciais de admin, evitando o redirecionamento
-    // confuso de volta para o dashboard do vendedor.
+    // A área pública e o login de clientes nunca empurram uma sessão admin
+    // automaticamente para /admin. Uma conta com papel administrativo também
+    // pode usar o painel normal do cliente quando entrar pelo fluxo público.
+    // As rotas administrativas continuam protegidas e exigem papel admin.
     if (!admin && adminPath) throw redirect({ to: "/admin/login", replace: true });
 
     return { user: data.user, isAdmin: admin };
