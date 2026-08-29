@@ -1,4 +1,5 @@
 import type { SearchMlItem } from "@/lib/ml-search-production.functions";
+import { normalizeItemId, normalizeSearchTerm, normalizeSearchText } from "@/lib/ml-search-input";
 
 /**
  * Busca de anúncios públicos reais do Mercado Livre.
@@ -6,7 +7,7 @@ import type { SearchMlItem } from "@/lib/ml-search-production.functions";
  * usadas pelo marketplace e os links MLB encontrados são transformados em itens.
  */
 const ML_API = "https://api.mercadolibre.com";
-const ML_LIST = "https://lista.mercadolivre.com.br";
+export const ML_PUBLIC_SEARCH_BASE = "https://lista.mercadolivre.com.br/";
 const WEB_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
 type PublicCard = { id: string; title: string; price_cents: number | null; permalink: string | null; thumbnail: string | null };
@@ -21,22 +22,21 @@ export type DiscoveryOutcome = {
   diagnostics: { statuses: number[]; products: number; offers: number; publicSearchStatus: number | "network_error" | null; publicCandidates: number };
 };
 
-function normalize(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function slug(value: string) { return normalize(value).replace(/\s+/g, "-"); }
 const STOP = new Set(["de", "da", "do", "das", "dos", "com", "para", "por", "e", "em", "o", "a"]);
-function words(value: string) { return normalize(value).split(" ").filter((x) => x.length >= 2 && !STOP.has(x)); }
+function words(value: string) { return normalizeSearchText(value).split(" ").filter((x) => x.length >= 2 && !STOP.has(x)); }
 
 export function relevanceScore(query: string, title: string) {
-  const q = normalize(query); const t = normalize(title);
+  const q = normalizeSearchText(query); const t = normalizeSearchText(title);
   if (!q || !t) return 0;
+  if (t === q) return 120;
+  if (t.startsWith(`${q} `) || t.includes(` ${q} `)) return 110;
   if (t.includes(q)) return 100;
   const w = words(query); if (!w.length) return 0;
-  return Math.round((w.filter((x) => t.includes(x)).length / w.length) * 100);
+  const matched = w.filter((x) => t.includes(x)).length;
+  const coverage = matched / w.length;
+  return Math.round(coverage * 100);
 }
-function relevant(query: string, title: string) { return relevanceScore(query, title) >= (words(query).length <= 1 ? 100 : 60); }
+function relevant(query: string, title: string) { return relevanceScore(query, title) >= (words(query).length <= 1 ? 100 : 55); }
 
 function decode(value: string) {
   return value.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\\u0026/g, "&").replace(/\\\//g, "/");
@@ -48,11 +48,7 @@ function webUrl(value?: string | null) {
   if (v.startsWith("http://")) return `https://${v.slice(7)}`;
   return v.startsWith("https://") ? v : null;
 }
-function itemId(value?: string | null) {
-  if (!value) return null;
-  const m = decode(value).toUpperCase().match(/MLB[-_ ]?(\d{6,})/);
-  return m ? `MLB${m[1]}` : null;
-}
+function itemId(value?: string | null) { return value ? normalizeItemId(decode(value)) : null; }
 function priceCents(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) return Math.round(value * 100);
   if (typeof value !== "string") return null;
@@ -84,7 +80,6 @@ function jsonLdCards(html: string, query: string) {
 
 function htmlCards(html: string, query: string) {
   const out: PublicCard[] = [];
-  // Captura cada link público de produto, sem depender da estrutura CSS atual do ML.
   for (const m of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     const href = webUrl(m[1]); const id = itemId(href) ?? itemId(m[0]);
     if (!href || !id) continue;
@@ -97,7 +92,6 @@ function htmlCards(html: string, query: string) {
     const image = block.match(/(?:data-src|src)=["'](https?:\/\/[^"']+)["']/i)?.[1];
     out.push({ id, title, price_cents: priceCents(fraction ?? null), permalink: href, thumbnail: webUrl(image) });
   }
-  // Fallback: procura MLBs no HTML e usa o contexto próximo para recuperar título/link.
   for (const m of html.matchAll(/MLB[-_ ]?\d{6,}/gi)) {
     const id = itemId(m[0]); if (!id) continue;
     const start = Math.max(0, (m.index ?? 0) - 1200); const end = Math.min(html.length, (m.index ?? 0) + 1800);
@@ -109,20 +103,32 @@ function htmlCards(html: string, query: string) {
   return out;
 }
 
+export function buildPublicSearchUrls(query: string) {
+  const slug = normalizeSearchTerm(query);
+  if (!slug) return [];
+  return [`${ML_PUBLIC_SEARCH_BASE}${slug}`, `${ML_PUBLIC_SEARCH_BASE}comprar-${slug}`];
+}
+
 async function publicSearch(query: string, desired: number) {
-  const s = slug(query); if (!s) return { status: null as number | "network_error" | null, cards: [] as PublicCard[] };
-  // O ML indexa mais de uma forma de URL. Tentamos as URLs públicas reais, sem bypass anti-bot.
-  const urls = [`${ML_LIST}/${s}`, `${ML_LIST}/comprar-${s}`];
+  const urls = buildPublicSearchUrls(query);
+  if (!urls.length) return { status: null as number | "network_error" | null, cards: [] as PublicCard[] };
   let last: number | "network_error" | null = null;
   const all: PublicCard[] = [];
   for (const url of urls) {
     try {
       const res = await fetch(url, { redirect: "follow", headers: { Accept: "text/html,application/xhtml+xml", "Accept-Language": "pt-BR,pt;q=0.9", "User-Agent": WEB_UA } });
-      last = res.status; console.info("[ML public marketplace]", { endpoint: url, status: res.status });
+      last = res.status;
+      console.info("[ML public marketplace]", { strategy: "public_search_url", endpoint: url, status: res.status });
       if (!res.ok) continue;
-      const html = await res.text(); all.push(...jsonLdCards(html, query), ...htmlCards(html, query));
+      const html = await res.text();
+      const found = [...jsonLdCards(html, query), ...htmlCards(html, query)];
+      all.push(...found);
+      console.info("[ML public marketplace]", { strategy: "public_search_url", endpoint: url, candidates: found.length, mlb_ids: new Set(found.map((x) => x.id)).size });
       if (all.length >= desired) break;
-    } catch { last = "network_error"; console.info("[ML public marketplace]", { endpoint: url, status: "network_error" }); }
+    } catch {
+      last = "network_error";
+      console.info("[ML public marketplace]", { strategy: "public_search_url", endpoint: url, status: "network_error" });
+    }
   }
   const cards = Array.from(new Map(all.map((x) => [x.id, x])).values()).sort((a,b) => relevanceScore(query,b.title)-relevanceScore(query,a.title)).slice(0, Math.max(desired, 40));
   return { status: last, cards };
@@ -142,7 +148,7 @@ async function api(path: string, ts: string[], statuses: number[]) {
       statuses.push(res.status); const body = await res.json().catch(() => null);
       console.info("[ML public discovery]", { endpoint: path, status: res.status, token_type: token ? "authenticated" : "anonymous" });
       if (res.ok) return body; if (![401,403].includes(res.status)) break;
-    } catch {}
+    } catch { console.info("[ML public discovery]", { endpoint: path, status: "network_error" }); }
   }
   return null;
 }
@@ -169,9 +175,9 @@ export async function discoverPublicAds(userId: string, query: string, desired =
     }
   }
 
-  let productCount = 0; let offerCount = 0;
-  // Fallback oficial: catálogo serve apenas de índice para chegar a ofertas MLB reais.
+  let productCount = 0; let offerCount = 0; let fallbackUsed = false;
   if (result.length < desired) {
+    fallbackUsed = true;
     const pbody = await api(`/products/search?status=active&site_id=MLB&q=${encodeURIComponent(query)}&limit=20`, ts, statuses) as { results?: Product[] } | null;
     const products = Array.isArray(pbody?.results) ? pbody!.results! : []; productCount = products.length;
     for (const product of products) {
@@ -189,7 +195,8 @@ export async function discoverPublicAds(userId: string, query: string, desired =
       if (result.length >= desired) break;
     }
   }
-  const items = result.filter(x => relevant(query, x.title)).sort((a,b)=>relevanceScore(query,b.title)-relevanceScore(query,a.title)).slice(0, desired);
+  const items = result.filter(x => /^MLB\d+$/.test(x.id) && relevant(query, x.title)).sort((a,b)=>relevanceScore(query,b.title)-relevanceScore(query,a.title)).slice(0, desired);
+  console.info("[ML public discovery summary]", { strategy: "public_search_url_first", query_slug: normalizeSearchTerm(query), public_candidates: pub.cards.length, mlb_ids: new Set(pub.cards.map((x) => x.id)).size, catalog_products: productCount, catalog_offers: offerCount, final_results: items.length, fallback_used: fallbackUsed });
   const reason = items.length ? "Anúncios reais encontrados a partir dos links públicos do Mercado Livre e enriquecidos pela API quando disponível." : pub.status === 403 ? "O Mercado Livre bloqueou a leitura da página pública pelo servidor e a API oficial não retornou ofertas compatíveis para este termo." : "Nenhum anúncio público compatível foi recuperado para este termo.";
   return { ok: items.length > 0, reason, items, diagnostics: { statuses, products: productCount, offers: offerCount, publicSearchStatus: pub.status, publicCandidates: pub.cards.length } };
 }

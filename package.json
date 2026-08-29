@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test:gemini": "bun test tests/gemini-call.test.ts",
+    "test:search": "bun test tests/ml-search-input.test.ts",
     "audit:ui": "node scripts/audit-ui.mjs",
     "audit:flows": "node scripts/audit-critical-flows.mjs",
     "audit:security": "node scripts/audit-security.mjs",

@@ -19,6 +19,7 @@ import { startBulkJob } from "@/lib/bulk.functions";
 import { formatBRL } from "@/lib/format";
 import { createListingDraft } from "@/lib/listing-create.functions";
 import { searchMercadoLivrePublicAds } from "@/lib/ml-public-search.functions";
+import { parseMlSearchInput } from "@/lib/ml-search-input";
 import {
   getMercadoLivreItem,
   getMercadoLivreItemDescription,
@@ -97,15 +98,26 @@ function SearchPage() {
   const runSearch = useMutation({
     mutationFn: async ({ raw, forceSeller=false }: SearchRequest) => {
       const term = raw.trim();
-      const upper = term.toUpperCase().replace("-", "");
-      if (!forceSeller && (/^https?:\/\//i.test(term) || /mercadolivre\.com\.br|mercadolibre\.com|meli\.la/i.test(term))) return lookupByLink({ data: { link: term } });
-      if (!forceSeller && /^MLB\d+$/i.test(upper)) return lookupById({ data: { id: upper } });
       if (forceSeller) return searchSeller({ data: { query: term.replace(/^@/, ""), limit: resultLimit } });
-      if (/^vendedor\s*:/i.test(term)) return searchSeller({ data: { query: term.replace(/^vendedor\s*:/i, "").trim(), limit: resultLimit } });
-      if (term.startsWith("@")) return searchSeller({ data: { query: term.slice(1).trim(), limit: resultLimit } });
-      if (/^\d{5,}$/.test(term)) return searchSeller({ data: { query: term, limit: resultLimit } });
       if (/^produto\s*:/i.test(term)) return searchProduct({ data: { query: term.replace(/^produto\s*:/i, "").trim(), limit: resultLimit } });
-      return searchKeyword({ data: { query: term, limit: resultLimit } });
+
+      const parsed = parseMlSearchInput(term);
+      console.info("[ML search input]", { type: parsed.type });
+      switch (parsed.type) {
+        case "item_id":
+          return lookupById({ data: { id: parsed.itemId! } });
+        case "item_url":
+          return lookupByLink({ data: { link: parsed.normalizedUrl ?? term } });
+        case "seller_id":
+          return searchSeller({ data: { query: parsed.sellerId!, limit: resultLimit } });
+        case "seller_nickname":
+          return searchSeller({ data: { query: parsed.sellerNickname!, limit: resultLimit } });
+        case "seller_url":
+          return searchSeller({ data: { query: parsed.sellerId ?? parsed.sellerNickname ?? term, limit: resultLimit } });
+        case "search_url":
+        case "keyword":
+          return searchKeyword({ data: { query: parsed.searchQuery ?? term, limit: resultLimit } });
+      }
     },
     onSuccess: (result) => {
       setSearched(true);

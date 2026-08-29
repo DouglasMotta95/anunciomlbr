@@ -28,6 +28,8 @@ jobs:
           bun run build 2>&1 | tee build.log
       - name: Type-check estrito
         run: bun run typecheck
+      - name: Testes do parser de busca Mercado Livre
+        run: bun run test:search
       - name: Testes do callGemini
         run: bun run test:gemini
       - name: Auditoria de segurança
