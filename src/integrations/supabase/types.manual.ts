@@ -4,6 +4,8 @@ import type { Database as GeneratedDatabase } from "./types";
 
 type GeneratedPublic = GeneratedDatabase["public"];
 type GeneratedLicense = GeneratedPublic["Tables"]["licenses"];
+type GeneratedPlan = GeneratedPublic["Tables"]["plans"];
+type PlanKind = GeneratedPublic["Enums"]["plan_kind"] | "ai_package";
 
 type LicenseTable = {
   Row: GeneratedLicense["Row"] & { ai_credits_used: number };
@@ -12,27 +14,23 @@ type LicenseTable = {
   Relationships: GeneratedLicense["Relationships"];
 };
 
+type PlanTable = {
+  Row: Omit<GeneratedPlan["Row"], "kind"> & { kind: PlanKind };
+  Insert: Omit<GeneratedPlan["Insert"], "kind"> & { kind?: PlanKind };
+  Update: Omit<GeneratedPlan["Update"], "kind"> & { kind?: PlanKind };
+  Relationships: GeneratedPlan["Relationships"];
+};
+
 type ListingQuotaClaimsTable = {
-  Row: {
-    listing_id: string;
-    user_id: string;
-    created_at: string;
-  };
-  Insert: {
-    listing_id: string;
-    user_id: string;
-    created_at?: string;
-  };
-  Update: {
-    listing_id?: string;
-    user_id?: string;
-    created_at?: string;
-  };
+  Row: { listing_id: string; user_id: string; created_at: string };
+  Insert: { listing_id: string; user_id: string; created_at?: string };
+  Update: { listing_id?: string; user_id?: string; created_at?: string };
   Relationships: [];
 };
 
-type ManualTables = Omit<GeneratedPublic["Tables"], "licenses"> & {
+type ManualTables = Omit<GeneratedPublic["Tables"], "licenses" | "plans"> & {
   licenses: LicenseTable;
+  plans: PlanTable;
   listing_quota_claims: ListingQuotaClaimsTable;
 };
 
@@ -43,18 +41,12 @@ type ManualFunctions = GeneratedPublic["Functions"] & {
   };
   ai_credit_status: {
     Args: { p_user_id: string };
-    Returns: {
-      used: number;
-      credit_limit: number;
-      remaining: number;
-    }[];
+    Returns: { used: number; credit_limit: number; remaining: number }[];
   };
 };
 
 type ManualEnums = Omit<GeneratedPublic["Enums"], "plan_kind"> & {
-  plan_kind:
-    | GeneratedPublic["Enums"]["plan_kind"]
-    | "ai_package";
+  plan_kind: PlanKind;
 };
 
 export type Database = Omit<GeneratedDatabase, "public"> & {
