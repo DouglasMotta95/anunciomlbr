@@ -7,6 +7,9 @@ import { serializeMlArray, type MlItem } from "./ml.functions";
 const ML_API = "https://api.mercadolibre.com";
 const USER_AGENT = "ANUNCIO-ML/1.0";
 
+type TokenKind = "user" | "app";
+type MlLogScope = "legacyMarketplaceSearch" | "officialCatalogSearch" | "fetchItemsBatch";
+
 export type SearchMlItem = MlItem & {
   description?: string | null | undefined;
   source_kind?: "marketplace" | "catalog_offer" | undefined;
@@ -45,17 +48,24 @@ type CatalogOfferRow = {
 };
 
 const sellerCache = new Map<string, { value: string | null; expires: number }>();
+const tokenKinds = new Map<string, TokenKind>();
 
 async function getTokens(userId: string): Promise<string[]> {
   const { getAppAccessToken, getValidMlAccessToken } = await import("@/lib/ml.server");
   const tokens: string[] = [];
   try {
     const user = await getValidMlAccessToken(userId);
-    if (user.ok && user.accessToken) tokens.push(user.accessToken);
+    if (user.ok && user.accessToken) {
+      tokens.push(user.accessToken);
+      tokenKinds.set(user.accessToken, "user");
+    }
   } catch {}
   try {
     const app = await getAppAccessToken();
-    if (app && !tokens.includes(app)) tokens.push(app);
+    if (app && !tokens.includes(app)) {
+      tokens.push(app);
+      tokenKinds.set(app, "app");
+    }
   } catch {}
   return tokens;
 }
@@ -66,24 +76,40 @@ function headers(token?: string) {
   return out;
 }
 
-async function mlFetch(url: string | URL, tokens: string[]): Promise<FetchAttempt> {
+function logMlAttempt(scope: MlLogScope | undefined, url: string | URL, status: number | "network_error", tokenType: TokenKind | "anonymous") {
+  if (!scope) return;
+  console.info("[ML search diagnostic]", {
+    scope,
+    endpoint: String(url),
+    status,
+    token_type: tokenType,
+  });
+}
+
+async function mlFetch(url: string | URL, tokens: string[], logScope?: MlLogScope): Promise<FetchAttempt> {
   const statuses: number[] = [];
   let last: Response | null = null;
   for (const token of tokens) {
+    const tokenType = tokenKinds.get(token) ?? "user";
     try {
       const response = await fetch(url, { headers: headers(token) });
       statuses.push(response.status);
       last = response;
+      logMlAttempt(logScope, url, response.status, tokenType);
       if (response.ok) return { response, statuses };
       if (![401, 403].includes(response.status)) return { response, statuses };
-    } catch {}
+    } catch {
+      logMlAttempt(logScope, url, "network_error", tokenType);
+    }
   }
   try {
     const response = await fetch(url, { headers: headers() });
     statuses.push(response.status);
     last = response;
+    logMlAttempt(logScope, url, response.status, "anonymous");
     return { response, statuses };
   } catch {
+    logMlAttempt(logScope, url, "network_error", "anonymous");
     return { response: last, statuses };
   }
 }
@@ -182,7 +208,7 @@ async function fetchItemsBatch(ids: string[], tokens: string[]): Promise<SearchM
     const url = new URL(`${ML_API}/items`);
     url.searchParams.set("ids", chunk.join(","));
     url.searchParams.set("include_attributes", "all");
-    const attempt = await mlFetch(url, tokens);
+    const attempt = await mlFetch(url, tokens, "fetchItemsBatch");
     if (!attempt.response?.ok) continue;
     const rows = (await attempt.response.json().catch(() => [])) as Array<{ code?: number; body?: Record<string, unknown> }>;
     const mapped = await Promise.all(rows.filter((row) => row?.code === 200 && row.body).map((row) => mapItemRaw(row.body!, tokens)));
@@ -213,17 +239,17 @@ async function descriptionResult(itemId: string, tokens: string[]) {
   return { description: null, reason: "Não foi possível carregar a descrição agora." };
 }
 
-async function productDetail(id: string, tokens: string[]): Promise<ProductDetail | null> {
-  const attempt = await mlFetch(`${ML_API}/products/${encodeURIComponent(id)}`, tokens);
+async function productDetail(id: string, tokens: string[], logScope?: MlLogScope): Promise<ProductDetail | null> {
+  const attempt = await mlFetch(`${ML_API}/products/${encodeURIComponent(id)}`, tokens, logScope);
   if (!attempt.response?.ok) return null;
   return (await attempt.response.json().catch(() => null)) as ProductDetail | null;
 }
 
-async function catalogOffers(product: ProductDetail, tokens: string[], limit: number): Promise<SearchMlItem[]> {
+async function catalogOffers(product: ProductDetail, tokens: string[], limit: number, logScope?: MlLogScope): Promise<SearchMlItem[]> {
   if (!product.id) return [];
   const url = new URL(`${ML_API}/products/${encodeURIComponent(product.id)}/items`);
   url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 100)));
-  const attempt = await mlFetch(url, tokens);
+  const attempt = await mlFetch(url, tokens, logScope);
   if (!attempt.response?.ok) return [];
   const data = (await attempt.response.json().catch(() => null)) as { results?: CatalogOfferRow[] } | null;
   const rows = (data?.results ?? []).filter((row) => typeof row.item_id === "string" && typeof row.price === "number").slice(0, limit);
@@ -261,17 +287,17 @@ async function catalogOffers(product: ProductDetail, tokens: string[], limit: nu
   });
 }
 
-async function discoverDomains(query: string, tokens: string[]): Promise<string[]> {
+async function discoverDomains(query: string, tokens: string[], logScope?: MlLogScope): Promise<string[]> {
   const url = new URL(`${ML_API}/sites/MLB/domain_discovery/search`);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", "3");
-  const attempt = await mlFetch(url, tokens);
+  const attempt = await mlFetch(url, tokens, logScope);
   if (!attempt.response?.ok) return [];
   const rows = (await attempt.response.json().catch(() => [])) as Array<{ domain_id?: unknown }>;
   return rows.map((row) => (typeof row.domain_id === "string" ? row.domain_id : null)).filter((value): value is string => !!value);
 }
 
-async function productSearchPage(query: string, tokens: string[], offset: number, domainId?: string) {
+async function productSearchPage(query: string, tokens: string[], offset: number, domainId?: string, logScope?: MlLogScope) {
   const url = new URL(`${ML_API}/products/search`);
   url.searchParams.set("status", "active");
   url.searchParams.set("site_id", "MLB");
@@ -279,7 +305,7 @@ async function productSearchPage(query: string, tokens: string[], offset: number
   url.searchParams.set("limit", "20");
   url.searchParams.set("offset", String(offset));
   if (domainId) url.searchParams.set("domain_id", domainId);
-  const attempt = await mlFetch(url, tokens);
+  const attempt = await mlFetch(url, tokens, logScope);
   if (!attempt.response?.ok) return { rows: [] as ProductSearchRow[], statuses: attempt.statuses, failed: true };
   const data = (await attempt.response.json().catch(() => null)) as { results?: ProductSearchRow[] } | null;
   return { rows: data?.results ?? [], statuses: attempt.statuses, failed: false };
@@ -296,16 +322,16 @@ async function officialCatalogSearch(query: string, tokens: string[], limit: num
   const statuses: number[] = [];
   let failed = true;
   for (let offset = 0; offset < productTarget; offset += 20) {
-    const page = await productSearchPage(query, tokens, offset);
+    const page = await productSearchPage(query, tokens, offset, undefined, "officialCatalogSearch");
     statuses.push(...page.statuses);
     failed = failed && page.failed;
     if (page.rows.length) rows.push(...page.rows);
     if (page.rows.length < 20 || rows.length >= productTarget) break;
   }
   if (rows.length < productTarget) {
-    const domains = await discoverDomains(query, tokens);
+    const domains = await discoverDomains(query, tokens, "officialCatalogSearch");
     for (const domain of domains) {
-      const page = await productSearchPage(query, tokens, 0, domain);
+      const page = await productSearchPage(query, tokens, 0, domain, "officialCatalogSearch");
       statuses.push(...page.statuses);
       failed = failed && page.failed;
       rows.push(...page.rows);
@@ -317,8 +343,8 @@ async function officialCatalogSearch(query: string, tokens: string[], limit: num
   for (let index = 0; index < products.length && output.length < desired; index += 4) {
     const batch = products.slice(index, index + 4);
     const batchResults = await Promise.all(batch.map(async (product) => {
-      const detail = (await productDetail(product.id!, tokens)) ?? product;
-      return catalogOffers(detail, tokens, Math.min(6, desired - output.length));
+      const detail = (await productDetail(product.id!, tokens, "officialCatalogSearch")) ?? product;
+      return catalogOffers(detail, tokens, Math.min(6, desired - output.length), "officialCatalogSearch");
     }));
     output.push(...batchResults.flat());
   }
@@ -331,7 +357,7 @@ async function legacyMarketplaceSearch(query: string, tokens: string[], limit: n
   const url = new URL(`${ML_API}/sites/MLB/search`);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(desired));
-  const attempt = await mlFetch(url, tokens);
+  const attempt = await mlFetch(url, tokens, "legacyMarketplaceSearch");
   if (!attempt.response?.ok) return [];
   const data = (await attempt.response.json().catch(() => null)) as { results?: Array<Record<string, unknown>> } | null;
   const mapped = await Promise.all((data?.results ?? []).slice(0, desired).map((row) => mapItemRaw(row, tokens, "marketplace")));
