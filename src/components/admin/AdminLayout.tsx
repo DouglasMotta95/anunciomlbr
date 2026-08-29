@@ -1,7 +1,7 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { BadgeDollarSign, BarChart3, Bot, CheckCircle2, CreditCard, FileText, HeartPulse, KeyRound, LayoutDashboard, LifeBuoy, LogOut, Package, Radar, RefreshCcw, ScrollText, Settings, Store, Ticket, TriangleAlert, UserMinus, Users, XCircle } from "lucide-react";
+import { BadgeDollarSign, BarChart3, Bot, CheckCircle2, Coins, CreditCard, FileText, HeartPulse, KeyRound, LayoutDashboard, LifeBuoy, LogOut, Package, Radar, RefreshCcw, ScrollText, Settings, Store, Ticket, TriangleAlert, UserMinus, Users, XCircle } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { Logo } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
       { label: "Início", icon: LayoutDashboard, section: "dashboard" },
       { label: "Clientes", icon: Users, section: "clientes" },
       { label: "Gerar licenças", icon: KeyRound, section: "licencas" },
+      { label: "Créditos de clientes", icon: Coins, section: "creditos" },
       { label: "Pagamentos", icon: CreditCard, section: "pagamentos" },
     ],
   },
@@ -129,6 +130,7 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
   const chooseSection = (section: string) => {
     if (section === "revendedores") { navigate({ to: "/admin-revendedores" }); return; }
     if (section === "assistente") { navigate({ to: "/admin-comercial" as any }); return; }
+    if (section === "creditos") { navigate({ to: "/admin-creditos" as any }); return; }
     if (pathname !== "/admin") { navigate({ to: "/admin" }); return; }
     onSectionChange(section);
   };
@@ -178,6 +180,7 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => chooseSection("licencas")}><KeyRound className="mr-2 h-4 w-4" />Gerar licença</Button>
+                <Button size="sm" variant="outline" onClick={() => chooseSection("creditos")}><Coins className="mr-2 h-4 w-4" />Créditos</Button>
                 <Button size="sm" variant="outline" onClick={() => chooseSection("clientes")}><Users className="mr-2 h-4 w-4" />Ver clientes</Button>
                 <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sair do painel administrativo"><LogOut className="h-4 w-4" /></Button>
               </div>
