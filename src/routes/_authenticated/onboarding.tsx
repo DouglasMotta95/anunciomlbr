@@ -23,6 +23,13 @@ const title = "Conectar Mercado Livre — ANÚNCIO ML";
 const description =
   "Conecte sua conta do Mercado Livre com autorização oficial para publicar anúncios direto da plataforma.";
 
+type MlConnectionView = {
+  connected?: boolean;
+  nickname?: string | null;
+  last_sync_at?: string | null;
+  listings_count?: number | null;
+};
+
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
     meta: [
@@ -46,6 +53,11 @@ function OnboardingPage() {
     queryKey: ["ml-connection-state"],
     queryFn: () => fetchConnection(),
   });
+
+  const connection =
+    data?.connection && typeof data.connection === "object" && !Array.isArray(data.connection)
+      ? (data.connection as MlConnectionView)
+      : null;
 
   const runSync = useServerFn(syncMlListings);
   const runDisconnect = useServerFn(disconnectMercadoLivre);
@@ -89,7 +101,7 @@ function OnboardingPage() {
     },
   });
 
-  const connected = !!data?.connection?.connected;
+  const connected = !!connection?.connected;
 
   return (
     <AppShell
@@ -113,11 +125,11 @@ function OnboardingPage() {
               <div className="rounded-xl border border-border p-4">
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <CheckCircle2 className="h-4 w-4 text-primary" />
-                  {data?.connection?.nickname ?? "Conta conectada"}
+                  {connection?.nickname ?? "Conta conectada"}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Última sincronização: {formatDateTime(data?.connection?.last_sync_at)} ·{" "}
-                  {data?.connection?.listings_count ?? 0} anúncios
+                  Última sincronização: {formatDateTime(connection?.last_sync_at)} ·{" "}
+                  {connection?.listings_count ?? 0} anúncios
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => sync.mutate()} disabled={sync.isPending}>
