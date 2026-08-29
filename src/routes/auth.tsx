@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -15,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { checkIsAdmin } from "@/lib/roles.functions";
 
 const searchSchema = z.object({ mode: z.enum(["login", "signup"]).optional(), ref: z.string().trim().min(3).max(32).optional() });
 const title = "Entrar ou criar conta — ANÚNCIO ML";
@@ -32,9 +30,6 @@ function AuthPage() {
   const { mode, ref } = Route.useSearch();
   const navigate = useNavigate();
   const { user, loading: sessionLoading } = useAuth();
-  const checkAdmin = useServerFn(checkIsAdmin);
-  const entrySessionHandled = useRef(false);
-  const loginStartedHere = useRef(false);
   const [preparingCustomerLogin, setPreparingCustomerLogin] = useState(true);
   const [isSignup, setIsSignup] = useState(mode === "signup" || !!ref);
   const [name, setName] = useState("");
@@ -54,65 +49,47 @@ function AuthPage() {
     return data?.onboarding_done ? "/dashboard" : "/onboarding";
   }
 
-  async function ensureCustomerSession() {
-    const result = await checkAdmin();
-    if (result.isAdmin) {
-      await supabase.auth.signOut();
-      loginStartedHere.current = false;
-      throw new Error("Este acesso é reservado ao painel de clientes. Use o acesso administrativo separado.");
-    }
-  }
-
-  // /auth é uma entrada pública exclusiva do cliente. Uma sessão antiga salva no
-  // navegador é encerrada ao abrir a tela. A exceção é o retorno do OAuth Google:
-  // nesse caso preservamos a sessão recém-criada, validamos que não é admin e
-  // seguimos automaticamente para onboarding/dashboard.
+  // /auth também recebe o retorno do OAuth. Se já existe uma sessão válida,
+  // nunca a encerramos aqui: reconhecemos o usuário e seguimos para a área do
+  // cliente. Isso também funciona quando o navegador perde o sessionStorage
+  // durante a ida/volta do provedor Google.
   useEffect(() => {
-    if (sessionLoading || entrySessionHandled.current) return;
+    if (sessionLoading) return;
 
     const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) as "login" | "signup" | null;
 
-    // Uma tentativa de OAuth pode ser interrompida antes do callback terminar.
-    // Nesse caso o intent fica salvo no sessionStorage, mas não existe usuário.
-    // Antes esse estado mantinha o SessionSplash para sempre. Damos uma pequena
-    // janela para o callback concluir e depois limpamos o intent órfão.
-    if (oauthIntent && !user) {
-      const timeout = window.setTimeout(() => {
-        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-        loginStartedHere.current = false;
-        entrySessionHandled.current = true;
-        setPreparingCustomerLogin(false);
-      }, 1500);
-      return () => window.clearTimeout(timeout);
+    if (!user) {
+      // Uma tentativa de OAuth pode ser interrompida antes de a sessão chegar.
+      // Mantemos uma pequena janela para o callback terminar; depois liberamos
+      // o formulário sem deixar a tela de restauração presa indefinidamente.
+      if (oauthIntent) {
+        const timeout = window.setTimeout(() => {
+          sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+          setPreparingCustomerLogin(false);
+        }, 2500);
+        return () => window.clearTimeout(timeout);
+      }
+
+      setPreparingCustomerLogin(false);
+      return;
     }
 
-    entrySessionHandled.current = true;
+    sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+    setPreparingCustomerLogin(true);
 
-    const prepare = async () => {
-      if (oauthIntent && user) {
-        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-        loginStartedHere.current = true;
-        try {
-          await ensureCustomerSession();
-          const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(user.id);
-          void navigate({ to: destination, replace: true });
-          return;
-        } catch (error) {
-          toast.error(error instanceof Error ? error.message : "Não foi possível concluir o acesso com Google.");
-          setPreparingCustomerLogin(false);
-          return;
-        }
-      }
+    const destinationPromise = oauthIntent === "signup"
+      ? Promise.resolve("/onboarding" as const)
+      : customerDestination(user.id);
 
-      if (user && !loginStartedHere.current) {
-        await supabase.auth.signOut();
-      }
-      setPreparingCustomerLogin(false);
-    };
+    void destinationPromise
+      .then((destination) => navigate({ to: destination, replace: true }))
+      .catch(() => {
+        setPreparingCustomerLogin(false);
+        toast.error("Sua conta foi autenticada, mas não foi possível abrir o painel. Tente novamente.");
+      });
 
-    void prepare();
     return undefined;
-  }, [sessionLoading, user]);
+  }, [sessionLoading, user, navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -128,7 +105,6 @@ function AuthPage() {
           return;
         }
         const referral = ref?.trim().toUpperCase() || undefined;
-        loginStartedHere.current = true;
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
@@ -139,25 +115,20 @@ function AuthPage() {
         });
         if (error) throw error;
         if (!data.session || !data.user) {
-          loginStartedHere.current = false;
           toast.success(referral ? "Conta criada com indicação registrada. Confira seu e-mail para confirmar." : "Conta criada. Confira seu e-mail para confirmar e continuar.");
           setIsSignup(false);
           return;
         }
-        await ensureCustomerSession();
         void navigate({ to: "/onboarding", replace: true });
         return;
       }
 
-      loginStartedHere.current = true;
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.user) throw new Error("Não foi possível concluir o acesso.");
-      await ensureCustomerSession();
       const destination = await customerDestination(data.user.id);
       void navigate({ to: destination, replace: true });
     } catch (error) {
-      loginStartedHere.current = false;
       toast.error(error instanceof Error ? error.message : "Não foi possível continuar.");
     } finally {
       setLoading(false);
@@ -170,14 +141,11 @@ function AuthPage() {
       return;
     }
     setGoogleLoading(true);
-    loginStartedHere.current = true;
     const oauthIntent: "login" | "signup" = isSignup ? "signup" : "login";
     sessionStorage.setItem(CUSTOMER_OAUTH_INTENT, oauthIntent);
     try {
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
-      // O callback volta sempre para /auth. Assim ele passa pela mesma validação
-      // de cliente antes de entrar em qualquer rota autenticada.
       const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth` });
       if (result.error) {
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
@@ -197,12 +165,10 @@ function AuthPage() {
         throw new Error("Não foi possível concluir o login com o Google.");
       }
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-      await ensureCustomerSession();
       const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(data.session.user.id);
       void navigate({ to: destination, replace: true });
     } catch (error) {
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-      loginStartedHere.current = false;
       toast.error(error instanceof Error ? error.message : "Não foi possível entrar com o Google.");
     } finally {
       setGoogleLoading(false);
