@@ -49,24 +49,20 @@ function AuthPage() {
     return data?.onboarding_done ? "/dashboard" : "/onboarding";
   }
 
-  // /auth também recebe o retorno do OAuth. Se já existe uma sessão válida,
-  // nunca a encerramos aqui: reconhecemos o usuário e seguimos para a área do
-  // cliente. Isso também funciona quando o navegador perde o sessionStorage
-  // durante a ida/volta do provedor Google.
+  // /auth também recebe o fluxo já restaurado pelo retorno OAuth na raiz. Se já
+  // existe sessão válida, nunca encerramos o usuário: seguimos direto para a área
+  // correta. Se o OAuth foi cancelado, liberamos o formulário após uma janela curta.
   useEffect(() => {
     if (sessionLoading) return;
 
     const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) as "login" | "signup" | null;
 
     if (!user) {
-      // Uma tentativa de OAuth pode ser interrompida antes de a sessão chegar.
-      // Mantemos uma pequena janela para o callback terminar; depois liberamos
-      // o formulário sem deixar a tela de restauração presa indefinidamente.
       if (oauthIntent) {
         const timeout = window.setTimeout(() => {
           sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
           setPreparingCustomerLogin(false);
-        }, 2500);
+        }, 4000);
         return () => window.clearTimeout(timeout);
       }
 
@@ -146,7 +142,10 @@ function AuthPage() {
     try {
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/auth` });
+      // O broker oficial do Lovable usa a origem da aplicação como retorno.
+      // Ao voltar, __root inicializa o Supabase para restaurar a sessão e então
+      // encaminha novamente ao /auth, que finaliza dashboard/onboarding.
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
       if (result.error) {
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         const message = String(result.error.message ?? "").toLowerCase();
