@@ -12,9 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as TermosRouteImport } from './routes/termos'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminComercialRouteImport } from './routes/_authenticated/admin-comercial'
+import { Route as AuthenticatedAdminCreditosRouteImport } from './routes/_authenticated/admin-creditos'
 import { Route as AuthenticatedAdminRevendedoresRouteImport } from './routes/_authenticated/admin-revendedores'
 import { Route as AuthenticatedAnunciosRouteImport } from './routes/_authenticated/anuncios'
 import { Route as AuthenticatedAssinaturaRouteImport } from './routes/_authenticated/assinatura'
@@ -22,6 +25,7 @@ import { Route as AuthenticatedBuscarRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedCancelamentoRouteImport } from './routes/_authenticated/cancelamento'
 import { Route as AuthenticatedContaRouteImport } from './routes/_authenticated/conta'
 import { Route as AuthenticatedCreditosRouteImport } from './routes/_authenticated/creditos'
+import { Route as AuthenticatedCreditosIaRouteImport } from './routes/_authenticated/creditos-ia'
 import { Route as AuthenticatedCrescimentoRouteImport } from './routes/_authenticated/crescimento'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedEstoqueRouteImport } from './routes/_authenticated/estoque'
@@ -59,9 +63,19 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacidadeRoute = PrivacidadeRouteImport.update({
+  id: '/privacidade',
+  path: '/privacidade',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermosRoute = TermosRouteImport.update({
+  id: '/termos',
+  path: '/termos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
@@ -73,6 +87,12 @@ const AuthenticatedAdminComercialRoute =
   AuthenticatedAdminComercialRouteImport.update({
     id: '/admin-comercial',
     path: '/admin-comercial',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAdminCreditosRoute =
+  AuthenticatedAdminCreditosRouteImport.update({
+    id: '/admin-creditos',
+    path: '/admin-creditos',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminRevendedoresRoute =
@@ -110,6 +130,11 @@ const AuthenticatedContaRoute = AuthenticatedContaRouteImport.update({
 const AuthenticatedCreditosRoute = AuthenticatedCreditosRouteImport.update({
   id: '/creditos',
   path: '/creditos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCreditosIaRoute = AuthenticatedCreditosIaRouteImport.update({
+  id: '/creditos-ia',
+  path: '/creditos-ia',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedCrescimentoRoute =
@@ -232,9 +257,12 @@ const ApiPublicWebhooksMercadopagoRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/privacidade': typeof PrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/termos': typeof TermosRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/admin-creditos': typeof AuthenticatedAdminCreditosRoute
   '/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
   '/assinatura': typeof AuthenticatedAssinaturaRoute
@@ -242,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/conta': typeof AuthenticatedContaRoute
   '/creditos': typeof AuthenticatedCreditosRoute
+  '/creditos-ia': typeof AuthenticatedCreditosIaRoute
   '/crescimento': typeof AuthenticatedCrescimentoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
@@ -268,9 +297,12 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/privacidade': typeof PrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/termos': typeof TermosRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/admin-creditos': typeof AuthenticatedAdminCreditosRoute
   '/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
   '/assinatura': typeof AuthenticatedAssinaturaRoute
@@ -278,6 +310,7 @@ export interface FileRoutesByTo {
   '/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/conta': typeof AuthenticatedContaRoute
   '/creditos': typeof AuthenticatedCreditosRoute
+  '/creditos-ia': typeof AuthenticatedCreditosIaRoute
   '/crescimento': typeof AuthenticatedCrescimentoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
@@ -306,9 +339,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/privacidade': typeof PrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/termos': typeof TermosRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/_authenticated/admin-creditos': typeof AuthenticatedAdminCreditosRoute
   '/_authenticated/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/_authenticated/anuncios': typeof AuthenticatedAnunciosRoute
   '/_authenticated/assinatura': typeof AuthenticatedAssinaturaRoute
@@ -316,6 +352,7 @@ export interface FileRoutesById {
   '/_authenticated/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/_authenticated/conta': typeof AuthenticatedContaRoute
   '/_authenticated/creditos': typeof AuthenticatedCreditosRoute
+  '/_authenticated/creditos-ia': typeof AuthenticatedCreditosIaRoute
   '/_authenticated/crescimento': typeof AuthenticatedCrescimentoRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/estoque': typeof AuthenticatedEstoqueRoute
@@ -344,9 +381,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/privacidade'
     | '/reset-password'
+    | '/termos'
     | '/admin'
     | '/admin-comercial'
+    | '/admin-creditos'
     | '/admin-revendedores'
     | '/anuncios'
     | '/assinatura'
@@ -354,6 +394,7 @@ export interface FileRouteTypes {
     | '/cancelamento'
     | '/conta'
     | '/creditos'
+    | '/creditos-ia'
     | '/crescimento'
     | '/dashboard'
     | '/estoque'
@@ -380,9 +421,12 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/privacidade'
     | '/reset-password'
+    | '/termos'
     | '/admin'
     | '/admin-comercial'
+    | '/admin-creditos'
     | '/admin-revendedores'
     | '/anuncios'
     | '/assinatura'
@@ -390,6 +434,7 @@ export interface FileRouteTypes {
     | '/cancelamento'
     | '/conta'
     | '/creditos'
+    | '/creditos-ia'
     | '/crescimento'
     | '/dashboard'
     | '/estoque'
@@ -417,9 +462,12 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/privacidade'
     | '/reset-password'
+    | '/termos'
     | '/_authenticated/admin'
     | '/_authenticated/admin-comercial'
+    | '/_authenticated/admin-creditos'
     | '/_authenticated/admin-revendedores'
     | '/_authenticated/anuncios'
     | '/_authenticated/assinatura'
@@ -427,6 +475,7 @@ export interface FileRouteTypes {
     | '/_authenticated/cancelamento'
     | '/_authenticated/conta'
     | '/_authenticated/creditos'
+    | '/_authenticated/creditos-ia'
     | '/_authenticated/crescimento'
     | '/_authenticated/dashboard'
     | '/_authenticated/estoque'
@@ -455,7 +504,9 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  PrivacidadeRoute: typeof PrivacidadeRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
+  TermosRoute: typeof TermosRoute
   AdminLoginRoute: typeof AdminLoginRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   CheckoutIndexRoute: typeof CheckoutIndexRoute
@@ -487,11 +538,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacidade': {
+      id: '/privacidade'
+      path: '/privacidade'
+      fullPath: '/privacidade'
+      preLoaderRoute: typeof PrivacidadeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/termos': {
+      id: '/termos'
+      path: '/termos'
+      fullPath: '/termos'
+      preLoaderRoute: typeof TermosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -506,6 +571,13 @@ declare module '@tanstack/react-router' {
       path: '/admin-comercial'
       fullPath: '/admin-comercial'
       preLoaderRoute: typeof AuthenticatedAdminComercialRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/admin-creditos': {
+      id: '/_authenticated/admin-creditos'
+      path: '/admin-creditos'
+      fullPath: '/admin-creditos'
+      preLoaderRoute: typeof AuthenticatedAdminCreditosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin-revendedores': {
@@ -555,6 +627,13 @@ declare module '@tanstack/react-router' {
       path: '/creditos'
       fullPath: '/creditos'
       preLoaderRoute: typeof AuthenticatedCreditosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/creditos-ia': {
+      id: '/_authenticated/creditos-ia'
+      path: '/creditos-ia'
+      fullPath: '/creditos-ia'
+      preLoaderRoute: typeof AuthenticatedCreditosIaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/crescimento': {
@@ -717,6 +796,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAdminComercialRoute: typeof AuthenticatedAdminComercialRoute
+  AuthenticatedAdminCreditosRoute: typeof AuthenticatedAdminCreditosRoute
   AuthenticatedAdminRevendedoresRoute: typeof AuthenticatedAdminRevendedoresRoute
   AuthenticatedAnunciosRoute: typeof AuthenticatedAnunciosRoute
   AuthenticatedAssinaturaRoute: typeof AuthenticatedAssinaturaRoute
@@ -724,6 +804,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCancelamentoRoute: typeof AuthenticatedCancelamentoRoute
   AuthenticatedContaRoute: typeof AuthenticatedContaRoute
   AuthenticatedCreditosRoute: typeof AuthenticatedCreditosRoute
+  AuthenticatedCreditosIaRoute: typeof AuthenticatedCreditosIaRoute
   AuthenticatedCrescimentoRoute: typeof AuthenticatedCrescimentoRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedEstoqueRoute: typeof AuthenticatedEstoqueRoute
@@ -745,6 +826,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAdminComercialRoute: AuthenticatedAdminComercialRoute,
+  AuthenticatedAdminCreditosRoute: AuthenticatedAdminCreditosRoute,
   AuthenticatedAdminRevendedoresRoute: AuthenticatedAdminRevendedoresRoute,
   AuthenticatedAnunciosRoute: AuthenticatedAnunciosRoute,
   AuthenticatedAssinaturaRoute: AuthenticatedAssinaturaRoute,
@@ -752,6 +834,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCancelamentoRoute: AuthenticatedCancelamentoRoute,
   AuthenticatedContaRoute: AuthenticatedContaRoute,
   AuthenticatedCreditosRoute: AuthenticatedCreditosRoute,
+  AuthenticatedCreditosIaRoute: AuthenticatedCreditosIaRoute,
   AuthenticatedCrescimentoRoute: AuthenticatedCrescimentoRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedEstoqueRoute: AuthenticatedEstoqueRoute,
@@ -777,7 +860,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  PrivacidadeRoute: PrivacidadeRoute,
   ResetPasswordRoute: ResetPasswordRoute,
+  TermosRoute: TermosRoute,
   AdminLoginRoute: AdminLoginRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   CheckoutIndexRoute: CheckoutIndexRoute,
