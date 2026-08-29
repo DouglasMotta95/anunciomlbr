@@ -26,7 +26,7 @@ expect("src/routes/_authenticated/integracoes.tsx", ["openMercadoLivreOAuthStart
 expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "Mercado Livre"], "busca/cópia");
 expect("src/routes/_authenticated/editor.$id.tsx", ["PublishButton", "generateListingImage", "3 créditos"], "editor/publicação/imagem IA");
 expect("src/lib/listing-image-ai.functions.ts", ["IMAGE_CREDIT_COST = 3", "quota.remaining < IMAGE_CREDIT_COST", "consumeAiQuota(context.userId, IMAGE_CREDIT_COST)"], "cobrança de imagem IA");
-expect("src/lib/gemini.functions.ts", ["getAiQuota", "consumeAiQuota(context.userId, 1)"], "endpoint Gemini tarifado");
+expect("src/lib/gemini.functions.ts", ["getAiQuota", "consumeAiQuota", "deps.consume(userId, 1)", "callGeminiAuthenticated(data, context.userId)"], "endpoint Gemini tarifado");
 expect("src/routes/checkout/index.tsx", ["Mercado Pago", "checkout"], "checkout");
 expect("src/routes/checkout/success.tsx", ["approved", "payment"], "retorno de pagamento");
 expect("src/routes/_authenticated/admin.tsx", ["beforeLoad", "checkIsAdmin"], "guarda administrativa");
