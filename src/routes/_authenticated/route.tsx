@@ -11,8 +11,14 @@ function isAdminRoute(pathname: string) {
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) throw redirect({ to: "/auth" });
+    // Logo após signIn/signUp o Supabase já persiste a sessão no cliente, mas
+    // getUser() ainda pode depender de uma validação remota e falhar de forma
+    // transitória. Isso criava o ciclo dashboard -> /auth -> signOut. A guarda
+    // deve usar a sessão restaurada pelo próprio cliente para decidir navegação;
+    // endpoints sensíveis continuam validando autenticação no servidor.
+    const { data, error } = await supabase.auth.getSession();
+    const user = data.session?.user ?? null;
+    if (error || !user) throw redirect({ to: "/auth" });
 
     let admin = false;
     try {
@@ -30,7 +36,7 @@ export const Route = createFileRoute("/_authenticated")({
     // As rotas administrativas continuam protegidas e exigem papel admin.
     if (!admin && adminPath) throw redirect({ to: "/admin/login", replace: true });
 
-    return { user: data.user, isAdmin: admin };
+    return { user, isAdmin: admin };
   },
   component: AuthenticatedBoundary,
 });
