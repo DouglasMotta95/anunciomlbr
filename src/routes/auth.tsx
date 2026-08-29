@@ -71,7 +71,20 @@ function AuthPage() {
     if (sessionLoading || entrySessionHandled.current) return;
 
     const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) as "login" | "signup" | null;
-    if (oauthIntent && !user) return;
+
+    // Uma tentativa de OAuth pode ser interrompida antes do callback terminar.
+    // Nesse caso o intent fica salvo no sessionStorage, mas não existe usuário.
+    // Antes esse estado mantinha o SessionSplash para sempre. Damos uma pequena
+    // janela para o callback concluir e depois limpamos o intent órfão.
+    if (oauthIntent && !user) {
+      const timeout = window.setTimeout(() => {
+        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+        loginStartedHere.current = false;
+        entrySessionHandled.current = true;
+        setPreparingCustomerLogin(false);
+      }, 1500);
+      return () => window.clearTimeout(timeout);
+    }
 
     entrySessionHandled.current = true;
 
