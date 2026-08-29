@@ -8,6 +8,7 @@ import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
 import { PlanPurchaseSection } from "@/components/landing/PlanPurchaseSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
+import { PublicLandingNav } from "@/components/landing/PublicLandingNav";
 import { RealSocialProof } from "@/components/landing/RealSocialProof";
 import { Reveal } from "@/components/landing/Reveal";
 import { SalesShowcase } from "@/components/landing/SalesShowcase";
@@ -16,7 +17,6 @@ import {
   ComparisonSection,
   FinalCta,
   LandingFooter,
-  LandingNav,
 } from "@/components/landing/sections";
 
 const title = "ANÚNCIO ML — Encontre, copie, otimize e publique anúncios";
@@ -39,7 +39,7 @@ function Landing() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <VisitTracker path="/" />
-      <LandingNav />
+      <PublicLandingNav />
       <main>
         <PremiumHero />
         <ProductTrustBar />
@@ -58,14 +58,9 @@ function Landing() {
       </main>
 
       <LandingFooter />
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 pb-5 text-xs text-muted-foreground/60">
-        <div className="flex flex-wrap gap-4">
-          <Link to="/termos" className="transition hover:text-foreground">Termos de Uso</Link>
-          <Link to="/privacidade" className="transition hover:text-foreground">Política de Privacidade</Link>
-        </div>
-        <Link to="/admin/login" className="text-[10px] text-muted-foreground/35 transition hover:text-muted-foreground" rel="nofollow">
-          Área administrativa
-        </Link>
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-4 px-4 pb-5 text-xs text-muted-foreground/60">
+        <Link to="/termos" className="transition hover:text-foreground">Termos de Uso</Link>
+        <Link to="/privacidade" className="transition hover:text-foreground">Política de Privacidade</Link>
       </div>
       <MobileStickyCta />
     </div>
