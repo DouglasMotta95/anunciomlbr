@@ -3,16 +3,20 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  useNavigate,
   useRouter,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+
+const CUSTOMER_OAUTH_INTENT = "anuncioml_customer_oauth_intent";
 
 function NotFoundComponent() {
   return (
@@ -115,15 +119,32 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function OAuthReturnBridge() {
+  const navigate = useNavigate();
+  const { loading } = useAuth();
+
+  useEffect(() => {
+    if (loading || typeof window === "undefined") return;
+    if (!sessionStorage.getItem(CUSTOMER_OAUTH_INTENT)) return;
+
+    // O broker do Lovable retorna para a origem da aplicação. Inicializar useAuth
+    // aqui faz o Supabase processar/restaurar a sessão antes de voltarmos ao /auth,
+    // que então escolhe onboarding ou dashboard sem perder o login do Google.
+    void navigate({ to: "/auth", replace: true });
+  }, [loading, navigate]);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <OAuthReturnBridge />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="top-right" richColors />
     </QueryClientProvider>
   );
 }
-
