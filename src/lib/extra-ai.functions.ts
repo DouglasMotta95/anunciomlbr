@@ -3,6 +3,18 @@ import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+function publicOrigin(): string | null {
+  const raw = process.env["APP_PUBLIC_URL"]?.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 export const getExtraAiPackages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -31,7 +43,7 @@ export const getExtraAiPackages = createServerFn({ method: "GET" })
 
 export const createExtraAiCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ package_id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ package_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
     const { data: pack, error: packError } = await db
@@ -42,6 +54,19 @@ export const createExtraAiCheckout = createServerFn({ method: "POST" })
       .eq("kind", "ai_package")
       .maybeSingle();
     if (packError || !pack || !pack.ai_credits) throw new Error("Pacote de IA inválido.");
+
+    const accessToken = process.env["MERCADOPAGO_ACCESS_TOKEN"]?.trim();
+    const origin = publicOrigin();
+    if (!accessToken || !origin) {
+      return {
+        configured: false as const,
+        payment_id: null,
+        checkout_url: null,
+        reason: !accessToken
+          ? "Mercado Pago ainda não está configurado no servidor."
+          : "A URL pública do ANÚNCIO ML não está configurada para receber o pagamento.",
+      };
+    }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: payment, error: paymentError } = await supabaseAdmin
@@ -57,13 +82,9 @@ export const createExtraAiCheckout = createServerFn({ method: "POST" })
       })
       .select("id")
       .single();
-    if (paymentError) throw new Error("Não foi possível registrar a compra dos créditos de IA.");
+    if (paymentError || !payment) throw new Error("Não foi possível registrar a compra dos créditos de IA.");
 
-    const accessToken = process.env["MERCADOPAGO_ACCESS_TOKEN"];
-    if (!accessToken) return { configured: false as const, payment_id: payment.id, checkout_url: null };
-
-    const origin = process.env["APP_PUBLIC_URL"] ?? "";
-    const returnUrl = origin ? `${origin}/creditos-ia?payment_id=${payment.id}` : undefined;
+    const returnUrl = `${origin}/creditos-ia?payment_id=${payment.id}`;
     const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
@@ -71,16 +92,20 @@ export const createExtraAiCheckout = createServerFn({ method: "POST" })
         items: [{ title: `ANÚNCIO ML — ${pack.name}`, quantity: 1, currency_id: "BRL", unit_price: pack.price_monthly_cents / 100 }],
         external_reference: payment.id,
         metadata: { payment_id: payment.id, user_id: context.userId, plan_id: pack.id, purchase_kind: "ai_package", ai_credits: pack.ai_credits },
-        notification_url: origin ? `${origin}/api/public/webhooks/mercadopago` : undefined,
-        back_urls: origin ? { success: returnUrl, pending: returnUrl, failure: `${origin}/creditos-ia` } : undefined,
+        notification_url: `${origin}/api/public/webhooks/mercadopago`,
+        back_urls: { success: returnUrl, pending: returnUrl, failure: `${origin}/creditos-ia` },
         auto_return: "approved",
       }),
     });
 
     if (!response.ok) {
-      console.error("Extra AI checkout failed", response.status, await response.text());
-      return { configured: true as const, payment_id: payment.id, checkout_url: null };
+      const detail = await response.text().catch(() => "");
+      console.error("Extra AI checkout failed", response.status, detail.slice(0, 500));
+      return { configured: true as const, payment_id: payment.id, checkout_url: null, reason: "O Mercado Pago não conseguiu abrir o checkout agora." };
     }
-    const preference = (await response.json()) as { init_point?: string; sandbox_init_point?: string };
-    return { configured: true as const, payment_id: payment.id, checkout_url: preference.init_point ?? preference.sandbox_init_point ?? null };
+    const preference = (await response.json()) as { id?: string; init_point?: string; sandbox_init_point?: string };
+    if (preference.id) {
+      await supabaseAdmin.from("payments").update({ provider_ref: preference.id }).eq("id", payment.id).eq("user_id", context.userId);
+    }
+    return { configured: true as const, payment_id: payment.id, checkout_url: preference.init_point ?? preference.sandbox_init_point ?? null, reason: null };
   });
