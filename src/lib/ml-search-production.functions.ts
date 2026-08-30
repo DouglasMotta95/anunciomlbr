@@ -410,34 +410,70 @@ function extractMlbId(value: string) {
   return match ? match[0].replace("-", "") : null;
 }
 
-function allowedHost(host: string) {
-  const normalized = host.toLowerCase();
-  return normalized === "meli.la" || normalized === "mercadolivre.com.br" || normalized.endsWith(".mercadolivre.com.br") || normalized === "mercadolibre.com" || normalized.endsWith(".mercadolibre.com");
+type ResolvedLink = {
+  itemId: string | null;
+  productId: string | null;
+  sellerId: string | null;
+  sellerNickname: string | null;
+  searchQuery: string | null;
+};
+
+const EMPTY_LINK: ResolvedLink = { itemId: null, productId: null, sellerId: null, sellerNickname: null, searchQuery: null };
+
+function fromParsed(parsed: ReturnType<typeof parseMlSearchInput>): ResolvedLink | null {
+  if (parsed.itemId) return { ...EMPTY_LINK, itemId: parsed.itemId };
+  if (parsed.productId) return { ...EMPTY_LINK, productId: parsed.productId };
+  if (parsed.sellerId || parsed.sellerNickname) return { ...EMPTY_LINK, sellerId: parsed.sellerId, sellerNickname: parsed.sellerNickname };
+  if (parsed.type === "search_url" && parsed.searchQuery) return { ...EMPTY_LINK, searchQuery: parsed.searchQuery };
+  return null;
 }
 
-async function resolveLink(raw: string): Promise<{ itemId: string | null; productId: string | null }> {
-  let candidate = raw.trim();
-  const embedded = candidate.match(/https?:\/\/[^\s]+/i)?.[0];
-  candidate = embedded ?? candidate;
-  if (/^(?:www\.)?(?:produto\.|lista\.)?mercadolivre\.com\.br\//i.test(candidate) || /^(?:www\.)?meli\.la\//i.test(candidate)) candidate = `https://${candidate}`;
-  let current: URL;
-  try { current = new URL(candidate); } catch { return { itemId: null, productId: null }; }
-  if (!allowedHost(current.hostname)) return { itemId: null, productId: null };
-  for (let hop = 0; hop < 5; hop += 1) {
-    const id = extractMlbId(`${current.pathname}${current.search}`);
-    if (id) return /\/p\/MLB-?\d+/i.test(current.pathname) ? { itemId: null, productId: id } : { itemId: id, productId: null };
-    try {
-      const response = await fetch(current.toString(), { redirect: "manual", headers: { "User-Agent": USER_AGENT } });
-      const location = response.headers.get("location");
-      if (!location) break;
-      const next = new URL(location, current);
-      if (!allowedHost(next.hostname)) break;
-      current = next;
-    } catch { break; }
-  }
-  const id = extractMlbId(`${current.pathname}${current.search}`);
-  return id ? { itemId: id, productId: null } : { itemId: null, productId: null };
+function canonicalFromHtml(html: string): string | null {
+  const canonical = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i)?.[1];
+  const refresh = html.match(/http-equiv=["']refresh["'][^>]*content=["'][^"']*url=([^"';]+)/i)?.[1];
+  const jsRedirect = html.match(/window\.location(?:\.href)?\s*=\s*["']([^"']+)["']/i)?.[1];
+  const ogUrl = html.match(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i)?.[1];
+  return canonical ?? refresh ?? jsRedirect ?? ogUrl ?? null;
 }
+
+async function resolveLink(raw: string): Promise<ResolvedLink> {
+  const initial = parseMlSearchInput(raw);
+  const direct = fromParsed(initial);
+  if (direct) return direct;
+  if (!initial.normalizedUrl) return EMPTY_LINK;
+
+  let current: URL;
+  try { current = new URL(initial.normalizedUrl); } catch { return EMPTY_LINK; }
+
+  for (let hop = 0; hop < 5; hop += 1) {
+    let response: Response;
+    try {
+      response = await fetch(current.toString(), {
+        redirect: "manual",
+        headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
+        signal: AbortSignal.timeout(12_000),
+      });
+    } catch {
+      break;
+    }
+    const location = response.headers.get("location");
+    let next: string | null = location;
+    if (!next && response.status >= 200 && response.status < 300) {
+      const html = await response.text().catch(() => "");
+      next = canonicalFromHtml(html) ?? extractMlbId(html.slice(0, 20_000));
+    }
+    if (!next) break;
+    const parsed = parseMlSearchInput(next.startsWith("http") || /^\/\//.test(next) ? next : new URL(next, current).toString());
+    const resolved = fromParsed(parsed);
+    if (resolved) return resolved;
+    if (!parsed.normalizedUrl) break;
+    try { current = new URL(parsed.normalizedUrl); } catch { break; }
+  }
+
+  const finalParsed = parseMlSearchInput(current.toString());
+  return fromParsed(finalParsed) ?? EMPTY_LINK;
+}
+
 
 export const searchMercadoLivre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
