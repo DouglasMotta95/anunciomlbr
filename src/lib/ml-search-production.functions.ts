@@ -542,22 +542,42 @@ export const getMercadoLivreItemDescription = createServerFn({ method: "POST" })
 
 export const getMercadoLivreItemFromLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ link: z.string().trim().min(4).max(1000) }).parse(data))
+  .inputValidator((data: unknown) => z.object({ link: z.string().trim().min(4).max(1000), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
     if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para consultar o link.", items: [] };
+    const limit = data.limit ?? 20;
     const resolved = await resolveLink(data.link);
+
     if (resolved.itemId) {
       const result = await fetchItem(resolved.itemId, tokens);
-      return result.item ? { ok: true, configured: true, reason: null, items: [result.item] } : { ok: false, configured: true, reason: userMessage(result.statuses, false), items: [] };
+      if (result.item) return { ok: true, configured: true, reason: null, items: [result.item] };
+      if (result.statuses.includes(404)) return { ok: false, configured: true, reason: "Esse anúncio não existe mais ou foi removido do Mercado Livre.", items: [] };
+      return { ok: false, configured: true, reason: userMessage(result.statuses, false), items: [] };
     }
+
     if (resolved.productId) {
       const detail = await productDetail(resolved.productId, tokens);
       if (detail) {
-        const items = await catalogOffers(detail, tokens, 20);
+        const items = await catalogOffers(detail, tokens, limit);
         const verified = items.filter((item) => item.verified_item !== false && item.price_cents != null);
-        if (verified.length) return { ok: true, configured: true, reason: null, items: verified };
+        if (verified.length) return { ok: true, configured: true, reason: "Anúncios reais vinculados à página de produto desse link.", items: rankBySales(verified).slice(0, limit) };
       }
     }
-    return { ok: false, configured: true, reason: "Não foi possível identificar um anúncio copiável nesse link.", items: [] };
+
+    if (resolved.sellerId || resolved.sellerNickname) {
+      const seller = await sellerSearch(resolved.sellerId ?? resolved.sellerNickname!, tokens, limit);
+      if (seller.items.length) return { ok: true, configured: true, reason: "Anúncios do vendedor identificado nesse link.", items: seller.items.slice(0, limit) };
+      return { ok: false, configured: true, reason: userMessage(seller.statuses, true), items: [] };
+    }
+
+    if (resolved.searchQuery) {
+      const { discoverPublicAds } = await import("@/lib/ml-discovery.server");
+      const discovery = await discoverPublicAds(context.userId, resolved.searchQuery, limit);
+      if (discovery.items.length) return { ok: true, configured: true, reason: `Resultados para "${resolved.searchQuery}" interpretados a partir do link de busca.`, items: discovery.items };
+      return { ok: false, configured: true, reason: discovery.reason ?? userMessage([], true), items: [] };
+    }
+
+    return { ok: false, configured: true, reason: "Não conseguimos identificar anúncio, vendedor ou termo de busca nesse link. Confira se o endereço está completo.", items: [] };
   });
+
