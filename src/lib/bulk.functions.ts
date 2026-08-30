@@ -320,16 +320,17 @@ async function runBulkItem(kind: BulkJobKind, userId: string, item: BulkJobItem)
   if (kind === "pause" || kind === "activate" || kind === "archive") {
     const { data: listing, error: fetchError } = await supabaseAdmin
       .from("listings")
-      .select("published_ml_id")
+      .select("published_ml_id,source_ml_id")
       .eq("id", item.id)
       .eq("user_id", userId)
       .maybeSingle();
     if (fetchError || !listing) throw new Error("Anúncio não encontrado.");
 
-    if ((kind === "pause" || kind === "activate") && listing.published_ml_id) {
+    const mlItemId = listing.published_ml_id ?? listing.source_ml_id ?? null;
+    if ((kind === "pause" || kind === "activate") && mlItemId) {
       await syncMlPublishedStatus(
         userId,
-        String(listing.published_ml_id),
+        String(mlItemId),
         kind === "pause" ? "paused" : "active",
       );
     }
