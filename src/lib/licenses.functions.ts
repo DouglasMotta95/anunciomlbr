@@ -6,7 +6,7 @@ const PERIOD_MONTHS: Record<string, number> = { monthly: 1, quarterly: 3, semian
 
 export const activateLicense = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ code: z.string().min(6) }).parse(data))
+  .validator((data: unknown) => z.object({ code: z.string().min(6) }).parse(data))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const code = data.code.trim().toUpperCase();
@@ -34,7 +34,7 @@ const generateSchema = z.object({
 
 export const generateLicenses = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => generateSchema.parse(data))
+  .validator((data: unknown) => generateSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
     if (!isAdmin) throw new Error("Forbidden");
