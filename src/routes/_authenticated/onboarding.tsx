@@ -8,7 +8,7 @@ import { AppShell } from "@/components/app/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useProfile } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import {
   disconnectMercadoLivre,
   getMlConnection,
@@ -30,6 +30,8 @@ type MlConnectionView = {
   listings_count?: number | null;
 };
 
+type OnboardingDestination = "/dashboard" | "/buscar";
+
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
     meta: [
@@ -46,7 +48,7 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
 function OnboardingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { data: profile } = useProfile();
+  const { user } = useAuth();
   const fetchConnection = useServerFn(getMlConnection);
 
   const { data, isLoading } = useQuery({
@@ -88,20 +90,25 @@ function OnboardingPage() {
   });
 
   const finish = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (destination: OnboardingDestination) => {
+      if (!user?.id) throw new Error("Sua sessão ainda está sendo restaurada. Tente novamente.");
       const { error } = await supabase
         .from("profiles")
         .update({ onboarding_done: true })
-        .eq("id", profile!.id);
+        .eq("id", user.id);
       if (error) throw error;
+      return destination;
     },
-    onSuccess: () => {
+    onSuccess: (destination) => {
       void queryClient.invalidateQueries({ queryKey: ["profile"] });
-      void navigate({ to: "/dashboard" });
+      void navigate({ to: destination, replace: true });
     },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Não foi possível concluir a configuração."),
   });
 
   const connected = !!connection?.connected;
+  const finishing = finish.isPending || !user?.id;
 
   return (
     <AppShell
@@ -187,14 +194,14 @@ function OnboardingPage() {
           <CardTitle className="text-base">2. Comece a usar</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Button onClick={() => finish.mutate()} disabled={finish.isPending}>
+          <Button onClick={() => finish.mutate("/dashboard")} disabled={finishing}>
             {finish.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Ir para o dashboard
           </Button>
-          <Button variant="outline" onClick={() => void navigate({ to: "/buscar" })}>
+          <Button variant="outline" onClick={() => finish.mutate("/buscar")} disabled={finishing}>
             Buscar meu primeiro anúncio
           </Button>
-          <Button variant="ghost" onClick={() => void navigate({ to: "/dashboard" })}>
+          <Button variant="ghost" onClick={() => finish.mutate("/dashboard")} disabled={finishing}>
             Fazer depois
           </Button>
         </CardContent>
