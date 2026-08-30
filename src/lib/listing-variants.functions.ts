@@ -9,7 +9,7 @@ type AdQuota = { quota?: number; used?: number; remaining?: number };
 
 export const createAiListingVariants = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => schema.parse(data))
+  .validator((data: unknown) => schema.parse(data))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
