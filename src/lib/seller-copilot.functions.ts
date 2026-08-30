@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const askSellerCopilot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ question: z.string().trim().min(3).max(500).default("O que eu devo fazer hoje para melhorar minhas vendas?") }).parse(data))
+  .validator((data: unknown) => z.object({ question: z.string().trim().min(3).max(500).default("O que eu devo fazer hoje para melhorar minhas vendas?") }).parse(data))
   .handler(async ({ data, context }) => {
     const { getAiQuota } = await import("@/lib/ai-quota.server");
     const quota = await getAiQuota(context.userId);
