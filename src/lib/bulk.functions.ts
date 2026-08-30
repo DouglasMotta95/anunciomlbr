@@ -43,7 +43,7 @@ type QuotaRpcClient = {
 
 export const startBulkJob = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => startSchema.parse(data))
+  .validator((data: unknown) => startSchema.parse(data))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const items: BulkJobItem[] = data.items.map((item) => ({
@@ -73,7 +73,7 @@ export const startBulkJob = createServerFn({ method: "POST" })
 
 export const getBulkJob = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ jobId: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ jobId: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: job, error } = await context.supabase
       .from("bulk_jobs")
@@ -193,6 +193,36 @@ async function consumeBulkAiCredit(userId: string) {
   if (!result.ok) throw new Error(result.reason);
 }
 
+async function syncMlPublishedStatus(userId: string, mlItemId: string, status: "paused" | "active") {
+  const { getValidMlAccessToken } = await import("./ml.server");
+  const token = await getValidMlAccessToken(userId);
+  if (!token.ok) {
+    throw new Error("A conexão com o Mercado Livre precisa ser renovada antes de alterar o anúncio.");
+  }
+
+  const response = await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(mlItemId)}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token.accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as
+      | { message?: string; cause?: Array<{ message?: string }> }
+      | null;
+    const detail = payload?.cause?.map((cause) => cause.message).filter(Boolean).join(" | ") || payload?.message;
+    throw new Error(
+      detail
+        ? `Mercado Livre: ${detail}`
+        : `O Mercado Livre recusou a alteração de status (${response.status}).`,
+    );
+  }
+}
+
 async function runBulkItem(kind: BulkJobKind, userId: string, item: BulkJobItem) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -288,6 +318,22 @@ async function runBulkItem(kind: BulkJobKind, userId: string, item: BulkJobItem)
   }
 
   if (kind === "pause" || kind === "activate" || kind === "archive") {
+    const { data: listing, error: fetchError } = await supabaseAdmin
+      .from("listings")
+      .select("published_ml_id")
+      .eq("id", item.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (fetchError || !listing) throw new Error("Anúncio não encontrado.");
+
+    if ((kind === "pause" || kind === "activate") && listing.published_ml_id) {
+      await syncMlPublishedStatus(
+        userId,
+        String(listing.published_ml_id),
+        kind === "pause" ? "paused" : "active",
+      );
+    }
+
     const nextStatus = kind === "pause" ? "paused" : kind === "activate" ? "active" : "closed";
     const { error } = await supabaseAdmin
       .from("listings")
