@@ -37,7 +37,7 @@ function publicOrigin(): string | null {
 /** Cria uma preferência real no Mercado Pago; nunca simula aprovação ou pedido offline. */
 export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => schema.parse(data))
+  .validator((data: unknown) => schema.parse(data))
   .handler(async ({ data, context }) => {
     const accessToken = process.env["MERCADOPAGO_ACCESS_TOKEN"]?.trim();
 
@@ -62,10 +62,11 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
     if (data.coupon_code) {
       const { resolveCoupon } = await import("@/lib/coupons.server");
       const result = await resolveCoupon(data.coupon_code);
-      if (result.ok) {
-        coupon = { code: result.code, discount_percent: result.discount_percent };
-        amountCents = Math.max(Math.round(amountCents * (1 - result.discount_percent / 100)), 100);
+      if (!result.ok) {
+        throw new Error(result.reason || "O cupom informado não é mais válido.");
       }
+      coupon = { code: result.code, discount_percent: result.discount_percent };
+      amountCents = Math.max(Math.round(amountCents * (1 - result.discount_percent / 100)), 100);
     }
 
     if (!accessToken) {
@@ -144,7 +145,8 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
       await supabaseAdmin
         .from("payments")
         .update({ raw: { checkout_error_status: response.status } as never })
-        .eq("id", payment.id);
+        .eq("id", payment.id)
+        .eq("user_id", context.userId);
       return {
         configured: true as const,
         payment_id: payment.id,
@@ -171,7 +173,11 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
     }
 
     if (preference.id) {
-      await supabaseAdmin.from("payments").update({ provider_ref: preference.id }).eq("id", payment.id);
+      await supabaseAdmin
+        .from("payments")
+        .update({ provider_ref: preference.id })
+        .eq("id", payment.id)
+        .eq("user_id", context.userId);
     }
 
     return {
@@ -186,18 +192,20 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
 /** Resumo real do pedido para a página de sucesso (apenas o próprio dono). */
 export const getCheckoutSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ payment_id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ payment_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: payment, error } = await context.supabase
       .from("payments")
       .select("id, status, amount_cents, period, created_at, plan_id, plans(name, code)")
       .eq("id", data.payment_id)
+      .eq("user_id", context.userId)
       .maybeSingle();
     if (error || !payment) throw new Error("Pedido não encontrado.");
 
     const { data: license } = await context.supabase
       .from("licenses")
       .select("code, status, expires_at")
+      .eq("user_id", context.userId)
       .eq("note", `payment:${payment.id}`)
       .maybeSingle();
 
@@ -215,12 +223,13 @@ export const getCheckoutSummary = createServerFn({ method: "GET" })
 /** Confirma o pagamento na API do Mercado Pago e emite a licença somente quando aprovado. */
 export const confirmCheckoutPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ payment_id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ payment_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { data: payment } = await context.supabase
       .from("payments")
       .select("id, status")
       .eq("id", data.payment_id)
+      .eq("user_id", context.userId)
       .maybeSingle();
     if (!payment) throw new Error("Pedido não encontrado.");
 
