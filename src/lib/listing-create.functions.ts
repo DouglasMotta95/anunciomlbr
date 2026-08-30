@@ -107,13 +107,13 @@ async function createDraftForUser(userId: string, input: DraftInput) {
 /** Cria/importa/clona um anúncio e consome 1 unidade da franquia somente após a inserção ter sucesso. */
 export const createListingDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => draftSchema.parse(data))
+  .validator((data: unknown) => draftSchema.parse(data))
   .handler(async ({ data, context }) => createDraftForUser(context.userId, data));
 
 /** Duplica um anúncio interno mantendo título limpo, preço, imagens e atributos. */
 export const duplicateListingDraft = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ listing_id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) => z.object({ listing_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: listing, error } = await supabaseAdmin
