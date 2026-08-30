@@ -26,16 +26,18 @@ export async function resolveCoupon(rawCode: string): Promise<CouponResult> {
   return { ok: true, code: data.code, discount_percent: percent };
 }
 
-/** Consome um uso do cupom após o pagamento aprovado. */
+/** Consome um uso do cupom após o pagamento aprovado, sem read-modify-write concorrente. */
 export async function consumeCoupon(code: string) {
-  const { data } = await supabaseAdmin
-    .from("coupons")
-    .select("id, uses")
-    .ilike("code", code.trim())
-    .maybeSingle();
-  if (!data) return;
-  await supabaseAdmin
-    .from("coupons")
-    .update({ uses: (data.uses ?? 0) + 1 })
-    .eq("id", data.id);
+  const db = supabaseAdmin as unknown as {
+    rpc: (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
+  };
+  const { data, error } = await db.rpc("consume_coupon_use", { _code: code.trim() });
+  if (error) {
+    console.error("Coupon usage increment failed", error.message);
+    return false;
+  }
+  return data === true;
 }
