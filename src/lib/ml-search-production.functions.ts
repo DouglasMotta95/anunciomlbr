@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { parseMlSearchInput } from "./ml-search-input";
 import { serializeMlArray, type MlItem } from "./ml.functions";
 
 const ML_API = "https://api.mercadolibre.com";
