@@ -58,7 +58,7 @@ function AdminCreditsPage() {
     enabled: submittedSearch.length > 0,
   });
 
-  const packages = packagesData?.packages ?? [];
+  const packages = useMemo(() => packagesData?.packages ?? [], [packagesData?.packages]);
   const aiPackages = useMemo(() => packages.filter((pack) => pack.kind === "ai_package"), [packages]);
   const adPackages = useMemo(() => packages.filter((pack) => pack.kind === "ad_package"), [packages]);
   const selectedClient = (clientsData?.clients ?? []).find((client) => client.id === clientId);
