@@ -13,7 +13,7 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
 
 export const adminSearchCreditClients = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ search: z.string().trim().min(1).max(120) }).parse(data),
   )
   .handler(async ({ data, context }) => {
@@ -47,7 +47,7 @@ export const adminListCreditPackages = createServerFn({ method: "GET" })
 
 export const adminGrantCreditPackage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         user_id: z.string().uuid(),
