@@ -46,7 +46,7 @@ function buildPrompt(data: z.infer<typeof inputSchema>) {
 
 export const generateListingImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => inputSchema.parse(data))
+  .validator((data: unknown) => inputSchema.parse(data))
   .handler(async ({ data, context }) => {
     const apiKey = process.env["GEMINI_API_KEY"];
     if (!apiKey) {
