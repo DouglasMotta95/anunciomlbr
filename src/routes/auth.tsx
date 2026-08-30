@@ -158,8 +158,10 @@ function AuthPage() {
       }
       if (result.redirected) return;
 
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.user) {
+      // No fluxo sem redirect/popup o broker devolve os tokens; eles precisam ser
+      // entregues explicitamente ao Supabase antes de tentar ler a sessão.
+      const { data, error } = await supabase.auth.setSession(result.tokens);
+      if (error || !data.session?.user) {
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         throw new Error("Não foi possível concluir o login com o Google.");
       }
