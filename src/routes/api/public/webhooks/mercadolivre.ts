@@ -70,6 +70,15 @@ function resourceSellerId(data: Record<string, unknown>) {
   return null;
 }
 
+function localListingStatus(value: unknown) {
+  if (value === "active") return "active";
+  if (value === "paused") return "paused";
+  if (value === "closed") return "closed";
+  if (value === "under_review") return "under_review";
+  if (value === "inactive") return "inactive";
+  return null;
+}
+
 export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
   server: {
     handlers: {
@@ -110,8 +119,6 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-        // Só eventos de uma conta realmente conectada entram na fila/log. Isso
-        // impede que terceiros encham a tabela usando user_ids aleatórios.
         const { data: connection, error: connectionError } = await supabaseAdmin
           .from("ml_connections")
           .select("user_id")
@@ -211,26 +218,48 @@ export const Route = createFileRoute("/api/public/webhooks/mercadolivre")({
               if (typeof data["permalink"] === "string") {
                 patch["source_permalink"] = data["permalink"];
               }
+              const nextStatus = localListingStatus(data["status"]);
+              if (nextStatus) patch["status"] = nextStatus;
 
-              const { data: listing } = await supabaseAdmin
+              // Anúncios importados são localizados por source_ml_id; anúncios criados
+              // pelo ANÚNCIO ML são vinculados por published_ml_id. O webhook precisa
+              // reconhecer os dois casos para não deixar o painel desatualizado.
+              const { data: sourceListing } = await supabaseAdmin
                 .from("listings")
                 .select("id")
                 .eq("user_id", userId)
                 .eq("source_ml_id", mlId)
                 .maybeSingle();
-
-              if (listing) {
-                await supabaseAdmin.from("listings").update(patch as never).eq("id", listing.id);
+              let listing = sourceListing;
+              if (!listing) {
+                const { data: publishedListing } = await supabaseAdmin
+                  .from("listings")
+                  .select("id")
+                  .eq("user_id", userId)
+                  .eq("published_ml_id", mlId)
+                  .maybeSingle();
+                listing = publishedListing;
               }
 
-              await supabaseAdmin.from("activity_events").insert({
-                user_id: userId,
-                kind: "ml_item_updated",
-                message: listing
-                  ? `Anúncio ${mlId} sincronizado pelo Mercado Livre`
-                  : `Notificação recebida para o anúncio ${mlId}`,
-                meta: { ml_item_id: mlId, topic },
-              });
+              if (listing) {
+                const { error: updateError } = await supabaseAdmin
+                  .from("listings")
+                  .update(patch as never)
+                  .eq("id", listing.id)
+                  .eq("user_id", userId);
+                if (updateError) processError = `listing_update_${updateError.code ?? "failed"}`;
+              }
+
+              if (!processError) {
+                await supabaseAdmin.from("activity_events").insert({
+                  user_id: userId,
+                  kind: "ml_item_updated",
+                  message: listing
+                    ? `Anúncio ${mlId} sincronizado pelo Mercado Livre`
+                    : `Notificação recebida para o anúncio ${mlId}`,
+                  meta: { ml_item_id: mlId, topic, status: nextStatus },
+                });
+              }
             } else {
               await supabaseAdmin.from("activity_events").insert({
                 user_id: userId,
