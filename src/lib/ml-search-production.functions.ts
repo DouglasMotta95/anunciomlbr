@@ -93,7 +93,7 @@ async function mlFetch(url: string | URL, tokens: string[], logScope?: MlLogScop
   for (const token of tokens) {
     const tokenType = tokenKinds.get(token) ?? "user";
     try {
-      const response = await fetch(url, { headers: headers(token) });
+      const response = await fetch(url, { headers: headers(token), signal: AbortSignal.timeout(15_000) });
       statuses.push(response.status);
       last = response;
       logMlAttempt(logScope, url, response.status, tokenType);
@@ -104,7 +104,7 @@ async function mlFetch(url: string | URL, tokens: string[], logScope?: MlLogScop
     }
   }
   try {
-    const response = await fetch(url, { headers: headers() });
+    const response = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15_000) });
     statuses.push(response.status);
     last = response;
     logMlAttempt(logScope, url, response.status, "anonymous");
@@ -114,6 +114,7 @@ async function mlFetch(url: string | URL, tokens: string[], logScope?: MlLogScop
     return { response: last, statuses };
   }
 }
+
 
 function safeUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
