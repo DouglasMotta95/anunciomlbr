@@ -53,7 +53,7 @@ async function consume(context: Ctx) {
 
 export const optimizeListing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => schema.parse(data))
+  .validator((data: unknown) => schema.parse(data))
   .handler(
     async ({ data, context }): Promise<
       { ok: true; result: AiOptimization } | { ok: false; reason: string }
@@ -119,7 +119,7 @@ export const optimizeListing = createServerFn({ method: "POST" })
 
 export const generateTitles = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         title: z.string().min(3),
@@ -161,7 +161,7 @@ export const generateTitles = createServerFn({ method: "POST" })
 
 export const pickBestTitle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         titles: z.array(z.string().min(3)).min(2).max(20),
@@ -187,7 +187,7 @@ export const pickBestTitle = createServerFn({ method: "POST" })
 
 export const generateDescription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         title: z.string().min(3),
@@ -221,7 +221,7 @@ export const generateDescription = createServerFn({ method: "POST" })
 
 export const analyzeListing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         title: z.string().min(3),
