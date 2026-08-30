@@ -107,18 +107,23 @@ function SearchPage() {
         case "item_id":
           return lookupById({ data: { id: parsed.itemId! } });
         case "item_url":
-          return lookupByLink({ data: { link: parsed.normalizedUrl ?? term } });
+          return parsed.itemId
+            ? lookupById({ data: { id: parsed.itemId } })
+            : lookupByLink({ data: { link: parsed.normalizedUrl ?? term, limit: resultLimit } });
+        case "product_id":
+        case "product_url":
+        case "short_url":
+        case "seller_url":
+          return lookupByLink({ data: { link: parsed.normalizedUrl ?? term, limit: resultLimit } });
         case "seller_id":
           return searchSeller({ data: { query: parsed.sellerId!, limit: resultLimit } });
         case "seller_nickname":
           return searchSeller({ data: { query: parsed.sellerNickname!, limit: resultLimit } });
-        case "seller_url":
-          return searchSeller({ data: { query: parsed.sellerId ?? parsed.sellerNickname ?? term, limit: resultLimit } });
-        case "search_url":
-        case "keyword":
+        default:
           return searchKeyword({ data: { query: parsed.searchQuery ?? term, limit: resultLimit } });
       }
     },
+
     onSuccess: (result) => {
       setSearched(true);
       setItems(result.items as DisplayItem[]);

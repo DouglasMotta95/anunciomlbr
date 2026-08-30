@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { parseMlSearchInput } from "./ml-search-input";
 import { serializeMlArray, type MlItem } from "./ml.functions";
 
 const ML_API = "https://api.mercadolibre.com";
@@ -92,7 +93,7 @@ async function mlFetch(url: string | URL, tokens: string[], logScope?: MlLogScop
   for (const token of tokens) {
     const tokenType = tokenKinds.get(token) ?? "user";
     try {
-      const response = await fetch(url, { headers: headers(token) });
+      const response = await fetch(url, { headers: headers(token), signal: AbortSignal.timeout(15_000) });
       statuses.push(response.status);
       last = response;
       logMlAttempt(logScope, url, response.status, tokenType);
@@ -103,7 +104,7 @@ async function mlFetch(url: string | URL, tokens: string[], logScope?: MlLogScop
     }
   }
   try {
-    const response = await fetch(url, { headers: headers() });
+    const response = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15_000) });
     statuses.push(response.status);
     last = response;
     logMlAttempt(logScope, url, response.status, "anonymous");
@@ -113,6 +114,7 @@ async function mlFetch(url: string | URL, tokens: string[], logScope?: MlLogScop
     return { response: last, statuses };
   }
 }
+
 
 function safeUrl(value: unknown): string | null {
   if (typeof value !== "string" || !value) return null;
@@ -410,34 +412,70 @@ function extractMlbId(value: string) {
   return match ? match[0].replace("-", "") : null;
 }
 
-function allowedHost(host: string) {
-  const normalized = host.toLowerCase();
-  return normalized === "meli.la" || normalized === "mercadolivre.com.br" || normalized.endsWith(".mercadolivre.com.br") || normalized === "mercadolibre.com" || normalized.endsWith(".mercadolibre.com");
+type ResolvedLink = {
+  itemId: string | null;
+  productId: string | null;
+  sellerId: string | null;
+  sellerNickname: string | null;
+  searchQuery: string | null;
+};
+
+const EMPTY_LINK: ResolvedLink = { itemId: null, productId: null, sellerId: null, sellerNickname: null, searchQuery: null };
+
+function fromParsed(parsed: ReturnType<typeof parseMlSearchInput>): ResolvedLink | null {
+  if (parsed.itemId) return { ...EMPTY_LINK, itemId: parsed.itemId };
+  if (parsed.productId) return { ...EMPTY_LINK, productId: parsed.productId };
+  if (parsed.sellerId || parsed.sellerNickname) return { ...EMPTY_LINK, sellerId: parsed.sellerId, sellerNickname: parsed.sellerNickname };
+  if (parsed.type === "search_url" && parsed.searchQuery) return { ...EMPTY_LINK, searchQuery: parsed.searchQuery };
+  return null;
 }
 
-async function resolveLink(raw: string): Promise<{ itemId: string | null; productId: string | null }> {
-  let candidate = raw.trim();
-  const embedded = candidate.match(/https?:\/\/[^\s]+/i)?.[0];
-  candidate = embedded ?? candidate;
-  if (/^(?:www\.)?(?:produto\.|lista\.)?mercadolivre\.com\.br\//i.test(candidate) || /^(?:www\.)?meli\.la\//i.test(candidate)) candidate = `https://${candidate}`;
-  let current: URL;
-  try { current = new URL(candidate); } catch { return { itemId: null, productId: null }; }
-  if (!allowedHost(current.hostname)) return { itemId: null, productId: null };
-  for (let hop = 0; hop < 5; hop += 1) {
-    const id = extractMlbId(`${current.pathname}${current.search}`);
-    if (id) return /\/p\/MLB-?\d+/i.test(current.pathname) ? { itemId: null, productId: id } : { itemId: id, productId: null };
-    try {
-      const response = await fetch(current.toString(), { redirect: "manual", headers: { "User-Agent": USER_AGENT } });
-      const location = response.headers.get("location");
-      if (!location) break;
-      const next = new URL(location, current);
-      if (!allowedHost(next.hostname)) break;
-      current = next;
-    } catch { break; }
-  }
-  const id = extractMlbId(`${current.pathname}${current.search}`);
-  return id ? { itemId: id, productId: null } : { itemId: null, productId: null };
+function canonicalFromHtml(html: string): string | null {
+  const canonical = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i)?.[1];
+  const refresh = html.match(/http-equiv=["']refresh["'][^>]*content=["'][^"']*url=([^"';]+)/i)?.[1];
+  const jsRedirect = html.match(/window\.location(?:\.href)?\s*=\s*["']([^"']+)["']/i)?.[1];
+  const ogUrl = html.match(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i)?.[1];
+  return canonical ?? refresh ?? jsRedirect ?? ogUrl ?? null;
 }
+
+async function resolveLink(raw: string): Promise<ResolvedLink> {
+  const initial = parseMlSearchInput(raw);
+  const direct = fromParsed(initial);
+  if (direct) return direct;
+  if (!initial.normalizedUrl) return EMPTY_LINK;
+
+  let current: URL;
+  try { current = new URL(initial.normalizedUrl); } catch { return EMPTY_LINK; }
+
+  for (let hop = 0; hop < 5; hop += 1) {
+    let response: Response;
+    try {
+      response = await fetch(current.toString(), {
+        redirect: "manual",
+        headers: { "User-Agent": USER_AGENT, Accept: "text/html,application/xhtml+xml" },
+        signal: AbortSignal.timeout(12_000),
+      });
+    } catch {
+      break;
+    }
+    const location = response.headers.get("location");
+    let next: string | null = location;
+    if (!next && response.status >= 200 && response.status < 300) {
+      const html = await response.text().catch(() => "");
+      next = canonicalFromHtml(html) ?? extractMlbId(html.slice(0, 20_000));
+    }
+    if (!next) break;
+    const parsed = parseMlSearchInput(next.startsWith("http") || /^\/\//.test(next) ? next : new URL(next, current).toString());
+    const resolved = fromParsed(parsed);
+    if (resolved) return resolved;
+    if (!parsed.normalizedUrl) break;
+    try { current = new URL(parsed.normalizedUrl); } catch { break; }
+  }
+
+  const finalParsed = parseMlSearchInput(current.toString());
+  return fromParsed(finalParsed) ?? EMPTY_LINK;
+}
+
 
 export const searchMercadoLivre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -505,22 +543,42 @@ export const getMercadoLivreItemDescription = createServerFn({ method: "POST" })
 
 export const getMercadoLivreItemFromLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ link: z.string().trim().min(4).max(1000) }).parse(data))
+  .inputValidator((data: unknown) => z.object({ link: z.string().trim().min(4).max(1000), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
     if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para consultar o link.", items: [] };
+    const limit = data.limit ?? 20;
     const resolved = await resolveLink(data.link);
+
     if (resolved.itemId) {
       const result = await fetchItem(resolved.itemId, tokens);
-      return result.item ? { ok: true, configured: true, reason: null, items: [result.item] } : { ok: false, configured: true, reason: userMessage(result.statuses, false), items: [] };
+      if (result.item) return { ok: true, configured: true, reason: null, items: [result.item] };
+      if (result.statuses.includes(404)) return { ok: false, configured: true, reason: "Esse anúncio não existe mais ou foi removido do Mercado Livre.", items: [] };
+      return { ok: false, configured: true, reason: userMessage(result.statuses, false), items: [] };
     }
+
     if (resolved.productId) {
       const detail = await productDetail(resolved.productId, tokens);
       if (detail) {
-        const items = await catalogOffers(detail, tokens, 20);
+        const items = await catalogOffers(detail, tokens, limit);
         const verified = items.filter((item) => item.verified_item !== false && item.price_cents != null);
-        if (verified.length) return { ok: true, configured: true, reason: null, items: verified };
+        if (verified.length) return { ok: true, configured: true, reason: "Anúncios reais vinculados à página de produto desse link.", items: rankBySales(verified).slice(0, limit) };
       }
     }
-    return { ok: false, configured: true, reason: "Não foi possível identificar um anúncio copiável nesse link.", items: [] };
+
+    if (resolved.sellerId || resolved.sellerNickname) {
+      const seller = await sellerSearch(resolved.sellerId ?? resolved.sellerNickname!, tokens, limit);
+      if (seller.items.length) return { ok: true, configured: true, reason: "Anúncios do vendedor identificado nesse link.", items: seller.items.slice(0, limit) };
+      return { ok: false, configured: true, reason: userMessage(seller.statuses, true), items: [] };
+    }
+
+    if (resolved.searchQuery) {
+      const { discoverPublicAds } = await import("@/lib/ml-discovery.server");
+      const discovery = await discoverPublicAds(context.userId, resolved.searchQuery, limit);
+      if (discovery.items.length) return { ok: true, configured: true, reason: `Resultados para "${resolved.searchQuery}" interpretados a partir do link de busca.`, items: discovery.items };
+      return { ok: false, configured: true, reason: discovery.reason ?? userMessage([], true), items: [] };
+    }
+
+    return { ok: false, configured: true, reason: "Não conseguimos identificar anúncio, vendedor ou termo de busca nesse link. Confira se o endereço está completo.", items: [] };
   });
+
