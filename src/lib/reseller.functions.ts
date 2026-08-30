@@ -5,7 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const resellerIssueLicense = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         plan_id: z.string().uuid(),
@@ -41,14 +41,15 @@ export const resellerIssueLicense = createServerFn({ method: "POST" })
       .maybeSingle();
 
     if (reseller?.id) {
-      await admin.from("reseller_wallet_transactions").insert({
+      const { error: ledgerError } = await admin.from("reseller_wallet_transactions").insert({
         reseller_id: reseller.id,
         amount_cents: -Number(row?.reseller_cost_cents ?? 0),
         kind: "license_debit",
         reference: String(row?.license_code ?? ""),
       });
+      if (ledgerError) console.error("reseller wallet ledger failed", ledgerError.message);
       if (data.customer_email) {
-        await admin.from("reseller_customers").upsert(
+        const { error: customerError } = await admin.from("reseller_customers").upsert(
           {
             reseller_id: reseller.id,
             customer_email: data.customer_email.toLowerCase(),
@@ -58,6 +59,7 @@ export const resellerIssueLicense = createServerFn({ method: "POST" })
           },
           { onConflict: "reseller_id,customer_email" },
         );
+        if (customerError) console.error("reseller customer history failed", customerError.message);
       }
     }
 
@@ -97,7 +99,7 @@ export const getResellerProfessionalSummary = createServerFn({ method: "GET" })
     ]);
 
     return {
-      enabled: true as const,
+      enabled: reseller.status === "active",
       reseller,
       customers: customers ?? [],
       wallet: wallet ?? [],
@@ -106,7 +108,7 @@ export const getResellerProfessionalSummary = createServerFn({ method: "GET" })
 
 export const adminUpdateReseller = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -148,12 +150,13 @@ export const adminUpdateReseller = createServerFn({ method: "POST" })
     if (error) throw new Error("Não foi possível atualizar o revendedor.");
 
     if (data.wallet_delta_cents !== 0) {
-      await db.from("reseller_wallet_transactions").insert({
+      const { error: ledgerError } = await db.from("reseller_wallet_transactions").insert({
         reseller_id: data.id,
         amount_cents: data.wallet_delta_cents,
         kind: "adjustment",
         reference: "admin",
       });
+      if (ledgerError) console.error("reseller admin ledger failed", ledgerError.message);
     }
 
     await logAudit({
