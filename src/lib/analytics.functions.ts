@@ -8,7 +8,7 @@ const optionalText = z.string().trim().min(1).max(500).optional();
 
 /** Registra um acesso ao site (público: visitantes sem conta também contam). */
 export const trackVisit = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         visitor_id: z.string().trim().min(1).max(80),
@@ -42,7 +42,7 @@ export const adminGetVisitAnalytics = createServerFn({ method: "GET" })
 
 /** Registra um evento real do funil (view_plan, start_checkout, purchase). */
 export const trackFunnelEvent = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         visitor_id: z.string().trim().min(1).max(80),
