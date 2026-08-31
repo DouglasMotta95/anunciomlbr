@@ -32,20 +32,21 @@ function readServerEnv(name: 'SUPABASE_URL' | 'SUPABASE_PUBLISHABLE_KEY'): strin
   return process.env[name];
 }
 
-function readViteEnv(name: 'VITE_SUPABASE_URL' | 'VITE_SUPABASE_PUBLISHABLE_KEY'): string | undefined {
-  return import.meta.env[name];
+function resolveSupabaseConfig() {
+  // IMPORTANT: Vite/Lovable replaces VITE_* values reliably when addressed statically.
+  // Do not convert these accesses to import.meta.env[name].
+  const url = import.meta.env.VITE_SUPABASE_URL || readServerEnv('SUPABASE_URL');
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || readServerEnv('SUPABASE_PUBLISHABLE_KEY');
+  return { url, key };
 }
 
 export function hasSupabaseBrowserConfig(): boolean {
-  const url = readViteEnv('VITE_SUPABASE_URL') || readServerEnv('SUPABASE_URL');
-  const key = readViteEnv('VITE_SUPABASE_PUBLISHABLE_KEY') || readServerEnv('SUPABASE_PUBLISHABLE_KEY');
+  const { url, key } = resolveSupabaseConfig();
   return Boolean(url && key);
 }
 
 function createSupabaseClient() {
-  const SUPABASE_URL = readViteEnv('VITE_SUPABASE_URL') || readServerEnv('SUPABASE_URL');
-  const SUPABASE_PUBLISHABLE_KEY =
-    readViteEnv('VITE_SUPABASE_PUBLISHABLE_KEY') || readServerEnv('SUPABASE_PUBLISHABLE_KEY');
+  const { url: SUPABASE_URL, key: SUPABASE_PUBLISHABLE_KEY } = resolveSupabaseConfig();
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
