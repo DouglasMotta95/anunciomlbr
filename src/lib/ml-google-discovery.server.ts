@@ -95,8 +95,8 @@ export async function discoverMlItemLinksWithGoogle(query: string, desired = 20)
       }
 
       const text = candidate.content?.parts?.map((part) => part.text ?? "").join("\n") ?? "";
-      for (const match of text.matchAll(/https?:\/\/[^\s<>()\[\]"']+/gi)) {
-        const raw = match[0].replace(/[.,;:!?]+$/g, "");
+      for (const match of text.matchAll(/https?:\/\/[^\s<>()"']+/gi)) {
+        const raw = match[0].replace(/[\].,;:!?]+$/g, "");
         const parsed = directCandidate(raw);
         if (parsed) candidates.push(parsed);
       }
