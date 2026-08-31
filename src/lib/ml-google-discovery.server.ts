@@ -123,7 +123,7 @@ export async function discoverMlItemLinksWithGoogle(query: string, desired = 20)
               text: `Pesquise na Web por anúncios INDIVIDUAIS e atuais do Mercado Livre Brasil relacionados a: ${JSON.stringify(query)}.\n` +
                 `Use somente páginas de anúncio do domínio mercadolivre.com.br. Não use páginas de categoria, lista, blog, ajuda ou outros sites. ` +
                 `Encontre até ${limit} anúncios diferentes. Para cada resultado, informe o ID MLB exato e, quando estiver disponível na fonte, o URL exato. ` +
-                `Não invente IDs nem URLs; use somente o que aparecer nas fontes da Pesquisa Google.`,
+                `Não invente URLs nem IDs; use somente o que aparecer nas fontes da Pesquisa Google.`,
             }],
           }],
           tools: [{ google_search: {} }],
