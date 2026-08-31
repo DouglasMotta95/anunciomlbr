@@ -27,7 +27,7 @@ function expectNot(file, needles, label) {
   }
 }
 
-expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "lovable.auth.signInWithOAuth", 'signOut({ scope: "local" })', 'redirect_uri: `${window.location.origin}/auth`', "returningFromGoogle"], "autenticação, OAuth e aceite legal");
+expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "lovable.auth.signInWithOAuth", 'signOut({ scope: "local" })', 'redirect_uri: `${window.location.origin}/auth`', "readOAuthReturn", 'read("access_token", "accessToken")', 'read("refresh_token", "refreshToken")', "supabase.auth.setSession", "supabase.auth.exchangeCodeForSession", "CUSTOMER_OAUTH_INTENT"], "autenticação, OAuth, conclusão da sessão e aceite legal");
 expectNot("src/routes/auth.tsx", ["supabase.auth.signInWithOAuth"], "Google não mistura OAuth nativo do Supabase com broker Lovable");
 expect("src/integrations/lovable/index.ts", ["signInWithOAuth", "setSession(result.tokens)", "!data.session?.user"], "broker Google cria e valida sessão no fluxo sem redirect");
 expect("src/integrations/supabase/client.ts", ["import.meta.env['VITE_SUPABASE_URL']", "import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY']", "persistSession: true", "autoRefreshToken: true", "detectSessionInUrl: true"], "Supabase usa variáveis Vite literais e persiste sessão OAuth");
