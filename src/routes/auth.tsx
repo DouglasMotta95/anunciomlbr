@@ -53,7 +53,6 @@ function AuthPage() {
     if (sessionLoading) return;
 
     if (!user) {
-      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       setPreparingCustomerLogin(false);
       return;
     }
@@ -119,43 +118,48 @@ function AuthPage() {
 
     setGoogleLoading(true);
     const oauthIntent: "login" | "signup" = isSignup ? "signup" : "login";
+    const callbackUrl = `${window.location.origin}/auth/callback`;
 
     try {
-      // Reinicia somente o estado local do navegador. Não remove usuário, plano,
-      // permissões ou dados do servidor.
       await supabase.auth.signOut({ scope: "local" });
-      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       sessionStorage.setItem(CUSTOMER_OAUTH_INTENT, oauthIntent);
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/auth/callback`,
+      // Fonte principal: OAuth do próprio Supabase. Com PKCE, o Google retorna
+      // um code para /auth/callback e o callback troca esse code pela sessão.
+      const native = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: callbackUrl,
+          queryParams: { prompt: "select_account" },
+        },
       });
 
-      if (result.error) {
-        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-        const message = String(result.error.message ?? "").toLowerCase();
-        if (message.includes("cancel") || message.includes("closed") || message.includes("denied") || message.includes("access_denied") || message.includes("abort")) {
-          toast.info("Login cancelado", { description: "Você pode tentar novamente quando quiser." });
-          return;
-        }
-        toast.error("Não foi possível entrar com o Google", { description: result.error.message || "Tente novamente em instantes." });
-        return;
-      }
+      if (!native.error) return;
 
+      // Compatibilidade com projetos Lovable antigos que ainda dependem do broker.
+      // Só entra aqui se o provedor Google nativo não estiver configurado.
+      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: callbackUrl });
+      if (result.error) throw result.error;
       if (result.redirected) return;
 
       const { data, error } = await supabase.auth.getSession();
       if (error) throw error;
       const googleUser = data.session?.user;
-      if (!googleUser) throw new Error("Não foi possível concluir o login com o Google.");
+      if (!googleUser) throw new Error("O Google autorizou, mas a sessão não foi criada.");
 
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(googleUser.id);
       void navigate({ to: destination, replace: true });
     } catch (error) {
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-      toast.error(error instanceof Error ? error.message : "Não foi possível entrar com o Google.");
+      const message = error instanceof Error ? error.message : "Não foi possível entrar com o Google.";
+      const normalized = message.toLowerCase();
+      if (normalized.includes("cancel") || normalized.includes("denied") || normalized.includes("access_denied") || normalized.includes("abort")) {
+        toast.info("Login cancelado", { description: "Você pode tentar novamente quando quiser." });
+      } else {
+        toast.error("Não foi possível entrar com o Google", { description: message });
+      }
     } finally {
       setGoogleLoading(false);
     }
