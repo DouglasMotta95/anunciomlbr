@@ -42,8 +42,10 @@ expect("src/routes/_authenticated/editor.$id.tsx", ["PublishButton", "generateLi
 expect("src/lib/publish.functions.ts", ["published_ml_id", "Não publique novamente", "publishListingToMl"], "publicação idempotente no Mercado Livre");
 expect("src/lib/bulk.functions.ts", ["syncMlPublishedStatus", 'status: "paused" | "active"', "published_ml_id", "source_ml_id", "const mlItemId ="], "pausa/ativação real no Mercado Livre");
 expect("src/routes/api/public/webhooks/mercadolivre.ts", ["published_ml_id", "localListingStatus", "resource_owner_mismatch"], "sincronização do webhook Mercado Livre");
-expect("src/lib/listing-image-ai.functions.ts", ["IMAGE_CREDIT_COST = 3", "quota.remaining < IMAGE_CREDIT_COST", "consumeAiQuota(context.userId, IMAGE_CREDIT_COST)"], "cobrança de imagem IA");
+expect("src/lib/listing-image-ai.functions.ts", ["IMAGE_CREDIT_COST = 3", "quota.remaining < IMAGE_CREDIT_COST", "consumeAiQuota(context.userId, IMAGE_CREDIT_COST)", 'const bucket = "ai-listing-images"'], "cobrança e armazenamento de imagem IA");
 expect("src/lib/gemini.functions.ts", ["getAiQuota", "consumeAiQuota", "deps.consume(userId, 1)", "callGeminiAuthenticated(data, context.userId)"], "endpoint Gemini tarifado");
+expect("src/lib/admin-health.functions.ts", ["ai_credit_status", "p_user_id", "listing_quota_claims", "ai-listing-images", "Migrations e catálogo", "3 créditos por imagem"], "diagnóstico de migrations");
+expect("src/lib/pricing.ts", ["listing_limit: 250", "listing_limit: 1000", "listing_limit: 3000", "ai_credits: 1000"], "fallback público alinhado ao catálogo");
 expect("src/routes/checkout/index.tsx", ["Mercado Pago", "checkout"], "checkout");
 expect("src/lib/checkout.functions.ts", ['.eq("user_id", context.userId)', "resolveCoupon", "MERCADOPAGO_ACCESS_TOKEN"], "checkout autenticado e cupom validado no servidor");
 expect("src/lib/extra-ads.functions.ts", ["publicOrigin", "notification_url", "provider_ref"], "checkout de anúncios extras");
@@ -54,7 +56,13 @@ expect("src/routes/_authenticated/admin.tsx", ["beforeLoad", "checkIsAdmin"], "g
 expect("src/lib/admin.server.ts", ["assertAdmin"], "proteção do backend administrativo");
 expect("src/lib/setup.functions.ts", ["has_role", "resetPasswordForEmail", "NÃO cria usuários"], "reset administrativo seguro");
 expectNot("src/lib/setup.functions.ts", ["auth.admin.createUser", '.from("user_roles").upsert'], "provisionamento administrativo público");
-expect("src/lib/admin-health.functions.ts", ["ai_credit_status", "ai-listing-images", "Migrations e catálogo", "3 créditos por imagem"], "diagnóstico de migrations");
+expect("supabase/migrations/20260828063000_listing_creation_quota.sql", ["listing_quota_claims", "claim_listing_quota", "consume_ad_quota"], "franquia de criação de anúncios");
+expect("supabase/migrations/20260828205900_add_ai_package_plan_kind.sql", ["ai_package", "ALTER TYPE"], "tipo de pacote extra de IA");
+expect("supabase/migrations/20260828184500_ai_listing_images_bucket.sql", ["ai-listing-images", "image/webp"], "bucket de imagens IA");
+expect("supabase/migrations/20260828210000_credit_catalog_v2.sql", ["ai_extra_100", "ads_extra_25", "ai_credits = 1000"], "catálogo de créditos extras");
+expect("supabase/migrations/20260828211500_ai_image_cost_v3.sql", ["3 créditos por imagem gerada"], "custo atual de imagem IA");
+expect("supabase/migrations/20260831105000_ai_credit_rpc_license_model.sql", ["ai_credit_status", "consume_ai_credit", "ai_package", "public.licenses"], "RPC de créditos alinhada a licenças");
+expect("supabase/migrations/20260831110500_align_main_plan_ad_quotas.sql", ["ad_quota=250", "ad_quota=1000", "ad_quota=3000"], "franquias principais alinhadas à vitrine");
 expect("supabase/migrations/20260830121000_protect_published_listing_delete.sql", ["protect_published_listing_delete", "published_ml_id", "before delete"], "proteção contra anúncio órfão no Mercado Livre");
 expect("supabase/migrations/20260830121800_atomic_coupon_usage.sql", ["consume_coupon_use", "uses = coalesce(uses, 0) + 1", "service_role"], "consumo atômico de cupons");
 expect("src/routes/termos.tsx", ["Termos de Uso"], "termos");
