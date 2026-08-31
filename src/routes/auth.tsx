@@ -50,13 +50,13 @@ function AuthPage() {
   }
 
   useEffect(() => {
-    if (sessionLoading) return;
+    if (sessionLoading) return undefined;
 
     if (!user) {
       const returningFromGoogle = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) !== null;
       if (!returningFromGoogle) {
         setPreparingCustomerLogin(false);
-        return;
+        return undefined;
       }
 
       // No retorno por redirect, o broker pode persistir a sessão alguns instantes
@@ -81,6 +81,7 @@ function AuthPage() {
         setPreparingCustomerLogin(false);
         toast.error("Sua conta foi autenticada, mas não foi possível abrir o painel. Tente novamente.");
       });
+    return undefined;
   }, [sessionLoading, user, navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
