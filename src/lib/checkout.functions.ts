@@ -106,6 +106,21 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
       .single();
     if (paymentError) throw new Error("Não foi possível registrar o pagamento.");
 
+    const cancelUnstartedPayment = async (reason: string, providerStatus?: number) => {
+      const raw = {
+        ...(coupon ? { coupon } : {}),
+        checkout_error: reason,
+        ...(providerStatus ? { checkout_error_status: providerStatus } : {}),
+      } as never;
+      const { error } = await supabaseAdmin
+        .from("payments")
+        .update({ status: "cancelled", raw })
+        .eq("id", payment.id)
+        .eq("user_id", context.userId)
+        .is("provider_ref", null);
+      if (error) console.error("Failed to cancel unstarted payment", error.message);
+    };
+
     const successUrl = `${origin}/checkout/success?payment_id=${payment.id}`;
     const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
@@ -142,11 +157,7 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
     if (!response.ok) {
       const providerError = await response.text().catch(() => "");
       console.error("Mercado Pago preference failed", response.status, providerError.slice(0, 500));
-      await supabaseAdmin
-        .from("payments")
-        .update({ raw: { checkout_error_status: response.status } as never })
-        .eq("id", payment.id)
-        .eq("user_id", context.userId);
+      await cancelUnstartedPayment("preference_failed", response.status);
       return {
         configured: true as const,
         payment_id: payment.id,
@@ -163,6 +174,7 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
     };
     const checkoutUrl = preference.init_point ?? preference.sandbox_init_point ?? null;
     if (!checkoutUrl) {
+      await cancelUnstartedPayment("checkout_url_missing");
       return {
         configured: true as const,
         payment_id: payment.id,
@@ -173,11 +185,21 @@ export const createMercadoPagoCheckout = createServerFn({ method: "POST" })
     }
 
     if (preference.id) {
-      await supabaseAdmin
+      const { error: providerRefError } = await supabaseAdmin
         .from("payments")
         .update({ provider_ref: preference.id })
         .eq("id", payment.id)
         .eq("user_id", context.userId);
+      if (providerRefError) {
+        console.error("Failed to persist Mercado Pago preference", providerRefError.message);
+        return {
+          configured: true as const,
+          payment_id: payment.id,
+          amount_cents: amountCents,
+          checkout_url: null,
+          reason: "O checkout foi criado, mas não foi possível vincular o pagamento com segurança. Tente novamente.",
+        };
+      }
     }
 
     return {
