@@ -143,8 +143,9 @@ function AuthPage() {
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
       // O broker oficial do Lovable usa a origem da aplicação como retorno.
-      // Ao voltar, __root inicializa o Supabase para restaurar a sessão e então
-      // encaminha novamente ao /auth, que finaliza dashboard/onboarding.
+      // No fluxo com redirect, a raiz aguarda o Supabase confirmar a sessão antes
+      // de voltar para /auth. No fluxo popup/sem redirect, o wrapper já persiste e
+      // valida os tokens uma única vez antes de devolver o controle a esta página.
       const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
       if (result.error) {
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
@@ -158,15 +159,15 @@ function AuthPage() {
       }
       if (result.redirected) return;
 
-      // No fluxo sem redirect/popup o broker devolve os tokens; eles precisam ser
-      // entregues explicitamente ao Supabase antes de tentar ler a sessão.
-      const { data, error } = await supabase.auth.setSession(result.tokens);
-      if (error || !data.session?.user) {
+      const { data } = await supabase.auth.getSession();
+      const googleUser = data.session?.user;
+      if (!googleUser) {
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         throw new Error("Não foi possível concluir o login com o Google.");
       }
+
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-      const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(data.session.user.id);
+      const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(googleUser.id);
       void navigate({ to: destination, replace: true });
     } catch (error) {
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
