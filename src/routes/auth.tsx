@@ -49,41 +49,22 @@ function AuthPage() {
     return data?.onboarding_done ? "/dashboard" : "/onboarding";
   }
 
-  // /auth é também o callback do Google. Se a sessão ainda está sendo persistida,
-  // mantemos o splash em vez de devolver o formulário cedo demais.
   useEffect(() => {
     if (sessionLoading) return;
 
-    const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) as "login" | "signup" | null;
-
     if (!user) {
-      if (oauthIntent) {
-        const timeout = window.setTimeout(() => {
-          sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-          setPreparingCustomerLogin(false);
-        }, 12000);
-        return () => window.clearTimeout(timeout);
-      }
-
+      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       setPreparingCustomerLogin(false);
       return;
     }
 
-    sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
     setPreparingCustomerLogin(true);
-
-    const destinationPromise = oauthIntent === "signup"
-      ? Promise.resolve("/onboarding" as const)
-      : customerDestination(user.id);
-
-    void destinationPromise
+    void customerDestination(user.id)
       .then((destination) => navigate({ to: destination, replace: true }))
       .catch(() => {
         setPreparingCustomerLogin(false);
         toast.error("Sua conta foi autenticada, mas não foi possível abrir o painel. Tente novamente.");
       });
-
-    return undefined;
   }, [sessionLoading, user, navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -135,17 +116,22 @@ function AuthPage() {
       toast.error("Aceite os Termos de Uso e a Política de Privacidade antes de criar sua conta.");
       return;
     }
+
     setGoogleLoading(true);
     const oauthIntent: "login" | "signup" = isSignup ? "signup" : "login";
-    sessionStorage.setItem(CUSTOMER_OAUTH_INTENT, oauthIntent);
+
     try {
+      // Reinicia somente o estado local do navegador. Não remove usuário, plano,
+      // permissões ou dados do servidor.
+      await supabase.auth.signOut({ scope: "local" });
+      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+      sessionStorage.setItem(CUSTOMER_OAUTH_INTENT, oauthIntent);
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
-      // O callback volta direto para /auth. Isso evita carregar toda a landing page
-      // durante a restauração e deixa a finalização do OAuth em uma única tela.
       const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/auth`,
+        redirect_uri: `${window.location.origin}/auth/callback`,
       });
+
       if (result.error) {
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         const message = String(result.error.message ?? "").toLowerCase();
@@ -153,17 +139,16 @@ function AuthPage() {
           toast.info("Login cancelado", { description: "Você pode tentar novamente quando quiser." });
           return;
         }
-        toast.error("Não foi possível entrar com o Google", { description: "Tente novamente em instantes ou use e-mail e senha." });
+        toast.error("Não foi possível entrar com o Google", { description: result.error.message || "Tente novamente em instantes." });
         return;
       }
+
       if (result.redirected) return;
 
-      const { data } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
       const googleUser = data.session?.user;
-      if (!googleUser) {
-        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-        throw new Error("Não foi possível concluir o login com o Google.");
-      }
+      if (!googleUser) throw new Error("Não foi possível concluir o login com o Google.");
 
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(googleUser.id);
