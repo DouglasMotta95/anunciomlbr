@@ -5,19 +5,43 @@ const ML_API = "https://api.mercadolibre.com";
 export const ML_PUBLIC_SEARCH_BASE = "https://lista.mercadolivre.com.br/";
 const WEB_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
-type PublicCard = { id: string; title: string; price_cents: number | null; permalink: string | null; thumbnail: string | null };
-type ApiItem = { id?: string; title?: string; price?: number; permalink?: string; thumbnail?: string; category_id?: string; seller_id?: string | number; condition?: string; available_quantity?: number; sold_quantity?: number; status?: string; pictures?: Array<{ secure_url?: string; url?: string }>; attributes?: unknown[] };
-type SiteSearchBody = { paging?: { total?: number; offset?: number; limit?: number }; results?: ApiItem[] };
+type PublicCard = { id: string; title: string; permalink: string | null };
+type ApiItem = {
+  id?: string;
+  site_id?: string;
+  title?: string;
+  price?: number;
+  permalink?: string;
+  thumbnail?: string;
+  category_id?: string;
+  seller_id?: string | number;
+  condition?: string;
+  available_quantity?: number;
+  sold_quantity?: number;
+  status?: string;
+  pictures?: Array<{ secure_url?: string; url?: string }>;
+};
+type SiteSearchBody = { results?: ApiItem[] };
+
+type Candidate = { id: string; permalink?: string | null };
 
 export type DiscoveryOutcome = {
   ok: boolean;
   reason: string | null;
   items: SearchMlItem[];
-  diagnostics: { statuses: number[]; products: number; offers: number; publicSearchStatus: number | "network_error" | null; publicCandidates: number };
+  diagnostics: {
+    statuses: number[];
+    products: number;
+    offers: number;
+    publicSearchStatus: number | "network_error" | null;
+    publicCandidates: number;
+  };
 };
 
 const STOP = new Set(["de", "da", "do", "das", "dos", "com", "para", "por", "e", "em", "o", "a"]);
-function words(value: string) { return normalizeSearchText(value).split(" ").filter((word) => word.length >= 2 && !STOP.has(word)); }
+function words(value: string) {
+  return normalizeSearchText(value).split(" ").filter((word) => word.length >= 2 && !STOP.has(word));
+}
 
 export function relevanceScore(query: string, title: string) {
   const q = normalizeSearchText(query);
@@ -30,12 +54,16 @@ export function relevanceScore(query: string, title: string) {
   if (!terms.length) return 0;
   return Math.round((terms.filter((term) => t.includes(term)).length / terms.length) * 100);
 }
-function relevant(query: string, title: string) { return relevanceScore(query, title) >= (words(query).length <= 1 ? 100 : 55); }
+function relevant(query: string, title: string) {
+  return relevanceScore(query, title) >= (words(query).length <= 1 ? 100 : 60);
+}
 
 function decode(value: string) {
   return value.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\\u0026/g, "&").replace(/\\\//g, "/");
 }
-function strip(value: string) { return decode(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()); }
+function strip(value: string) {
+  return decode(value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
+}
 function webUrl(value?: string | null) {
   if (!value) return null;
   const normalized = decode(value);
@@ -43,16 +71,20 @@ function webUrl(value?: string | null) {
   if (normalized.startsWith("http://")) return `https://${normalized.slice(7)}`;
   return normalized.startsWith("https://") ? normalized : null;
 }
-function itemId(value?: string | null) { return value ? normalizeItemId(decode(value)) : null; }
+function itemId(value?: string | null) {
+  return value ? normalizeItemId(decode(value)) : null;
+}
 function priceCents(value: unknown) {
-  if (typeof value === "number" && Number.isFinite(value) && value > 0) return Math.round(value * 100);
-  if (typeof value !== "string") return null;
-  const raw = strip(value).replace(/R\$/gi, "").replace(/\s/g, "");
-  const normalized = /^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(raw)
-    ? raw.replace(/\./g, "").replace(",", ".")
-    : raw.replace(",", ".").replace(/[^0-9.]/g, "");
-  const number = Number(normalized);
-  return Number.isFinite(number) && number > 0 ? Math.round(number * 100) : null;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value * 100) : null;
+}
+function isMercadoLivrePermalink(value?: string | null) {
+  if (!value) return false;
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return host === "mercadolivre.com.br" || host.endsWith(".mercadolivre.com.br") || host === "mercadolivre.com" || host.endsWith(".mercadolivre.com");
+  } catch {
+    return false;
+  }
 }
 
 function jsonLdCards(html: string, query: string) {
@@ -66,10 +98,7 @@ function jsonLdCards(html: string, query: string) {
     const url = webUrl(typeof obj["url"] === "string" ? obj["url"] : typeof row["url"] === "string" ? row["url"] : null);
     const id = itemId(url) ?? itemId(typeof obj["sku"] === "string" ? obj["sku"] : null) ?? itemId(typeof obj["productID"] === "string" ? obj["productID"] : null);
     const title = typeof obj["name"] === "string" ? obj["name"].trim() : "";
-    const offers = obj["offers"] && typeof obj["offers"] === "object" ? obj["offers"] as Record<string, unknown> : null;
-    const rawImage = obj["image"];
-    const image = Array.isArray(rawImage) ? rawImage[0] : rawImage;
-    if (id && title && relevant(query, title)) cards.push({ id, title, price_cents: priceCents(offers?.["price"]), permalink: url, thumbnail: webUrl(typeof image === "string" ? image : null) });
+    if (id && url && title && relevant(query, title)) cards.push({ id, title, permalink: url });
     Object.values(row).forEach(visit);
   };
   for (const match of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
@@ -88,8 +117,7 @@ function htmlCards(html: string, query: string) {
     const titleAttr = block.match(/(?:title|aria-label)=["']([^"']{3,220})["']/i)?.[1];
     const titleNode = block.match(/class=["'][^"']*(?:ui-search-item__title|poly-component__title)[^"']*["'][^>]*>([\s\S]*?)<\//i)?.[1];
     const title = strip(titleAttr ?? titleNode ?? match[2] ?? "").slice(0, 220);
-    if (!title || !relevant(query, title)) continue;
-    cards.push({ id, title, price_cents: priceCents(block.match(/andes-money-amount__fraction[^>]*>([^<]+)/i)?.[1] ?? null), permalink: href, thumbnail: webUrl(block.match(/(?:data-src|src)=["'](https?:\/\/[^"']+)["']/i)?.[1] ?? null) });
+    if (title && relevant(query, title)) cards.push({ id, title, permalink: href });
   }
   return cards;
 }
@@ -102,15 +130,24 @@ export function buildPublicSearchUrls(query: string) {
 async function tokens(userId: string) {
   const { getAppAccessToken, getValidMlAccessToken } = await import("@/lib/ml.server");
   const result: string[] = [];
-  try { const user = await getValidMlAccessToken(userId); if (user.ok && user.accessToken) result.push(user.accessToken); } catch {}
-  try { const app = await getAppAccessToken(); if (app && !result.includes(app)) result.push(app); } catch {}
+  try {
+    const user = await getValidMlAccessToken(userId);
+    if (user.ok && user.accessToken) result.push(user.accessToken);
+  } catch {}
+  try {
+    const app = await getAppAccessToken();
+    if (app && !result.includes(app)) result.push(app);
+  } catch {}
   return result;
 }
 
 async function api(path: string, accessTokens: string[], statuses: number[]) {
   for (const token of [...accessTokens, ""]) {
     try {
-      const response = await fetch(`${ML_API}${path}`, { headers: { Accept: "application/json", "User-Agent": "ANUNCIO-ML/1.0", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal: AbortSignal.timeout(15000) });
+      const response = await fetch(`${ML_API}${path}`, {
+        headers: { Accept: "application/json", "User-Agent": "ANUNCIO-ML/1.0", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        signal: AbortSignal.timeout(15_000),
+      });
       statuses.push(response.status);
       const body = await response.json().catch(() => null);
       console.info("[ML public discovery]", { endpoint: path, status: response.status, token_type: token ? "authenticated" : "anonymous" });
@@ -123,28 +160,27 @@ async function api(path: string, accessTokens: string[], statuses: number[]) {
   return null;
 }
 
-function baseItem(id: string, title: string, price: number | null, permalink: string | null, thumbnail: string | null, verified: boolean): SearchMlItem {
-  return { id, title, price_cents: price, thumbnail, permalink, category: null, seller: null, condition: null, available_quantity: null, sold_quantity: null, status: "active", images: thumbnail ? [thumbnail] : [], attributes: [], source_kind: "marketplace", seller_id: null, verified_item: verified };
-}
-
-function apiToItem(row: ApiItem, fallback?: PublicCard): SearchMlItem | null {
-  const id = itemId(row.id) ?? fallback?.id ?? null;
-  const title = row.title?.trim() || fallback?.title || "";
-  if (!id || !title) return null;
-  const thumbnail = webUrl(row.thumbnail) ?? fallback?.thumbnail ?? null;
+function apiToItem(row: ApiItem, fallbackPermalink?: string | null): SearchMlItem | null {
+  const id = itemId(row.id);
+  const title = row.title?.trim() ?? "";
+  const permalink = webUrl(row.permalink) ?? webUrl(fallbackPermalink);
+  const price = priceCents(row.price);
+  if (!id || !/^MLB\d+$/.test(id) || row.site_id && row.site_id !== "MLB" || !title || !price || !permalink || !isMercadoLivrePermalink(permalink)) return null;
+  if (row.status && row.status !== "active") return null;
+  const thumbnail = webUrl(row.thumbnail);
   const images = (row.pictures ?? []).map((picture) => webUrl(picture.secure_url ?? picture.url)).filter((value): value is string => !!value);
   return {
     id,
     title,
-    price_cents: priceCents(row.price) ?? fallback?.price_cents ?? null,
+    price_cents: price,
     thumbnail,
-    permalink: webUrl(row.permalink) ?? fallback?.permalink ?? null,
+    permalink,
     category: row.category_id ?? null,
     seller: null,
     condition: row.condition ?? null,
     available_quantity: row.available_quantity ?? null,
     sold_quantity: typeof row.sold_quantity === "number" ? row.sold_quantity : null,
-    status: row.status ?? "active",
+    status: "active",
     images: images.length ? images : thumbnail ? [thumbnail] : [],
     attributes: [],
     source_kind: "marketplace",
@@ -169,13 +205,35 @@ async function marketplaceApiSearch(query: string, desired: number, accessTokens
   return Array.from(new Map(all.map((item) => [item.id, item])).values()).slice(0, desired);
 }
 
+async function verifyCandidates(query: string, candidates: Candidate[], accessTokens: string[], statuses: number[]) {
+  const verified: SearchMlItem[] = [];
+  const unique = Array.from(new Map(candidates.map((candidate) => [candidate.id, candidate])).values());
+  for (let offset = 0; offset < unique.length; offset += 20) {
+    const batch = unique.slice(offset, offset + 20);
+    const body = await api(`/items?ids=${encodeURIComponent(batch.map((candidate) => candidate.id).join(","))}`, accessTokens, statuses);
+    const rows = Array.isArray(body) ? body : [];
+    const fallbackById = new Map(batch.map((candidate) => [candidate.id, candidate.permalink ?? null]));
+    for (const entry of rows) {
+      const row = entry && typeof entry === "object" && "body" in entry ? (entry as { body?: ApiItem }).body : entry as ApiItem;
+      if (!row) continue;
+      const id = itemId(row.id);
+      const item = apiToItem(row, id ? fallbackById.get(id) ?? null : null);
+      if (item && relevant(query, item.title)) verified.push(item);
+    }
+  }
+  return verified;
+}
+
 async function publicSearch(query: string, desired: number) {
-  const urls = buildPublicSearchUrls(query);
   let status: number | "network_error" | null = null;
   const all: PublicCard[] = [];
-  for (const url of urls) {
+  for (const url of buildPublicSearchUrls(query)) {
     try {
-      const response = await fetch(url, { redirect: "follow", headers: { Accept: "text/html,application/xhtml+xml", "Accept-Language": "pt-BR,pt;q=0.9", "User-Agent": WEB_UA }, signal: AbortSignal.timeout(15000) });
+      const response = await fetch(url, {
+        redirect: "follow",
+        headers: { Accept: "text/html,application/xhtml+xml", "Accept-Language": "pt-BR,pt;q=0.9", "User-Agent": WEB_UA },
+        signal: AbortSignal.timeout(15_000),
+      });
       status = response.status;
       if (!response.ok) continue;
       const html = await response.text();
@@ -187,9 +245,7 @@ async function publicSearch(query: string, desired: number) {
   }
   return {
     status,
-    cards: Array.from(new Map(all.map((card) => [card.id, card])).values())
-      .sort((a, b) => relevanceScore(query, b.title) - relevanceScore(query, a.title))
-      .slice(0, desired),
+    cards: Array.from(new Map(all.map((card) => [card.id, card])).values()).slice(0, desired),
   };
 }
 
@@ -198,59 +254,50 @@ export async function discoverPublicAds(userId: string, query: string, desired =
   const accessTokens = await tokens(userId);
   const official = await marketplaceApiSearch(query, desired, accessTokens, statuses);
   const result: SearchMlItem[] = [...official];
+  let googleCandidates = 0;
   let publicSearchStatus: number | "network_error" | null = null;
   let publicCandidates = 0;
 
   if (result.length < desired) {
-    const pub = await publicSearch(query, desired - result.length);
+    const { discoverMlItemLinksWithGoogle } = await import("@/lib/ml-google-discovery.server");
+    const grounded = await discoverMlItemLinksWithGoogle(query, Math.min(50, Math.max(desired * 2, 20)));
+    googleCandidates = grounded.length;
+    const googleVerified = await verifyCandidates(query, grounded, accessTokens, statuses);
+    result.push(...googleVerified.filter((item) => !result.some((existing) => existing.id === item.id)));
+  }
+
+  if (result.length < desired) {
+    const pub = await publicSearch(query, Math.min(50, Math.max(desired * 2, 20)));
     publicSearchStatus = pub.status;
     publicCandidates = pub.cards.length;
-    const missing = pub.cards.filter((card) => !result.some((item) => item.id === card.id));
-    if (missing.length) {
-      for (let offset = 0; offset < missing.length; offset += 20) {
-        const batch = missing.slice(offset, offset + 20);
-        const body = await api(`/items?ids=${encodeURIComponent(batch.map((card) => card.id).join(","))}`, accessTokens, statuses);
-        const rows = Array.isArray(body) ? body : [];
-        const byId = new Map<string, ApiItem>();
-        for (const entry of rows) {
-          const row = entry && typeof entry === "object" && "body" in entry ? (entry as { body?: ApiItem }).body : entry as ApiItem;
-          if (row?.id) byId.set(row.id.replace("-", ""), row);
-        }
-        for (const card of batch) {
-          const verified = byId.get(card.id);
-          result.push(verified ? apiToItem(verified, card)! : baseItem(card.id, card.title, card.price_cents, card.permalink, card.thumbnail, false));
-          if (result.length >= desired) break;
-        }
-        if (result.length >= desired) break;
-      }
-    }
+    const publicVerified = await verifyCandidates(query, pub.cards.map((card) => ({ id: card.id, permalink: card.permalink })), accessTokens, statuses);
+    result.push(...publicVerified.filter((item) => !result.some((existing) => existing.id === item.id)));
   }
 
   const items = Array.from(new Map(result.map((item) => [item.id, item])).values())
-    .filter((item) => /^MLB\d+$/.test(item.id) && relevant(query, item.title))
+    .filter((item) => item.verified_item === true && item.status === "active" && item.price_cents != null && item.price_cents > 0 && !!item.permalink && isMercadoLivrePermalink(item.permalink) && relevant(query, item.title))
     .sort((a, b) => relevanceScore(query, b.title) - relevanceScore(query, a.title))
     .slice(0, desired);
 
-  const reason = official.length
-    ? `Busca realizada nos anúncios do marketplace do Mercado Livre. ${items.length} resultado(s) compatível(is) retornado(s); vendas só são exibidas quando confirmadas pela API.`
-    : items.length
-      ? "A busca oficial de itens não respondeu para este termo; foram usados anúncios encontrados na página pública do Mercado Livre. Vendas só aparecem quando confirmadas pela API."
-      : publicSearchStatus === 403
-        ? "O Mercado Livre não liberou resultados da busca de itens nem a leitura da página pública para este termo. Tente novamente, use um link/ID MLB ou abra a busca diretamente no Mercado Livre."
-        : "Nenhum anúncio do marketplace compatível foi recuperado para este termo.";
+  const reason = items.length
+    ? `${items.length} anúncio(s) real(is) e ativo(s) confirmado(s). A busca nunca completa a lista com catálogo ou anúncios não validados.`
+    : statuses.includes(403)
+      ? "O Mercado Livre bloqueou a confirmação dos itens para esta busca. Para não mostrar anúncios falsos, o ANÚNCIO ML não exibe candidatos que não conseguiu validar."
+      : "Nenhum anúncio ativo e validado do Mercado Livre foi encontrado para este termo.";
 
   console.info("[ML public discovery summary]", {
-    strategy: "site_items_search_then_public_url",
+    strategy: "strict_verified_marketplace_items",
     query_slug: normalizeSearchTerm(query),
     official_items: official.length,
+    google_candidates: googleCandidates,
     public_candidates: publicCandidates,
-    final_results: items.length,
+    final_verified_results: items.length,
   });
 
   return {
     ok: items.length > 0,
     reason,
     items,
-    diagnostics: { statuses, products: 0, offers: 0, publicSearchStatus, publicCandidates },
+    diagnostics: { statuses, products: 0, offers: 0, publicSearchStatus, publicCandidates: publicCandidates + googleCandidates },
   };
 }
