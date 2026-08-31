@@ -31,17 +31,26 @@ export function useAuth(): AuthState {
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
-        // Derruba a sessão na UI imediatamente e remove qualquer dado privado da conta anterior.
-        queryClient.setQueryData(["auth-session"], null);
-        queryClient.removeQueries({
-          predicate: (query) => query.queryKey[0] !== "auth-session",
-        });
+        // Cancela qualquer getSession antigo antes de gravar o logout. Assim uma
+        // leitura iniciada antes do evento não consegue ressuscitar a sessão.
+        void (async () => {
+          await queryClient.cancelQueries({ queryKey: ["auth-session"], exact: true });
+          queryClient.setQueryData(["auth-session"], null);
+          queryClient.removeQueries({
+            predicate: (query) => query.queryKey[0] !== "auth-session",
+          });
+        })();
         return;
       }
 
       if (event === "SIGNED_IN" || event === "USER_UPDATED" || event === "TOKEN_REFRESHED") {
-        queryClient.setQueryData(["auth-session"], session ?? null);
-        queryClient.invalidateQueries({ queryKey: ["auth-session"] });
+        // O evento do Supabase é a fonte mais recente. No retorno do Google pode
+        // existir um getSession iniciado antes de os tokens serem persistidos;
+        // cancelamos essa leitura para ela não sobrescrever a sessão recém-criada.
+        void (async () => {
+          await queryClient.cancelQueries({ queryKey: ["auth-session"], exact: true });
+          queryClient.setQueryData(["auth-session"], session ?? null);
+        })();
       }
     });
     return () => sub.subscription.unsubscribe();
