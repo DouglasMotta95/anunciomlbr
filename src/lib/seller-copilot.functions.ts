@@ -6,10 +6,6 @@ export const askSellerCopilot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => z.object({ question: z.string().trim().min(3).max(500).default("O que eu devo fazer hoje para melhorar minhas vendas?") }).parse(data))
   .handler(async ({ data, context }) => {
-    const { getAiQuota } = await import("@/lib/ai-quota.server");
-    const quota = await getAiQuota(context.userId);
-    if (quota.remaining < 1) return { ok: false as const, reason: `Créditos de IA esgotados (${quota.used}/${quota.credit_limit}).` };
-
     const [{ data: listings }, { data: connection }] = await Promise.all([
       context.supabase.from("listings").select("title,status,stock,price_cents,cost_cents,fees_cents,ai_score,updated_at").limit(250),
       context.supabase.from("ml_connections").select("connected,last_sync_at,nickname").eq("user_id", context.userId).maybeSingle(),
@@ -60,8 +56,7 @@ export const askSellerCopilot = createServerFn({ method: "POST" })
     const out = await aiJson<{ headline: string; summary: string; priorities: Array<{ title: string; reason: string; action: string; impact: "alto" | "medio" | "baixo" }>; warning: string | null }>(prompt);
     if (!out.ok) return out;
 
-    const { consumeAiQuota } = await import("@/lib/ai-quota.server");
-    const consumed = await consumeAiQuota(context.userId, 1);
-    if (!consumed.ok) return { ok: false as const, reason: consumed.reason };
+    // O Copiloto é um benefício incluído no lançamento e não consome créditos de IA.
+    // Créditos continuam sendo cobrados nas ações de geração/otimização e imagens.
     return { ok: true as const, result: out.result };
   });
