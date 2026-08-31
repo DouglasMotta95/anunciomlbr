@@ -30,7 +30,7 @@ function expectNot(file, needles, label) {
 expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "signInWithOAuth", 'signOut({ scope: "local" })', "/auth/callback"], "autenticação, OAuth e aceite legal");
 expect("src/routes/auth.callback.tsx", ["/auth/callback", "setSession", "exchangeCodeForSession", "access_token", "refresh_token", "onAuthStateChange", "history.replaceState"], "callback Google conclui sessão explicitamente");
 expect("src/integrations/lovable/index.ts", ["signInWithOAuth", "setSession(result.tokens)", "!data.session?.user"], "broker Google cria e valida sessão no fluxo sem redirect");
-expect("src/integrations/supabase/client.ts", ["import.meta.env.VITE_SUPABASE_URL", "import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY", "persistSession: true", "autoRefreshToken: true", "detectSessionInUrl: true"], "Supabase usa variáveis Vite estáticas e persiste sessão OAuth");
+expect("src/integrations/supabase/client.ts", ["import.meta.env['VITE_SUPABASE_URL']", "import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY']", "persistSession: true", "autoRefreshToken: true", "detectSessionInUrl: true"], "Supabase usa variáveis Vite literais e persiste sessão OAuth");
 expectNot("src/integrations/supabase/client.ts", ["import.meta.env[name]"], "configuração Supabase não usa acesso dinâmico que some no bundle Vite");
 expect("src/hooks/useAuth.tsx", ["cancelQueries", "SIGNED_IN", "TOKEN_REFRESHED", "setQueryData"], "cache de autenticação não sobrescreve sessão recém-restaurada");
 expectNot("src/routes/__root.tsx", ["OAuthReturnBridge", "CUSTOMER_OAUTH_INTENT", "onAuthStateChange"], "raiz não interfere no callback de autenticação");
