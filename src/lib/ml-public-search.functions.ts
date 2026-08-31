@@ -12,17 +12,18 @@ type SearchResult = {
 };
 
 /**
- * Entrada única da busca por palavra-chave.
+ * Entrada única da busca comum por palavra-chave.
  *
- * A implementação real fica em ml-discovery.server.ts e prioriza a URL pública
- * do próprio Mercado Livre (lista.mercadolivre.com.br/<termo>) antes dos
- * fallbacks oficiais. Manter esta função fina evita a tela /buscar cair por
- * engano nas buscas de "Meus anúncios" ou no catálogo genérico.
+ * O Mercado Livre vem bloqueando a confirmação pública de itens em algumas
+ * integrações. Para não deixar a busca inutilizável, a busca comum usa o Gemini
+ * com Google Search Grounding para descobrir anúncios reais do Mercado Livre
+ * Brasil e exibi-los diretamente. A IA não preenche preço, vendas ou estoque
+ * quando esses dados não estão disponíveis na fonte grounded.
  *
- * SEARCH_FLOW_VERSION é proposital: além de documentar a estratégia implantada,
- * ajuda a identificar nos deploys do Lovable se a versão nova da busca chegou.
+ * Buscas explícitas por código MLB, link, vendedor e produto continuam usando
+ * os fluxos específicos existentes na tela /buscar.
  */
-const SEARCH_FLOW_VERSION = "public-url-v2-2026-08-29";
+const SEARCH_FLOW_VERSION = "gemini-grounded-only-v1-2026-08-31";
 
 export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -34,24 +35,26 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       })
       .parse(data),
   )
-  .handler(async ({ data, context }): Promise<SearchResult> => {
-    const desired = Math.min(Math.max(data.limit ?? 20, 1), 200);
+  .handler(async ({ data }): Promise<SearchResult> => {
+    const desired = Math.min(Math.max(data.limit ?? 20, 1), 50);
     const query = data.query.trim();
 
     console.info("[ML public search]", {
       version: SEARCH_FLOW_VERSION,
       query,
       desired,
-      strategy: "marketplace-public-url-first",
+      strategy: "gemini-google-grounding-only",
     });
 
-    const { discoverPublicAds } = await import("@/lib/ml-discovery.server");
-    const outcome = await discoverPublicAds(context.userId, query, desired);
+    const { searchAdsWithGeminiGrounding } = await import("@/lib/ml-gemini-search.server");
+    const items = await searchAdsWithGeminiGrounding(query, desired);
 
     return {
-      ok: outcome.ok,
+      ok: items.length > 0,
       configured: true,
-      reason: outcome.reason,
-      items: outcome.items,
+      reason: items.length
+        ? `${items.length} anúncio(s) encontrado(s) pelo Gemini na Pesquisa Google, com links do Mercado Livre Brasil.`
+        : "O Gemini não encontrou anúncios individuais acessíveis do Mercado Livre Brasil para este termo. Tente uma descrição um pouco mais específica.",
+      items,
     };
   });
