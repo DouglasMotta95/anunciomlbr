@@ -27,11 +27,13 @@ function expectNot(file, needles, label) {
   }
 }
 
-expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "signInWithOAuth", "getSession()"], "autenticação, OAuth e aceite legal");
-expect("src/integrations/lovable/index.ts", ["signInWithOAuth", "setSession(result.tokens)", "!data.session?.user"], "broker Google cria e valida uma única sessão Supabase");
-expect("src/integrations/supabase/client.ts", ["persistSession: true", "autoRefreshToken: true", "detectSessionInUrl: true"], "Supabase detecta e persiste sessão no callback OAuth");
+expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "signInWithOAuth", 'signOut({ scope: "local" })', "/auth/callback"], "autenticação, OAuth e aceite legal");
+expect("src/routes/auth.callback.tsx", ["/auth/callback", "setSession", "exchangeCodeForSession", "access_token", "refresh_token", "onAuthStateChange", "history.replaceState"], "callback Google conclui sessão explicitamente");
+expect("src/integrations/lovable/index.ts", ["signInWithOAuth", "setSession(result.tokens)", "!data.session?.user"], "broker Google cria e valida sessão no fluxo sem redirect");
+expect("src/integrations/supabase/client.ts", ["persistSession: true", "autoRefreshToken: true", "detectSessionInUrl: true"], "Supabase persiste sessão OAuth");
 expect("src/hooks/useAuth.tsx", ["cancelQueries", "SIGNED_IN", "TOKEN_REFRESHED", "setQueryData"], "cache de autenticação não sobrescreve sessão recém-restaurada");
-expect("src/routes/__root.tsx", ["CUSTOMER_OAUTH_INTENT", "onAuthStateChange", "session?.user", "finishWithSession", "12000"], "retorno Google OAuth aguarda sessão confirmada");
+expectNot("src/routes/__root.tsx", ["OAuthReturnBridge", "CUSTOMER_OAUTH_INTENT", "onAuthStateChange"], "raiz não interfere no callback de autenticação");
+expect("src/routes/admin.login.tsx", ["Preparando acesso administrativo", "signOut", "checkIsAdmin"], "login administrativo começa isolado");
 expect("src/routes/_authenticated/onboarding.tsx", ["openMercadoLivreOAuthStart", "/buscar", "/dashboard", "onboarding_done: true"], "onboarding");
 expect("src/routes/_authenticated/integracoes.tsx", ["openMercadoLivreOAuthStart", "syncMercadoLivreCatalog"], "Mercado Livre OAuth/sincronização");
 expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "Mercado Livre"], "busca/cópia");
