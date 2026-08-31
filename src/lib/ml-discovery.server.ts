@@ -146,7 +146,7 @@ function apiToItem(row: ApiItem, fallback?: PublicCard): SearchMlItem | null {
     sold_quantity: typeof row.sold_quantity === "number" ? row.sold_quantity : null,
     status: row.status ?? "active",
     images: images.length ? images : thumbnail ? [thumbnail] : [],
-    attributes: Array.isArray(row.attributes) ? row.attributes : [],
+    attributes: [],
     source_kind: "marketplace",
     seller_id: row.seller_id != null ? String(row.seller_id) : null,
     verified_item: true,
