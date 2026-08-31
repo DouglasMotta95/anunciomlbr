@@ -14,15 +14,15 @@ type SearchResult = {
 /**
  * Entrada única da busca comum por palavra-chave.
  *
- * O fluxo tenta Gemini + Google Search Grounding primeiro. Como a chave direta
- * do Gemini pode não existir em todos os deploys, há um fallback server-only que
- * descobre links reais do Mercado Livre em fontes públicas da Web. Em nenhum dos
- * caminhos são inventados preço, vendas, estoque ou métricas comerciais.
+ * Uma entrada como "iphone" é uma consulta de marketplace e deve trazer várias
+ * ofertas relacionadas, como a busca pública do Mercado Livre. A descoberta
+ * prioriza a página de resultados do ML e usa Gemini / mecanismos de busca como
+ * complemento, sem tratar a palavra como código e sem inventar métricas.
  *
  * Buscas explícitas por código MLB, link, vendedor e produto continuam usando
  * os fluxos específicos existentes na tela /buscar.
  */
-const SEARCH_FLOW_VERSION = "grounded-web-resilient-v2-2026-08-31";
+const SEARCH_FLOW_VERSION = "marketplace-keyword-multi-offer-v3-2026-08-31";
 
 export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -42,7 +42,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       version: SEARCH_FLOW_VERSION,
       query,
       desired,
-      strategy: "gemini-grounding-with-public-web-fallback",
+      strategy: "marketplace-keyword-multi-offer",
     });
 
     const { searchAdsWithGeminiGrounding } = await import("@/lib/ml-gemini-search.server");
@@ -52,8 +52,8 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       ok: items.length > 0,
       configured: true,
       reason: items.length
-        ? `${items.length} anúncio(s) do Mercado Livre Brasil encontrado(s) na busca Web.`
-        : "A busca Web não conseguiu localizar anúncios individuais do Mercado Livre Brasil para este termo agora. Tente novamente em alguns instantes.",
+        ? `${items.length} oferta(s) do Mercado Livre Brasil encontrada(s) para “${query}”.`
+        : `Não foi possível carregar as ofertas do Mercado Livre para “${query}” agora.`,
       items,
     };
   });
