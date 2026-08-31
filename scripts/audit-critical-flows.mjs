@@ -27,17 +27,18 @@ function expectNot(file, needles, label) {
   }
 }
 
-expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "signInWithOAuth", 'signOut({ scope: "local" })', "/auth/callback"], "autenticação, OAuth e aceite legal");
-expect("src/routes/auth.callback.tsx", ["/auth/callback", "setSession", "exchangeCodeForSession", "access_token", "refresh_token", "onAuthStateChange", "history.replaceState"], "callback Google conclui sessão explicitamente");
+expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "lovable.auth.signInWithOAuth", 'signOut({ scope: "local" })', 'redirect_uri: `${window.location.origin}/auth`', "returningFromGoogle"], "autenticação, OAuth e aceite legal");
+expectNot("src/routes/auth.tsx", ["supabase.auth.signInWithOAuth"], "Google não mistura OAuth nativo do Supabase com broker Lovable");
 expect("src/integrations/lovable/index.ts", ["signInWithOAuth", "setSession(result.tokens)", "!data.session?.user"], "broker Google cria e valida sessão no fluxo sem redirect");
 expect("src/integrations/supabase/client.ts", ["import.meta.env['VITE_SUPABASE_URL']", "import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY']", "persistSession: true", "autoRefreshToken: true", "detectSessionInUrl: true"], "Supabase usa variáveis Vite literais e persiste sessão OAuth");
 expectNot("src/integrations/supabase/client.ts", ["import.meta.env[name]"], "configuração Supabase não usa acesso dinâmico que some no bundle Vite");
 expect("src/hooks/useAuth.tsx", ["cancelQueries", "SIGNED_IN", "TOKEN_REFRESHED", "setQueryData"], "cache de autenticação não sobrescreve sessão recém-restaurada");
-expectNot("src/routes/__root.tsx", ["OAuthReturnBridge", "CUSTOMER_OAUTH_INTENT", "onAuthStateChange"], "raiz não interfere no callback de autenticação");
+expectNot("src/routes/__root.tsx", ["OAuthReturnBridge", "CUSTOMER_OAUTH_INTENT", "onAuthStateChange"], "raiz não interfere no retorno de autenticação");
 expect("src/routes/__root.tsx", ["Página não encontrada", "Não foi possível carregar esta página", "Tentar novamente"], "erros globais em português");
 expect("src/routes/admin.login.tsx", ["Preparando acesso administrativo", "signOut", "checkIsAdmin"], "login administrativo começa isolado");
 expect("src/routes/_authenticated/onboarding.tsx", ["openMercadoLivreOAuthStart", "/buscar", "/dashboard", "onboarding_done: true"], "onboarding");
 expect("src/routes/_authenticated/integracoes.tsx", ["openMercadoLivreOAuthStart", "syncMercadoLivreCatalog"], "Mercado Livre OAuth/sincronização");
+expect("src/routes/api/public/ml/callback.ts", ["already_connected", '.eq("ml_user_id", mlUserId)', '.neq("user_id", userId)'], "mesma conta Mercado Livre não pode duplicar catálogo em dois usuários");
 expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "Mercado Livre"], "busca/cópia");
 expect("src/routes/_authenticated/editor.$id.tsx", ["PublishButton", "generateListingImage", "3 créditos"], "editor/publicação/imagem IA");
 expect("src/lib/publish.functions.ts", ["published_ml_id", "Não publique novamente", "publishListingToMl"], "publicação idempotente no Mercado Livre");
