@@ -6,6 +6,11 @@ type GeneratedPublic = GeneratedDatabase["public"];
 type GeneratedLicense = GeneratedPublic["Tables"]["licenses"];
 type GeneratedPlan = GeneratedPublic["Tables"]["plans"];
 type PlanKind = GeneratedPublic["Enums"]["plan_kind"] | "ai_package";
+type ListingStatus =
+  | GeneratedPublic["Enums"]["listing_status"]
+  | "closed"
+  | "under_review"
+  | "inactive";
 
 type LicenseTable = {
   Row: GeneratedLicense["Row"] & { ai_credits_used: number };
@@ -45,8 +50,9 @@ type ManualFunctions = GeneratedPublic["Functions"] & {
   };
 };
 
-type ManualEnums = Omit<GeneratedPublic["Enums"], "plan_kind"> & {
+type ManualEnums = Omit<GeneratedPublic["Enums"], "plan_kind" | "listing_status"> & {
   plan_kind: PlanKind;
+  listing_status: ListingStatus;
 };
 
 export type Database = Omit<GeneratedDatabase, "public"> & {
