@@ -26,7 +26,7 @@ import {
 /** Métricas gerais do painel administrativo (somente admin). */
 export const adminGetMetrics = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         period: z.enum(["7d", "30d", "90d", "12m"]).default("30d"),
@@ -65,7 +65,7 @@ export const adminGetMetrics = createServerFn({ method: "GET" })
 /** Lista clientes com licença/plano/status para a tabela admin. */
 export const adminListClients = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         page: z.number().int().min(0).default(0),
@@ -85,7 +85,7 @@ export const adminListInactiveClients = createServerFn({ method: "GET" })
 /** Ações administrativas sobre uma licença (ativar/suspender/cancelar/renovar). */
 export const adminLicenseAction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -99,7 +99,7 @@ export const adminLicenseAction = createServerFn({ method: "POST" })
 /** Atualiza um plano existente (preço, features, destaque). */
 export const adminUpdatePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z.string().uuid(),
@@ -120,7 +120,7 @@ export const adminUpdatePlan = createServerFn({ method: "POST" })
 /** Atualiza o desconto de um período de cobrança. */
 export const adminUpdatePeriodDiscount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         period: z.enum(["monthly", "quarterly", "semiannual", "annual"]),
@@ -134,7 +134,7 @@ export const adminUpdatePeriodDiscount = createServerFn({ method: "POST" })
 /** Lista pagamentos com dados do cliente e plano (somente admin). */
 export const adminListPayments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         page: z.number().int().min(0).default(0),
@@ -148,7 +148,7 @@ export const adminListPayments = createServerFn({ method: "POST" })
 /** Lista licenças vinculadas a usuário com dados de cliente/plano. */
 export const adminListSubscriptions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         page: z.number().int().min(0).default(0),
@@ -177,7 +177,7 @@ export const adminGetWebhooksStatus = createServerFn({ method: "GET" })
 /** Lista os últimos 100 eventos de atividade (logs) do sistema. */
 export const adminListActivity = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ kind: z.string().optional() }).parse(data))
+  .validator((data: unknown) => z.object({ kind: z.string().optional() }).parse(data))
   .handler(async ({ data, context }) => listAdminActivity(data, context));
 
 /** Lista cupons cadastrados. */
@@ -188,7 +188,7 @@ export const adminListCoupons = createServerFn({ method: "GET" })
 /** Cria um novo cupom de desconto. */
 export const adminCreateCoupon = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         code: z.string().min(3).max(40),
@@ -203,7 +203,7 @@ export const adminCreateCoupon = createServerFn({ method: "POST" })
 /** Ativa ou desativa um cupom. */
 export const adminToggleCoupon = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         code: z.string().min(1),
@@ -216,7 +216,7 @@ export const adminToggleCoupon = createServerFn({ method: "POST" })
 /** Logins ativos agora (heartbeat real do app). */
 export const adminListActiveSessions = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ minutes: z.number().int().min(1).max(1440).default(15) }).parse(data),
   )
   .handler(async ({ data, context }) => listAdminActiveSessions(data, context));
@@ -224,7 +224,7 @@ export const adminListActiveSessions = createServerFn({ method: "POST" })
 /** Licenças ativas que vencem nos próximos N dias. */
 export const adminListExpiringLicenses = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ days: z.number().int().min(1).max(90).default(10) }).parse(data),
   )
   .handler(async ({ data, context }) => listAdminExpiringLicenses(data, context));
@@ -232,7 +232,7 @@ export const adminListExpiringLicenses = createServerFn({ method: "POST" })
 /** Dispara o alerta de vencimento para os clientes das licenças a vencer. */
 export const adminNotifyExpiringLicenses = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ days: z.number().int().min(1).max(90).default(10) }).parse(data),
   )
   .handler(async ({ data, context }) => notifyAdminExpiringLicenses(data, context));
