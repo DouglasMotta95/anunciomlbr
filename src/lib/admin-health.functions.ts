@@ -45,6 +45,7 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
       recentMlEvents,
       planCatalog,
       aiRpc,
+      quotaClaims,
       imageBucket,
     ] = await Promise.all([
       supabaseAdmin.from("ml_connections").select("user_id", { count: "exact", head: true }).eq("connected", true),
@@ -58,7 +59,8 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
         .in("kind", ["ml_notification", "ml_item_updated"])
         .gte("created_at", new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()),
       supabaseAdmin.from("plans").select("code,ai_credits,kind,active,features"),
-      migratedDb.rpc("ai_credit_status", { _user_id: context.userId }),
+      migratedDb.rpc("ai_credit_status", { p_user_id: context.userId }),
+      supabaseAdmin.from("listing_quota_claims").select("listing_id", { count: "exact", head: true }),
       supabaseAdmin.storage.getBucket("ai-listing-images"),
     ]);
 
@@ -88,14 +90,22 @@ export const adminGetSystemHealth = createServerFn({ method: "GET" })
       const row = catalogRows.find((plan: any) => plan.code === code && plan.active === true);
       return Array.isArray(row?.features) && row.features.some((feature: unknown) => String(feature).includes("3 créditos por imagem"));
     });
-    const migrationsOk = !planCatalog.error && !aiRpc.error && !imageBucket.error && mainPlansCurrent && packagesCurrent && imageCostCatalogCurrent;
+    const migrationsOk =
+      !planCatalog.error &&
+      !aiRpc.error &&
+      !quotaClaims.error &&
+      !imageBucket.error &&
+      mainPlansCurrent &&
+      packagesCurrent &&
+      imageCostCatalogCurrent;
     const migrationDetail = migrationsOk
-      ? "Catálogo v3, RPC de créditos e bucket de imagens confirmados no ambiente"
+      ? "Catálogo v3, RPC de créditos, franquia de anúncios e bucket de imagens confirmados no ambiente"
       : [
           !mainPlansCurrent ? "franquias dos planos desatualizadas" : null,
           !packagesCurrent ? "pacotes extras ausentes/desativados" : null,
           !imageCostCatalogCurrent ? "catálogo ainda não informa 3 créditos por imagem" : null,
           aiRpc.error ? "RPC de créditos indisponível" : null,
+          quotaClaims.error ? "infraestrutura de franquia de anúncios indisponível" : null,
           imageBucket.error ? "bucket de imagens IA indisponível" : null,
         ].filter(Boolean).join(" · ") || "não foi possível validar o estado do banco";
 
