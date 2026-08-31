@@ -32,7 +32,7 @@ function titleScore(query: string, title: string) {
   return Math.round((words.filter((word) => t.includes(word)).length / words.length) * 100);
 }
 
-function toSearchItem(query: string, candidate: Awaited<ReturnType<typeof discoverMlItemLinksWithGoogle>>[number]): SearchMlItem | null {
+function toSearchItem(candidate: Awaited<ReturnType<typeof discoverMlItemLinksWithGoogle>>[number]): SearchMlItem | null {
   if (!candidate.url) return null;
 
   return {
@@ -60,7 +60,7 @@ export async function searchAdsWithGeminiGrounding(query: string, desired = 20):
   const grounded = await discoverMlItemLinksWithGoogle(query, requested);
 
   return grounded
-    .map((candidate) => toSearchItem(query, candidate))
+    .map(toSearchItem)
     .filter((item): item is SearchMlItem => item !== null)
     .sort((a, b) => titleScore(query, b.title) - titleScore(query, a.title))
     .slice(0, desired);
