@@ -3,20 +3,15 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
-  useNavigate,
   useRouter,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
-import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-
-const CUSTOMER_OAUTH_INTENT = "anuncioml_customer_oauth_intent";
 
 function NotFoundComponent() {
   return (
@@ -119,72 +114,11 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
-function OAuthReturnBridge() {
-  const navigate = useNavigate();
-  const { user, loading } = useAuth();
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    // Compatibilidade com callbacks iniciados por versões antigas, que voltavam
-    // para a home. O fluxo atual retorna direto para /auth e não passa por aqui.
-    if (window.location.pathname !== "/") return;
-    if (!sessionStorage.getItem(CUSTOMER_OAUTH_INTENT)) return;
-
-    let disposed = false;
-    let completed = false;
-    const retryTimers: number[] = [];
-
-    const finishWithSession = () => {
-      if (disposed || completed) return;
-      completed = true;
-      void navigate({ to: "/auth", replace: true });
-    };
-
-    if (user) {
-      finishWithSession();
-      return;
-    }
-
-    const { data: authSubscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) finishWithSession();
-    });
-
-    if (!loading) {
-      for (const delay of [150, 400, 900, 1800, 3200, 5000]) {
-        const timer = window.setTimeout(() => {
-          if (disposed || completed) return;
-          void supabase.auth.getSession().then(({ data }) => {
-            if (data.session?.user) finishWithSession();
-          });
-        }, delay);
-        retryTimers.push(timer);
-      }
-    }
-
-    const fallbackTimer = window.setTimeout(() => {
-      if (disposed || completed) return;
-      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-      void navigate({ to: "/auth", replace: true });
-    }, 12000);
-
-    return () => {
-      disposed = true;
-      authSubscription.subscription.unsubscribe();
-      retryTimers.forEach((timer) => window.clearTimeout(timer));
-      window.clearTimeout(fallbackTimer);
-    };
-  }, [loading, user, navigate]);
-
-  return null;
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <OAuthReturnBridge />
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="top-right" richColors />
     </QueryClientProvider>
