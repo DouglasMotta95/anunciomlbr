@@ -28,6 +28,7 @@ function expectNot(file, needles, label) {
 }
 
 expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "signInWithOAuth", "setSession(result.tokens)"], "autenticação, OAuth e aceite legal");
+expect("src/routes/__root.tsx", ["CUSTOMER_OAUTH_INTENT", "onAuthStateChange", "session?.user", "finishWithSession", "12000"], "retorno Google OAuth aguarda sessão confirmada");
 expect("src/routes/_authenticated/onboarding.tsx", ["openMercadoLivreOAuthStart", "/buscar", "/dashboard", "onboarding_done: true"], "onboarding");
 expect("src/routes/_authenticated/integracoes.tsx", ["openMercadoLivreOAuthStart", "syncMercadoLivreCatalog"], "Mercado Livre OAuth/sincronização");
 expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "Mercado Livre"], "busca/cópia");
