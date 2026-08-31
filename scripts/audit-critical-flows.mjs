@@ -39,7 +39,20 @@ expect("src/routes/admin.login.tsx", ["Preparando acesso administrativo", "signO
 expect("src/routes/_authenticated/onboarding.tsx", ["openMercadoLivreOAuthStart", "/buscar", "/dashboard", "onboarding_done: true"], "onboarding");
 expect("src/routes/_authenticated/integracoes.tsx", ["openMercadoLivreOAuthStart", "syncMercadoLivreCatalog"], "Mercado Livre OAuth/sincronização");
 expect("src/routes/api/public/ml/callback.ts", ["already_connected", '.eq("ml_user_id", mlUserId)', '.neq("user_id", userId)'], "mesma conta Mercado Livre não pode duplicar catálogo em dois usuários");
-expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "Mercado Livre"], "busca/cópia");
+
+expect("src/lib/ml-discovery.server.ts", ["/sites/MLB/search", "site_items_search_then_public_url", "marketplaceApiSearch", 'source_kind: "marketplace"'], "busca comum prioriza anúncios reais do marketplace");
+expectNot("src/lib/ml-discovery.server.ts", ["/products/search?status=active&site_id=MLB&q="], "busca comum não usa catálogo como preenchimento silencioso");
+expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "verified_item", "Comparar no ML", "normalizeSearchTerm", "Vendas só são exibidas"], "busca/cópia mostra somente métricas verificadas");
+expectNot("src/routes/_authenticated/buscar.tsx", ["Ranking:", "Trophy"], "busca não inventa ranking visual");
+
+expect("src/components/app/AppShell.tsx", ["ai_credit_status", 'queryKey: ["ai-credit-balance"', "/creditos-ia", "IA:"], "saldo de IA fica visível no painel");
+expect("src/lib/seller-copilot.functions.ts", ["aiJson", "Copiloto é um benefício incluído no lançamento"], "copiloto incluído no lançamento");
+expectNot("src/lib/seller-copilot.functions.ts", ["getAiQuota", "consumeAiQuota"], "copiloto não consome créditos de IA");
+expect("src/routes/_authenticated/crescimento.tsx", ["não consome créditos de IA", "Analisar com Copiloto"], "interface do copiloto comunica gratuidade");
+expectNot("src/routes/_authenticated/crescimento.tsx", ["Analisar · 1 crédito", "1 crédito de IA utilizado"], "interface não informa cobrança do copiloto");
+
+expect("src/routes/_authenticated/anuncios.tsx", ['startBulk("duplicate", [listing])', "Duplicar", "bottom-20", "Importado do Mercado Livre", "Criado no ANÚNCIO ML"], "duplicação visível em cada anúncio e acessível no mobile");
+expect("src/lib/bulk.functions.ts", ["if (kind === \"duplicate\")", "claimListingQuota", 'status: "draft"'], "backend de duplicação cria novo rascunho e consome franquia");
 expect("src/routes/_authenticated/editor.$id.tsx", ["PublishButton", "generateListingImage", "3 créditos"], "editor/publicação/imagem IA");
 expect("src/lib/publish.functions.ts", ["published_ml_id", "Não publique novamente", "publishListingToMl"], "publicação idempotente no Mercado Livre");
 expect("src/lib/bulk.functions.ts", ["syncMlPublishedStatus", 'status: "paused" | "active"', "published_ml_id", "source_ml_id", "const mlItemId ="], "pausa/ativação real no Mercado Livre");
