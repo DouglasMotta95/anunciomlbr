@@ -27,7 +27,9 @@ function expectNot(file, needles, label) {
   }
 }
 
-expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "signInWithOAuth", "setSession(result.tokens)"], "autenticação, OAuth e aceite legal");
+expect("src/routes/auth.tsx", ["/termos", "/privacidade", "signUp", "signInWithPassword", "signInWithOAuth", "getSession()"], "autenticação, OAuth e aceite legal");
+expect("src/integrations/lovable/index.ts", ["signInWithOAuth", "setSession(result.tokens)", "!data.session?.user"], "broker Google cria e valida uma única sessão Supabase");
+expect("src/hooks/useAuth.tsx", ["cancelQueries", "SIGNED_IN", "TOKEN_REFRESHED", "setQueryData"], "cache de autenticação não sobrescreve sessão recém-restaurada");
 expect("src/routes/__root.tsx", ["CUSTOMER_OAUTH_INTENT", "onAuthStateChange", "session?.user", "finishWithSession", "12000"], "retorno Google OAuth aguarda sessão confirmada");
 expect("src/routes/_authenticated/onboarding.tsx", ["openMercadoLivreOAuthStart", "/buscar", "/dashboard", "onboarding_done: true"], "onboarding");
 expect("src/routes/_authenticated/integracoes.tsx", ["openMercadoLivreOAuthStart", "syncMercadoLivreCatalog"], "Mercado Livre OAuth/sincronização");
