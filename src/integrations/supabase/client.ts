@@ -33,8 +33,8 @@ function readServerEnv(name: 'SUPABASE_URL' | 'SUPABASE_PUBLISHABLE_KEY'): strin
 }
 
 function resolveSupabaseConfig() {
-  // IMPORTANT: Vite/Lovable replaces VITE_* values reliably when the property
-  // name is a literal. Do not convert these accesses to import.meta.env[name].
+  // IMPORTANT: Vite/Lovable replaces VITE_* values reliably when each property
+  // name is a literal. Keep these two browser-facing accesses explicit.
   const url = import.meta.env['VITE_SUPABASE_URL'] || readServerEnv('SUPABASE_URL');
   const key = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || readServerEnv('SUPABASE_PUBLISHABLE_KEY');
   return { url, key };
