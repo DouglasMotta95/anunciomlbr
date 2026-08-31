@@ -3,6 +3,12 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types.manual';
 import { brokeredPreviewStorage } from './previewAuthStorage';
 
+// Estes valores são públicos por definição no frontend Supabase. Mantemos um
+// fallback para o deploy Lovable continuar autenticando mesmo quando o build não
+// injetar as variáveis VITE_*.
+const PUBLIC_SUPABASE_URL = 'https://aachxhvpthcszmujjwsq.supabase.co';
+const PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_1UJgRP-2Kkg3l4xA2kpptA_4Aywib2B';
+
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
@@ -33,10 +39,11 @@ function readServerEnv(name: 'SUPABASE_URL' | 'SUPABASE_PUBLISHABLE_KEY'): strin
 }
 
 function resolveSupabaseConfig() {
-  // IMPORTANT: Vite/Lovable replaces VITE_* values reliably when each property
-  // name is a literal. Keep these two browser-facing accesses explicit.
-  const url = import.meta.env['VITE_SUPABASE_URL'] || readServerEnv('SUPABASE_URL');
-  const key = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || readServerEnv('SUPABASE_PUBLISHABLE_KEY');
+  // Preferimos a configuração injetada pelo ambiente. O fallback público existe
+  // apenas para o frontend publicado não ficar inutilizável se o Lovable omitir
+  // VITE_SUPABASE_* durante o build.
+  const url = import.meta.env['VITE_SUPABASE_URL'] || readServerEnv('SUPABASE_URL') || PUBLIC_SUPABASE_URL;
+  const key = import.meta.env['VITE_SUPABASE_PUBLISHABLE_KEY'] || readServerEnv('SUPABASE_PUBLISHABLE_KEY') || PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   return { url, key };
 }
 
