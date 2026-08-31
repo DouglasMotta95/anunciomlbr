@@ -11,26 +11,17 @@ function monthStart(): string {
 }
 
 async function resolvePaidLimit(db: Db, userId: string): Promise<number> {
-  const { data: subscription } = await db
-    .from("subscriptions")
-    .select("status,current_period_end,plans(ai_credits,kind)")
-    .eq("user_id", userId)
-    .in("status", ["active", "trialing"])
-    .order("created_at", { ascending: false })
-    .limit(5);
-  const activeSubscription = (subscription ?? []).find(
-    (row: any) => !["ad_package", "ai_package"].includes(row?.plans?.kind) && (!row?.current_period_end || new Date(row.current_period_end) > new Date()),
-  );
-  const subscriptionLimit = Number(activeSubscription?.plans?.ai_credits ?? 0);
-  if (subscriptionLimit > 0) return subscriptionLimit;
-
-  const { data: license } = await db
+  const { data: license, error } = await db
     .from("licenses")
     .select("status,expires_at,plans(ai_credits,kind)")
     .eq("user_id", userId)
     .eq("status", "active")
     .order("expires_at", { ascending: false })
     .limit(20);
+  if (error) {
+    console.warn("[AI quota] não foi possível consultar licenças ativas:", error.message);
+    return 0;
+  }
   const active = (license ?? []).find(
     (row: any) => !["ad_package", "ai_package"].includes(row?.plans?.kind) && (!row.expires_at || new Date(row.expires_at) > new Date()),
   );
