@@ -40,8 +40,9 @@ expect("src/routes/_authenticated/onboarding.tsx", ["openMercadoLivreOAuthStart"
 expect("src/routes/_authenticated/integracoes.tsx", ["openMercadoLivreOAuthStart", "syncMercadoLivreCatalog"], "Mercado Livre OAuth/sincronização");
 expect("src/routes/api/public/ml/callback.ts", ["already_connected", '.eq("ml_user_id", mlUserId)', '.neq("user_id", userId)'], "mesma conta Mercado Livre não pode duplicar catálogo em dois usuários");
 
-expect("src/lib/ml-discovery.server.ts", ["/sites/MLB/search", "site_items_search_then_public_url", "marketplaceApiSearch", 'source_kind: "marketplace"'], "busca comum prioriza anúncios reais do marketplace");
-expectNot("src/lib/ml-discovery.server.ts", ["/products/search?status=active&site_id=MLB&q="], "busca comum não usa catálogo como preenchimento silencioso");
+expect("src/lib/ml-discovery.server.ts", ["/sites/MLB/search", "strict_verified_marketplace_items", "marketplaceApiSearch", "verifyCandidates", "verified_item === true", 'item.status === "active"', "isMercadoLivrePermalink", "discoverMlItemLinksWithGoogle", 'source_kind: "marketplace"'], "busca comum exibe somente anúncios reais e validados do marketplace");
+expectNot("src/lib/ml-discovery.server.ts", ["/products/search?status=active&site_id=MLB&q=", "baseItem("], "busca comum não usa catálogo nem candidatos não validados");
+expect("src/lib/ml-google-discovery.server.ts", ["google_search", "GEMINI_API_KEY", "mercadolivre.com.br", "normalizeItemId", "Não invente URLs nem IDs"], "fallback grounded apenas descobre links MLB reais");
 expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "verified_item", "Comparar no ML", "normalizeSearchTerm", "Vendas só são exibidas"], "busca/cópia mostra somente métricas verificadas");
 expectNot("src/routes/_authenticated/buscar.tsx", ["Ranking:", "Trophy"], "busca não inventa ranking visual");
 
