@@ -53,19 +53,17 @@ export function PremiumHero() {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg" className="gap-2 font-bold shadow-glow">
-              <a href="#planos">
-                Ver planos e começar agora <ArrowRight className="h-4 w-4" />
-              </a>
+              <Link to="/auth" search={{ mode: "signup" }}>
+                Começar agora — 10 anúncios grátis <ArrowRight className="h-4 w-4" />
+              </Link>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link to="/auth" search={{ mode: "signup" }}>
-                Testar com 10 anúncios grátis
-              </Link>
+              <a href="#planos">Ver planos e preços</a>
             </Button>
           </div>
 
           <p className="mt-3 text-xs font-medium text-muted-foreground">
-            10 anúncios para testar · sem cartão no teste · integração oficial com Mercado Livre
+            Teste sem cartão · 10 anúncios grátis · integração oficial com Mercado Livre
           </p>
 
           <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
