@@ -36,7 +36,6 @@ export const Route = createFileRoute("/api/public/ml/callback")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { deriveMlPkce } = await import("@/lib/ml-pkce.server");
 
-        // Consome o state de forma atômica: se já tiver sido usado, não retorna linha.
         const { data: oauthState, error: stateError } = await supabaseAdmin
           .from("ml_oauth_states")
           .delete()
@@ -123,6 +122,23 @@ export const Route = createFileRoute("/api/public/ml/callback")({
         }
 
         if (!mlUserId) return fail("identity_error");
+
+        // Uma conta de vendedor do Mercado Livre representa uma única operação.
+        // Impedimos que o mesmo seller seja conectado a dois usuários diferentes
+        // do ANÚNCIO ML, o que evita importar o mesmo catálogo em dois painéis.
+        const { data: existingOwner, error: ownerLookupError } = await supabaseAdmin
+          .from("ml_connections")
+          .select("user_id")
+          .eq("ml_user_id", mlUserId)
+          .eq("connected", true)
+          .neq("user_id", userId)
+          .limit(1)
+          .maybeSingle();
+        if (ownerLookupError) {
+          console.error("ML existing owner lookup failed", ownerLookupError.message);
+          return fail("persist_error");
+        }
+        if (existingOwner?.user_id) return fail("already_connected");
 
         const { error: tokenSaveError } = await supabaseAdmin.from("ml_tokens").upsert(
           {
