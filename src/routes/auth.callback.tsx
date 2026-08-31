@@ -82,16 +82,19 @@ function AuthCallbackPage() {
         if (!session) {
           session = await new Promise((resolve) => {
             let settled = false;
-            const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+            let unsubscribe: (() => void) | null = null;
+            const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
               if (settled || !nextSession?.user) return;
               settled = true;
-              subscription.subscription.unsubscribe();
+              unsubscribe?.();
               resolve(nextSession);
             });
+            unsubscribe = () => data.subscription.unsubscribe();
+
             window.setTimeout(async () => {
               if (settled) return;
               settled = true;
-              subscription.subscription.unsubscribe();
+              unsubscribe?.();
               const latest = await supabase.auth.getSession();
               resolve(latest.data.session);
             }, 6000);
