@@ -20,6 +20,53 @@ const title = "Entrar ou criar conta — ANÚNCIO ML";
 const description = "Acesse sua conta ANÚNCIO ML ou crie a sua em segundos e ganhe 10 anúncios gratuitos para testar a plataforma.";
 const CUSTOMER_OAUTH_INTENT = "anuncioml_customer_oauth_intent";
 
+type OAuthIntent = "login" | "signup";
+
+function readOAuthReturn() {
+  if (typeof window === "undefined") return { accessToken: null, refreshToken: null, code: null, error: null, errorDescription: null };
+
+  const search = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const read = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = search.get(key) ?? hash.get(key);
+      if (value) return value;
+    }
+    return null;
+  };
+
+  let accessToken = read("access_token", "accessToken");
+  let refreshToken = read("refresh_token", "refreshToken");
+  const packedTokens = read("tokens");
+
+  if ((!accessToken || !refreshToken) && packedTokens) {
+    try {
+      const parsed = JSON.parse(packedTokens) as { access_token?: unknown; refresh_token?: unknown; accessToken?: unknown; refreshToken?: unknown };
+      accessToken = typeof parsed.access_token === "string" ? parsed.access_token : typeof parsed.accessToken === "string" ? parsed.accessToken : accessToken;
+      refreshToken = typeof parsed.refresh_token === "string" ? parsed.refresh_token : typeof parsed.refreshToken === "string" ? parsed.refreshToken : refreshToken;
+    } catch {
+      // Alguns retornos do broker não usam o parâmetro agregado `tokens`.
+    }
+  }
+
+  return {
+    accessToken,
+    refreshToken,
+    code: read("code"),
+    error: read("error"),
+    errorDescription: read("error_description", "errorDescription"),
+  };
+}
+
+function cleanOAuthReturnUrl() {
+  if (typeof window === "undefined") return;
+  const current = new URL(window.location.href);
+  const sensitive = ["access_token", "refresh_token", "accessToken", "refreshToken", "tokens", "code", "error", "error_description", "errorDescription"];
+  sensitive.forEach((key) => current.searchParams.delete(key));
+  current.hash = "";
+  window.history.replaceState({}, document.title, `${current.pathname}${current.search}`);
+}
+
 export const Route = createFileRoute("/auth")({
   validateSearch: searchSchema,
   head: () => ({ meta: [{ title }, { name: "description", content: description }, { property: "og:title", content: title }, { property: "og:description", content: description }, { name: "robots", content: "noindex" }] }),
@@ -52,36 +99,112 @@ function AuthPage() {
   useEffect(() => {
     if (sessionLoading) return undefined;
 
-    if (!user) {
-      const returningFromGoogle = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) !== null;
-      if (!returningFromGoogle) {
-        setPreparingCustomerLogin(false);
-        return undefined;
-      }
+    let cancelled = false;
+    let timer: number | undefined;
+    let unsubscribe: (() => void) | undefined;
 
-      // No retorno por redirect, o broker pode persistir a sessão alguns instantes
-      // depois de a rota montar. Mantemos a tela de restauração por uma janela curta
-      // e deixamos o onAuthStateChange do useAuth assumir assim que SIGNED_IN chegar.
-      const timer = window.setTimeout(() => {
-        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-        setPreparingCustomerLogin(false);
-      }, 8000);
-      return () => window.clearTimeout(timer);
-    }
+    const routeAuthenticatedUser = async (userId: string, intent: OAuthIntent | null) => {
+      const destination = intent === "signup" ? "/onboarding" : await customerDestination(userId);
+      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+      cleanOAuthReturnUrl();
+      if (!cancelled) await navigate({ to: destination, replace: true });
+    };
 
-    setPreparingCustomerLogin(true);
-    const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT);
-    void customerDestination(user.id)
-      .then((destination) => {
-        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-        return navigate({ to: oauthIntent === "signup" ? "/onboarding" : destination, replace: true });
-      })
-      .catch(() => {
+    if (user) {
+      setPreparingCustomerLogin(true);
+      const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) as OAuthIntent | null;
+      void routeAuthenticatedUser(user.id, oauthIntent).catch(() => {
+        if (cancelled) return;
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         setPreparingCustomerLogin(false);
         toast.error("Sua conta foi autenticada, mas não foi possível abrir o painel. Tente novamente.");
       });
-    return undefined;
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) as OAuthIntent | null;
+    if (!oauthIntent) {
+      setPreparingCustomerLogin(false);
+      return undefined;
+    }
+
+    setPreparingCustomerLogin(true);
+
+    const completeGoogleReturn = async () => {
+      try {
+        const values = readOAuthReturn();
+        if (values.error) throw new Error(values.errorDescription || values.error);
+
+        let session = (await supabase.auth.getSession()).data.session;
+
+        if (!session && values.accessToken && values.refreshToken) {
+          const result = await supabase.auth.setSession({
+            access_token: values.accessToken,
+            refresh_token: values.refreshToken,
+          });
+          if (result.error) throw result.error;
+          session = result.data.session;
+        }
+
+        if (!session && values.code) {
+          const result = await supabase.auth.exchangeCodeForSession(values.code);
+          if (result.error) throw result.error;
+          session = result.data.session;
+        }
+
+        if (session?.user) {
+          await routeAuthenticatedUser(session.user.id, oauthIntent);
+          return;
+        }
+
+        // Em alguns navegadores móveis a gravação do broker chega logo depois da
+        // montagem da rota. Escutamos o evento real do Supabase e fazemos uma
+        // última leitura antes de desistir, sem iniciar outro OAuth e sem criar loop.
+        const authSubscription = supabase.auth.onAuthStateChange((_event, nextSession) => {
+          if (!nextSession?.user || cancelled) return;
+          unsubscribe?.();
+          if (timer) window.clearTimeout(timer);
+          void routeAuthenticatedUser(nextSession.user.id, oauthIntent);
+        });
+        unsubscribe = () => authSubscription.data.subscription.unsubscribe();
+
+        timer = window.setTimeout(async () => {
+          if (cancelled) return;
+          unsubscribe?.();
+          const latest = await supabase.auth.getSession();
+          if (latest.data.session?.user) {
+            await routeAuthenticatedUser(latest.data.session.user.id, oauthIntent);
+            return;
+          }
+
+          sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+          cleanOAuthReturnUrl();
+          if (!cancelled) {
+            setPreparingCustomerLogin(false);
+            toast.error("O Google autorizou sua conta, mas a sessão não chegou ao navegador. Tente novamente.");
+          }
+        }, 8000);
+      } catch (error) {
+        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+        cleanOAuthReturnUrl();
+        if (!cancelled) {
+          setPreparingCustomerLogin(false);
+          toast.error("Não foi possível concluir o login com o Google", {
+            description: error instanceof Error ? error.message : "Falha ao restaurar a sessão.",
+          });
+        }
+      }
+    };
+
+    void completeGoogleReturn();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearTimeout(timer);
+      unsubscribe?.();
+    };
   }, [sessionLoading, user, navigate]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -135,7 +258,7 @@ function AuthPage() {
     }
 
     setGoogleLoading(true);
-    const oauthIntent: "login" | "signup" = isSignup ? "signup" : "login";
+    const oauthIntent: OAuthIntent = isSignup ? "signup" : "login";
 
     try {
       await supabase.auth.signOut({ scope: "local" });
@@ -143,8 +266,6 @@ function AuthPage() {
       sessionStorage.setItem(CUSTOMER_OAUTH_INTENT, oauthIntent);
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
-      // Fluxo oficial do Lovable Cloud OAuth broker. Voltamos para /auth, que já
-      // observa a sessão Supabase e encaminha para dashboard/onboarding.
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: `${window.location.origin}/auth`,
       });
