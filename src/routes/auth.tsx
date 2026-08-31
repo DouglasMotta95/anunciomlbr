@@ -53,14 +53,31 @@ function AuthPage() {
     if (sessionLoading) return;
 
     if (!user) {
-      setPreparingCustomerLogin(false);
-      return;
+      const returningFromGoogle = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) !== null;
+      if (!returningFromGoogle) {
+        setPreparingCustomerLogin(false);
+        return;
+      }
+
+      // No retorno por redirect, o broker pode persistir a sessão alguns instantes
+      // depois de a rota montar. Mantemos a tela de restauração por uma janela curta
+      // e deixamos o onAuthStateChange do useAuth assumir assim que SIGNED_IN chegar.
+      const timer = window.setTimeout(() => {
+        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+        setPreparingCustomerLogin(false);
+      }, 8000);
+      return () => window.clearTimeout(timer);
     }
 
     setPreparingCustomerLogin(true);
+    const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT);
     void customerDestination(user.id)
-      .then((destination) => navigate({ to: destination, replace: true }))
+      .then((destination) => {
+        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+        return navigate({ to: oauthIntent === "signup" ? "/onboarding" : destination, replace: true });
+      })
       .catch(() => {
+        sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         setPreparingCustomerLogin(false);
         toast.error("Sua conta foi autenticada, mas não foi possível abrir o painel. Tente novamente.");
       });
@@ -118,28 +135,19 @@ function AuthPage() {
 
     setGoogleLoading(true);
     const oauthIntent: "login" | "signup" = isSignup ? "signup" : "login";
-    const callbackUrl = `${window.location.origin}/auth/callback`;
 
     try {
       await supabase.auth.signOut({ scope: "local" });
+      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       sessionStorage.setItem(CUSTOMER_OAUTH_INTENT, oauthIntent);
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
-      // Fonte principal: OAuth do próprio Supabase. Com PKCE, o Google retorna
-      // um code para /auth/callback e o callback troca esse code pela sessão.
-      const native = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: callbackUrl,
-          queryParams: { prompt: "select_account" },
-        },
+      // Fluxo oficial do Lovable Cloud OAuth broker. Voltamos para /auth, que já
+      // observa a sessão Supabase e encaminha para dashboard/onboarding.
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}/auth`,
       });
 
-      if (!native.error) return;
-
-      // Compatibilidade com projetos Lovable antigos que ainda dependem do broker.
-      // Só entra aqui se o provedor Google nativo não estiver configurado.
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: callbackUrl });
       if (result.error) throw result.error;
       if (result.redirected) return;
 
@@ -148,8 +156,8 @@ function AuthPage() {
       const googleUser = data.session?.user;
       if (!googleUser) throw new Error("O Google autorizou, mas a sessão não foi criada.");
 
-      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(googleUser.id);
+      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       void navigate({ to: destination, replace: true });
     } catch (error) {
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
