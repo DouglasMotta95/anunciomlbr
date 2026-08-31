@@ -125,6 +125,9 @@ function OAuthReturnBridge() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Compatibilidade com callbacks iniciados por versões antigas, que voltavam
+    // para a home. O fluxo atual retorna direto para /auth e não passa por aqui.
+    if (window.location.pathname !== "/") return;
     if (!sessionStorage.getItem(CUSTOMER_OAUTH_INTENT)) return;
 
     let disposed = false;
@@ -142,9 +145,6 @@ function OAuthReturnBridge() {
       return;
     }
 
-    // O retorno do broker e a restauração do Supabase são assíncronos. A leitura
-    // inicial de getSession pode terminar antes de o evento SIGNED_IN persistir os
-    // tokens. Não redirecionamos para /auth até existir uma sessão confirmada.
     const { data: authSubscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) finishWithSession();
     });
@@ -161,8 +161,6 @@ function OAuthReturnBridge() {
       }
     }
 
-    // Se o provedor foi cancelado ou realmente não criou sessão, devolvemos o
-    // usuário ao formulário somente depois de dar tempo suficiente ao callback.
     const fallbackTimer = window.setTimeout(() => {
       if (disposed || completed) return;
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
