@@ -14,10 +14,9 @@ type SearchResult = {
 /**
  * Entrada única da busca comum por palavra-chave.
  *
- * Uma entrada como "iphone" é uma consulta de marketplace e deve trazer várias
- * ofertas relacionadas, como a busca pública do Mercado Livre. A descoberta
- * prioriza a página de resultados do ML e usa Gemini / mecanismos de busca como
- * complemento, sem tratar a palavra como código e sem inventar métricas.
+ * Uma entrada como "iphone" é uma consulta de marketplace e deve trazer várias ofertas relacionadas,
+ * como a busca pública do Mercado Livre. A descoberta prioriza a página de resultados do ML e usa
+ * Gemini / mecanismos de busca como complemento, sem tratar a palavra como código e sem inventar métricas.
  *
  * Buscas explícitas por código MLB, link, vendedor e produto continuam usando
  * os fluxos específicos existentes na tela /buscar.
