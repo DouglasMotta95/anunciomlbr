@@ -49,9 +49,8 @@ function AuthPage() {
     return data?.onboarding_done ? "/dashboard" : "/onboarding";
   }
 
-  // /auth também recebe o fluxo já restaurado pelo retorno OAuth na raiz. Se já
-  // existe sessão válida, nunca encerramos o usuário: seguimos direto para a área
-  // correta. Se o OAuth foi cancelado, liberamos o formulário após uma janela curta.
+  // /auth é também o callback do Google. Se a sessão ainda está sendo persistida,
+  // mantemos o splash em vez de devolver o formulário cedo demais.
   useEffect(() => {
     if (sessionLoading) return;
 
@@ -62,7 +61,7 @@ function AuthPage() {
         const timeout = window.setTimeout(() => {
           sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
           setPreparingCustomerLogin(false);
-        }, 4000);
+        }, 12000);
         return () => window.clearTimeout(timeout);
       }
 
@@ -142,11 +141,11 @@ function AuthPage() {
     try {
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
-      // O broker oficial do Lovable usa a origem da aplicação como retorno.
-      // No fluxo com redirect, a raiz aguarda o Supabase confirmar a sessão antes
-      // de voltar para /auth. No fluxo popup/sem redirect, o wrapper já persiste e
-      // valida os tokens uma única vez antes de devolver o controle a esta página.
-      const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+      // O callback volta direto para /auth. Isso evita carregar toda a landing page
+      // durante a restauração e deixa a finalização do OAuth em uma única tela.
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: `${window.location.origin}/auth`,
+      });
       if (result.error) {
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         const message = String(result.error.message ?? "").toLowerCase();
