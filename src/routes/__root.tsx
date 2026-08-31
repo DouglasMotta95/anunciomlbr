@@ -11,7 +11,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { useAuth } from "@/hooks/useAuth";
-
+import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -121,17 +121,61 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function OAuthReturnBridge() {
   const navigate = useNavigate();
-  const { loading } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (loading || typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
     if (!sessionStorage.getItem(CUSTOMER_OAUTH_INTENT)) return;
 
-    // O broker do Lovable retorna para a origem da aplicação. Inicializar useAuth
-    // aqui faz o Supabase processar/restaurar a sessão antes de voltarmos ao /auth,
-    // que então escolhe onboarding ou dashboard sem perder o login do Google.
-    void navigate({ to: "/auth", replace: true });
-  }, [loading, navigate]);
+    let disposed = false;
+    let completed = false;
+    const retryTimers: number[] = [];
+
+    const finishWithSession = () => {
+      if (disposed || completed) return;
+      completed = true;
+      void navigate({ to: "/auth", replace: true });
+    };
+
+    if (user) {
+      finishWithSession();
+      return;
+    }
+
+    // O retorno do broker e a restauração do Supabase são assíncronos. A leitura
+    // inicial de getSession pode terminar antes de o evento SIGNED_IN persistir os
+    // tokens. Não redirecionamos para /auth até existir uma sessão confirmada.
+    const { data: authSubscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) finishWithSession();
+    });
+
+    if (!loading) {
+      for (const delay of [150, 400, 900, 1800, 3200, 5000]) {
+        const timer = window.setTimeout(() => {
+          if (disposed || completed) return;
+          void supabase.auth.getSession().then(({ data }) => {
+            if (data.session?.user) finishWithSession();
+          });
+        }, delay);
+        retryTimers.push(timer);
+      }
+    }
+
+    // Se o provedor foi cancelado ou realmente não criou sessão, devolvemos o
+    // usuário ao formulário somente depois de dar tempo suficiente ao callback.
+    const fallbackTimer = window.setTimeout(() => {
+      if (disposed || completed) return;
+      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+      void navigate({ to: "/auth", replace: true });
+    }, 12000);
+
+    return () => {
+      disposed = true;
+      authSubscription.subscription.unsubscribe();
+      retryTimers.forEach((timer) => window.clearTimeout(timer));
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [loading, user, navigate]);
 
   return null;
 }
