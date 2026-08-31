@@ -34,10 +34,10 @@ export function PremiumHero() {
             <Zap className="mr-1.5 h-3.5 w-3.5" /> CENTRAL PARA VENDEDORES DO MERCADO LIVRE
           </Badge>
           <h1 className="mt-5 text-balance text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl lg:text-6xl">
-            Menos trabalho operacional. <span className="text-gradient">Mais controle sobre seus anúncios.</span>
+            Trabalhe seus anúncios mais rápido. <span className="text-gradient">Venda melhor no Mercado Livre.</span>
           </h1>
           <p className="mt-5 max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg">
-            O ANÚNCIO ML reúne busca, cópia, edição, otimização com IA e gestão da operação para você trabalhar seus anúncios sem depender de várias ferramentas separadas.
+            Busque referências, copie estruturas, edite, otimize com IA, publique e acompanhe sua operação em uma central feita para vendedores do Mercado Livre.
           </p>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
@@ -53,14 +53,20 @@ export function PremiumHero() {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg" className="gap-2 font-bold shadow-glow">
-              <Link to="/auth" search={{ mode: "signup" }}>
-                Começar com 10 anúncios <ArrowRight className="h-4 w-4" />
-              </Link>
+              <a href="#planos">
+                Ver planos e começar agora <ArrowRight className="h-4 w-4" />
+              </a>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <a href="#demo">Ver o sistema por dentro</a>
+              <Link to="/auth" search={{ mode: "signup" }}>
+                Testar com 10 anúncios grátis
+              </Link>
             </Button>
           </div>
+
+          <p className="mt-3 text-xs font-medium text-muted-foreground">
+            10 anúncios para testar · sem cartão no teste · integração oficial com Mercado Livre
+          </p>
 
           <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-success" /> OAuth do Mercado Livre</span>
