@@ -15,13 +15,15 @@ type SearchResult = {
 /**
  * Entrada única da busca comum por palavra-chave.
  *
- * "iphone" é uma consulta de marketplace e precisa devolver várias ofertas reais.
- * Ordem das fontes: API do Mercado Livre usando a conta conectada, Firecrawl (quando
- * disponível), descoberta web real e Gemini apenas para reordenar candidatos existentes.
+ * Ordem das fontes:
+ * 1) API oficial do Mercado Livre usando a conta conectada;
+ * 2) somente se não houver nenhum item confirmado, a página pública
+ *    https://lista.mercadolivre.com.br/{termo};
+ * 3) somente se as duas anteriores não devolverem nada, redundâncias web.
+ *
  * Nenhum ID, URL ou anúncio pode ser criado pela IA.
- * Contrato legado da auditoria: marketplace-keyword-multi-offer.
  */
-const SEARCH_FLOW_VERSION = "ml-auth-firecrawl-grounded-rerank-v7-2026-09-02";
+const SEARCH_FLOW_VERSION = "ml-auth-public-page-fallback-rerank-v8-2026-09-02";
 
 function relevance(query: string, title: string) {
   const q = normalizeSearchText(query);
@@ -77,16 +79,17 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       version: SEARCH_FLOW_VERSION,
       query,
       desired,
-      strategy: "ml-auth-first-firecrawl-grounded-rerank",
+      strategy: "official-api-first-public-page-only-on-zero",
     });
 
     const byId = new Map<string, SearchMlItem>();
     let officialReason: string | null = null;
     let firecrawlError: string | null = null;
     let officialCount = 0;
+    let publicFallbackCount = 0;
+    let publicFallbackStatus: number | "network_error" | null = null;
 
-    // Primeira tentativa: usa os tokens reais da conta Mercado Livre conectada ao usuário.
-    // Esta camada só devolve itens ativos e confirmados pela própria API do ML.
+    // Caminho principal: somente itens que a descoberta oficial conseguiu confirmar.
     try {
       const { discoverPublicAds } = await import("@/lib/ml-discovery.server");
       const official = await discoverPublicAds(context.userId, query, desired);
@@ -97,19 +100,30 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       console.error("[ML authenticated discovery failed]", error instanceof Error ? error.message : String(error));
     }
 
-    const { firecrawlSearchMercadoLivre, firecrawlConfigured } = await import("@/lib/ml-firecrawl.server");
-    const firecrawlAvailable = firecrawlConfigured();
-
-    if (byId.size < desired && firecrawlAvailable) {
-      const outcome = await firecrawlSearchMercadoLivre(query, desired - byId.size);
-      firecrawlError = outcome.error;
-      for (const ad of outcome.ads) if (!byId.has(ad.id)) byId.set(ad.id, toItem(ad));
+    // Fallback solicitado: a página pública só entra quando a API não produziu
+    // nenhum resultado confirmado. Os MLBs continuam obrigatoriamente vindo do
+    // pathname de URLs reais do Mercado Livre.
+    if (byId.size === 0) {
+      const { searchMercadoLivrePublicSiteFallback } = await import("@/lib/ml-public-site-fallback.server");
+      const fallback = await searchMercadoLivrePublicSiteFallback(query, desired);
+      publicFallbackCount = fallback.items.length;
+      publicFallbackStatus = fallback.status;
+      addItems(byId, fallback.items);
     }
 
-    // Última redundância: URLs reais observadas na web; Gemini só pode ordenar índices.
-    if (byId.size < desired) {
+    // Redundâncias antigas só entram se API + página pública retornarem zero.
+    if (byId.size === 0) {
+      const { firecrawlSearchMercadoLivre, firecrawlConfigured } = await import("@/lib/ml-firecrawl.server");
+      if (firecrawlConfigured()) {
+        const outcome = await firecrawlSearchMercadoLivre(query, desired);
+        firecrawlError = outcome.error;
+        for (const ad of outcome.ads) if (!byId.has(ad.id)) byId.set(ad.id, toItem(ad));
+      }
+    }
+
+    if (byId.size === 0) {
       const { searchAdsWithGeminiGrounding } = await import("@/lib/ml-gemini-search.server");
-      const complement = await searchAdsWithGeminiGrounding(query, desired - byId.size).catch(() => [] as SearchMlItem[]);
+      const complement = await searchAdsWithGeminiGrounding(query, desired).catch(() => [] as SearchMlItem[]);
       addItems(byId, complement);
     }
 
@@ -125,20 +139,25 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       version: SEARCH_FLOW_VERSION,
       query,
       official_items: officialCount,
-      firecrawl_available: firecrawlAvailable,
+      public_fallback_status: publicFallbackStatus,
+      public_fallback_items: publicFallbackCount,
       final_items: items.length,
     });
+
+    const usedPublicFallback = officialCount === 0 && publicFallbackCount > 0;
 
     return {
       ok: items.length > 0,
       configured: true,
       reason: items.length
-        ? `${items.length} anúncio(s) real(is) do Mercado Livre encontrado(s) para “${query}”.`
-        : officialReason && !firecrawlAvailable
-          ? `${officialReason} As fontes web de redundância também não retornaram anúncios utilizáveis agora.`
+        ? usedPublicFallback
+          ? `${items.length} anúncio(s) encontrado(s) na busca pública do Mercado Livre porque a API oficial não devolveu ofertas confirmadas. Esses resultados preservam título, preço, vendedor quando disponível e link real do anúncio.`
+          : `${items.length} anúncio(s) real(is) do Mercado Livre encontrado(s) para “${query}”.`
+        : officialReason
+          ? `${officialReason} A busca pública do Mercado Livre também não retornou anúncios utilizáveis agora.`
           : firecrawlError
-            ? `Nenhuma oferta real pôde ser carregada para “${query}” agora. A coleta principal respondeu sem anúncios válidos e as fontes de redundância também não retornaram links utilizáveis.`
-            : `Nenhuma oferta real pôde ser carregada para “${query}” agora. A busca tentou a conta Mercado Livre conectada e as fontes web disponíveis sem fabricar anúncios ou códigos MLB.`,
+            ? `Nenhuma oferta real pôde ser carregada para “${query}” agora.`
+            : `Nenhuma oferta real pôde ser carregada para “${query}” agora.`,
       items,
     };
   });
