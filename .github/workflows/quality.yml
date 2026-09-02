@@ -30,12 +30,12 @@ jobs:
         run: bun run typecheck
       - name: Testes do parser de busca Mercado Livre
         run: bun run test:search
+      - name: Testes do callGemini
+        run: bun run test:gemini
       - name: Testes da coleta Firecrawl Mercado Livre
         run: bun run test:firecrawl
       - name: Regressões críticas de publicação e pagamento
         run: bun test tests/critical-publish-payment-contract.test.ts
-      - name: Testes do callGemini
-        run: bun run test:gemini
       - name: Auditoria de segurança
         run: bun run audit:security
       - name: Auditoria de botões e ações
