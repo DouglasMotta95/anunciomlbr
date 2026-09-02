@@ -42,7 +42,6 @@ function requestTarget(path: string) {
   const key = firecrawlKey();
   if (!key) return null;
   const lovableKey = process.env["LOVABLE_API_KEY"];
-  // Conexões gerenciadas do Lovable usam chave lovc_ + gateway; chaves fc- falam direto com a Firecrawl.
   if (key.startsWith("lovc_") && lovableKey) {
     return {
       url: `${GATEWAY_V2}${path}`,
@@ -119,6 +118,17 @@ function isMlUrl(value: string) {
   }
 }
 
+function mlItemIdFromPath(value: string) {
+  try {
+    const url = new URL(value);
+    if (!isMlUrl(url.toString())) return null;
+    const id = normalizeItemId(url.pathname);
+    return id && /^MLB\d+$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 function cleanPermalink(value: string) {
   try {
     const url = new URL(value);
@@ -130,7 +140,6 @@ function cleanPermalink(value: string) {
   }
 }
 
-/** "R$ 1.299" + centavos "90" => 129990 */
 function toCents(fraction: string | null | undefined, cents?: string | null) {
   if (!fraction) return null;
   const digits = fraction.replace(/[^\d]/g, "");
@@ -165,8 +174,8 @@ function pushAd(map: Map<string, FirecrawlAd>, ad: FirecrawlAd | null) {
 function buildAd(rawUrl: string | null, rawTitle: string | null, priceCents: number | null, image: string | null): FirecrawlAd | null {
   const url = httpsUrl(rawUrl);
   if (!url || !isMlUrl(url)) return null;
-  const id = normalizeItemId(url);
-  if (!id || !/^MLB\d+$/.test(id)) return null;
+  const id = mlItemIdFromPath(url);
+  if (!id) return null;
   const title = (rawTitle ?? "").replace(/\s+/g, " ").trim().slice(0, 220);
   if (title.length < 3) return null;
   return {
@@ -178,7 +187,6 @@ function buildAd(rawUrl: string | null, rawTitle: string | null, priceCents: num
   };
 }
 
-/** Divide o HTML da busca em blocos de card para casar título, preço e imagem do mesmo anúncio. */
 function splitCards(html: string) {
   const blocks = html.split(/<li\b/i).slice(1);
   if (blocks.length > 1) return blocks;
@@ -189,7 +197,7 @@ export function extractAdsFromHtml(html: string): FirecrawlAd[] {
   const found = new Map<string, FirecrawlAd>();
   for (const block of splitCards(html)) {
     const anchor = Array.from(block.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)).find(
-      (match) => !!normalizeItemId(decodeHtml(match[1] ?? "")),
+      (match) => !!mlItemIdFromPath(decodeHtml(match[1] ?? "")),
     );
     if (!anchor) continue;
     const href = decodeHtml(anchor[1] ?? "");
@@ -214,7 +222,7 @@ export function extractAdsFromMarkdown(markdown: string): FirecrawlAd[] {
     for (const match of line.matchAll(/\[([^\]]{0,300})\]\((https?:\/\/[^)\s]+)\)/g)) {
       const label = stripHtml(match[1] ?? "");
       const url = match[2] ?? "";
-      if (!normalizeItemId(url)) continue;
+      if (!mlItemIdFromPath(url)) continue;
       const context = lines.slice(index, index + 5).join(" ");
       const priceMatch = context.match(/R\$\s*([\d.]{1,15})(?:,(\d{2}))?/i);
       const imageMatch = (line.match(/!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)/) ?? context.match(/(https:\/\/http2\.mlstatic\.com\/[^\s)"']+)/))?.[1] ?? null;
@@ -249,7 +257,6 @@ function searchUrls(query: string) {
   return [`https://lista.mercadolivre.com.br/${slug}`, `https://lista.mercadolivre.com.br/${slug}_Desde_49`];
 }
 
-/** Raspa a página pública de resultados do Mercado Livre e devolve os anúncios reais encontrados. */
 export async function firecrawlSearchMercadoLivre(query: string, desired = 20): Promise<FirecrawlOutcome> {
   const statuses: number[] = [];
   if (!firecrawlConfigured()) {
