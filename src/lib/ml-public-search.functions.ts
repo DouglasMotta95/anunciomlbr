@@ -17,11 +17,11 @@ type SearchResult = {
  *
  * "iphone" é uma consulta de marketplace e precisa devolver várias ofertas reais.
  * Coleta principal: Firecrawl raspando a página pública de resultados do Mercado Livre.
- * Complemento: descoberta com auxílio do Gemini apenas para ampliar/ordenar candidatos reais.
- * Nada é inventado: cada item precisa de link real do Mercado Livre com ID MLB.
+ * Complemento: descoberta em páginas reais; Gemini somente reordena candidatos já coletados.
+ * Nada é inventado: cada item precisa de URL real do Mercado Livre com MLB no próprio pathname.
  * Contrato legado da auditoria: marketplace-keyword-multi-offer.
  */
-const SEARCH_FLOW_VERSION = "firecrawl-marketplace-keyword-v4-2026-09-02";
+const SEARCH_FLOW_VERSION = "real-url-candidates-gemini-rerank-v5-2026-09-02";
 
 function relevance(query: string, title: string) {
   const q = normalizeSearchText(query);
@@ -69,7 +69,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     const desired = Math.min(Math.max(data.limit ?? 20, 1), 50);
     const query = data.query.trim();
 
-    console.info("[ML public search]", { version: SEARCH_FLOW_VERSION, query, desired, strategy: "firecrawl-first" });
+    console.info("[ML public search]", { version: SEARCH_FLOW_VERSION, query, desired, strategy: "real-links-first-gemini-rerank" });
 
     const byId = new Map<string, SearchMlItem>();
 
@@ -84,7 +84,6 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     }
 
     if (byId.size < desired) {
-      // Complemento com descoberta assistida (Gemini/links reais) — nunca fonte única de dados.
       const { searchAdsWithGeminiGrounding } = await import("@/lib/ml-gemini-search.server");
       const complement = await searchAdsWithGeminiGrounding(query, desired).catch(() => [] as SearchMlItem[]);
       for (const item of complement) if (!byId.has(item.id)) byId.set(item.id, item);
@@ -99,7 +98,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       ok: items.length > 0,
       configured: true,
       reason: items.length
-        ? `${items.length} anúncio(s) real(is) do Mercado Livre Brasil encontrado(s) para “${query}”.`
+        ? `${items.length} anúncio(s) com link real do Mercado Livre encontrado(s) para “${query}”. A IA apenas reordena candidatos já coletados.`
         : firecrawlError ?? `Não foi possível carregar as ofertas do Mercado Livre para “${query}” agora.`,
       items,
     };
