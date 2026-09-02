@@ -4,7 +4,14 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type PublishOutcome =
-  | { ok: true; ml_item_id: string; permalink: string; remaining: number }
+  | {
+      ok: true;
+      ml_item_id: string;
+      permalink: string;
+      remaining: number;
+      publication_status: "active" | "paused";
+      warning?: string;
+    }
   | { ok: false; reason: string; code?: "quota" | "ml" };
 
 function validMlPermalink(providerPermalink: string | null | undefined) {
@@ -56,13 +63,18 @@ async function getRemainingAds(userId: string) {
  */
 export const publishListing = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((data: unknown) => z.object({ listing_id: z.string().uuid() }).parse(data))
+  .validator((data: unknown) =>
+    z.object({
+      listing_id: z.string().uuid(),
+      publication_status: z.enum(["active", "paused"]).default("active"),
+    }).parse(data),
+  )
   .handler(async ({ data, context }): Promise<PublishOutcome> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const adminListings = supabaseAdmin.from("listings") as any;
 
     const { data: existing, error: existingError } = await adminListings
-      .select("published_ml_id,published_permalink,publishing_claim_token,publishing_claimed_at")
+      .select("published_ml_id,published_permalink,publishing_claim_token,publishing_claimed_at,status")
       .eq("id", data.listing_id)
       .eq("user_id", context.userId)
       .maybeSingle();
@@ -86,6 +98,7 @@ export const publishListing = createServerFn({ method: "POST" })
         ml_item_id: String(existing.published_ml_id),
         permalink,
         remaining: await getRemainingAds(context.userId),
+        publication_status: existing.status === "paused" ? "paused" : "active",
       };
     }
 
@@ -97,8 +110,6 @@ export const publishListing = createServerFn({ method: "POST" })
       };
     }
 
-    // Claim atômico no banco. Se duas requisições chegarem juntas, apenas uma
-    // consegue trocar NULL por seu token; a outra recebe zero linhas atualizadas.
     const claimToken = globalThis.crypto.randomUUID();
     const claimedAt = new Date().toISOString();
     const { data: claim, error: claimError } = await adminListings
@@ -116,7 +127,7 @@ export const publishListing = createServerFn({ method: "POST" })
     }
     if (!claim) {
       const { data: raced } = await adminListings
-        .select("published_ml_id,published_permalink")
+        .select("published_ml_id,published_permalink,status")
         .eq("id", data.listing_id)
         .eq("user_id", context.userId)
         .maybeSingle();
@@ -128,6 +139,7 @@ export const publishListing = createServerFn({ method: "POST" })
             ml_item_id: String(raced.published_ml_id),
             permalink,
             remaining: await getRemainingAds(context.userId),
+            publication_status: raced.status === "paused" ? "paused" : "active",
           };
         }
       }
@@ -148,13 +160,11 @@ export const publishListing = createServerFn({ method: "POST" })
       if (error) console.error("listing publication claim release failed", error.message);
     };
 
-    const { publishListingToMl } = await import("./ml.server");
-    let result: Awaited<ReturnType<typeof publishListingToMl>>;
+    const { publishListingToMlWithStatus } = await import("./ml-publish-mode.server");
+    let result: Awaited<ReturnType<typeof publishListingToMlWithStatus>>;
     try {
-      result = await publishListingToMl(context.userId, data.listing_id);
+      result = await publishListingToMlWithStatus(context.userId, data.listing_id, data.publication_status);
     } catch (error) {
-      // Falha de rede é ambígua: o ML pode ter criado o anúncio e a resposta ter
-      // se perdido. Mantemos o claim para impedir um retry que poderia duplicá-lo.
       console.error("listing publication returned ambiguous network failure", {
         listingId: data.listing_id,
         message: error instanceof Error ? error.message : String(error),
@@ -167,7 +177,6 @@ export const publishListing = createServerFn({ method: "POST" })
     }
 
     if (!result.ok) {
-      // Uma resposta explícita de recusa do ML é segura para retry.
       await releaseClaim();
       return { ok: false, reason: result.reason, code: "ml" };
     }
@@ -175,7 +184,6 @@ export const publishListing = createServerFn({ method: "POST" })
     const permalink = await confirmPublishedPermalink(context.userId, result.mlItemId, result.permalink);
     if (!permalink) {
       console.error("listing published but permalink could not be verified", { listingId: data.listing_id, mlItemId: result.mlItemId });
-      // O item já foi criado. Mantemos o claim para bloquear qualquer retry destrutivo.
       return {
         ok: false,
         reason: `O Mercado Livre criou o anúncio ${result.mlItemId}, mas não foi possível confirmar o permalink real. Não publique novamente; procure pelo código informado na sua conta do Mercado Livre.`,
@@ -184,7 +192,7 @@ export const publishListing = createServerFn({ method: "POST" })
     }
 
     const persistence = {
-      status: "active",
+      status: result.status,
       published_ml_id: result.mlItemId,
       published_permalink: permalink,
       published_at: new Date().toISOString(),
@@ -207,8 +215,6 @@ export const publishListing = createServerFn({ method: "POST" })
         error: updateError?.message,
       });
 
-      // Segunda tentativa deliberadamente idempotente: apenas o mesmo claim pode
-      // vincular o MLB já criado; nunca chama POST /items novamente.
       const { data: recovered } = await adminListings
         .update(persistence)
         .eq("id", data.listing_id)
@@ -229,7 +235,14 @@ export const publishListing = createServerFn({ method: "POST" })
       user_id: context.userId,
       kind: "listing_published",
       message: `Anúncio publicado no Mercado Livre (${result.mlItemId})`,
-      meta: { listing_id: data.listing_id, ml_item_id: result.mlItemId, permalink },
+      meta: {
+        listing_id: data.listing_id,
+        ml_item_id: result.mlItemId,
+        permalink,
+        requested_status: data.publication_status,
+        final_status: result.status,
+        warning: result.warning ?? null,
+      },
     });
     if (activityError) console.error("listing publish activity log failed", activityError.message);
 
@@ -238,6 +251,8 @@ export const publishListing = createServerFn({ method: "POST" })
       ml_item_id: result.mlItemId,
       permalink,
       remaining: await getRemainingAds(context.userId),
+      publication_status: result.status,
+      ...(result.warning ? { warning: result.warning } : {}),
     };
   });
 
