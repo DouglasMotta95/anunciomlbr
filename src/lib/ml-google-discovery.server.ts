@@ -1,39 +1,19 @@
 /** Descoberta server-only de várias ofertas do Mercado Livre por palavra-chave.
  * A palavra digitada (ex.: "iphone") é uma consulta de marketplace, nunca um ID.
- * Priorizamos a página pública de resultados do Mercado Livre e usamos Gemini /
- * mecanismos de busca apenas como descoberta complementar de URLs reais.
+ * Esta camada somente coleta URLs reais observadas em páginas consultadas.
+ * Nenhum MLB encontrado apenas em texto, query string ou fragmento vira candidato.
  */
 
 import { normalizeItemId, normalizeSearchTerm, normalizeSearchText } from "@/lib/ml-search-input";
 
-const TIMEOUT_MS = 20_000;
 const SEARCH_TIMEOUT_MS = 10_000;
-const REDIRECT_TIMEOUT_MS = 6_000;
-const MAX_REDIRECTS = 6;
-const DEFAULT_MODEL = process.env["GEMINI_SEARCH_MODEL"] || process.env["GEMINI_MODEL"] || "gemini-2.5-flash";
 const WEB_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
-
-type GroundingWeb = { uri?: string; title?: string };
-type GeminiGroundingPayload = {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> };
-    groundingMetadata?: { groundingChunks?: Array<{ web?: GroundingWeb }> };
-  }>;
-};
 
 export type GroundedMlCandidate = {
   id: string;
-  url: string | null;
+  url: string;
   sourceTitle: string | null;
 };
-
-function apiKey() {
-  return process.env["GEMINI_API_KEY"] || process.env["GOOGLE_API_KEY"] || null;
-}
-
-function canonicalItemUrl(id: string) {
-  return `https://produto.mercadolivre.com.br/MLB-${id.replace(/^MLB/i, "")}`;
-}
 
 function decodeHtml(value: string) {
   return value
@@ -59,17 +39,26 @@ function isMercadoLivreUrl(value: string) {
   }
 }
 
-function directCandidate(value: string, title: string | null = null): GroundedMlCandidate | null {
-  if (!isMercadoLivreUrl(value)) return null;
-  const id = normalizeItemId(value);
-  if (!id || !/^MLB\d+$/.test(id)) return null;
-  return { id, url: value.replace(/^http:\/\//i, "https://"), sourceTitle: title?.trim() || null };
+/** O MLB é evidência somente quando aparece no caminho da própria URL real. */
+export function mlItemIdFromRealUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (!isMercadoLivreUrl(url.toString())) return null;
+    const id = normalizeItemId(url.pathname);
+    return id && /^MLB\d+$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
 }
 
-function idCandidate(value: string, title: string | null = null): GroundedMlCandidate | null {
-  const id = normalizeItemId(value);
-  if (!id || !/^MLB\d+$/.test(id)) return null;
-  return { id, url: canonicalItemUrl(id), sourceTitle: title?.trim() || null };
+function directCandidate(value: string, title: string | null = null): GroundedMlCandidate | null {
+  if (!isMercadoLivreUrl(value)) return null;
+  const id = mlItemIdFromRealUrl(value);
+  if (!id) return null;
+  const url = new URL(value.replace(/^http:\/\//i, "https://"));
+  url.search = "";
+  url.hash = "";
+  return { id, url: url.toString(), sourceTitle: title?.trim() || null };
 }
 
 function queryWords(value: string) {
@@ -97,12 +86,11 @@ function dedupe(candidates: GroundedMlCandidate[], limit: number, query: string)
     }
     byId.set(candidate.id, {
       id: candidate.id,
-      url: current.url ?? candidate.url,
+      url: current.url,
       sourceTitle: current.sourceTitle && current.sourceTitle.length > 4 ? current.sourceTitle : candidate.sourceTitle,
     });
   }
   return Array.from(byId.values())
-    .filter((item) => !!item.url)
     .filter((item) => relevance(query, item.sourceTitle) > 0)
     .sort((a, b) => relevance(query, b.sourceTitle) - relevance(query, a.sourceTitle))
     .slice(0, limit);
@@ -113,8 +101,12 @@ function unwrapSearchHref(raw: string, base: string): string | null {
   if (!value) return null;
   if (value.startsWith("//")) value = `https:${value}`;
   let resolved: URL;
-  try { resolved = new URL(value, base); } catch { return null; }
-  if (isMercadoLivreUrl(resolved.toString())) return resolved.toString();
+  try {
+    resolved = new URL(value, base);
+  } catch {
+    return null;
+  }
+  if (directCandidate(resolved.toString())) return resolved.toString();
 
   for (const key of ["q", "url", "uddg", "target", "r"]) {
     const nested = resolved.searchParams.get(key);
@@ -125,14 +117,16 @@ function unwrapSearchHref(raw: string, base: string): string | null {
         const next = decodeURIComponent(decoded);
         if (next === decoded) break;
         decoded = next;
-      } catch { break; }
+      } catch {
+        break;
+      }
     }
-    if (isMercadoLivreUrl(decoded)) return decoded;
+    if (directCandidate(decoded)) return decoded;
   }
   return null;
 }
 
-function parseSearchEngineHtml(html: string, base: string) {
+export function parseSearchEngineHtml(html: string, base: string) {
   const candidates: GroundedMlCandidate[] = [];
   for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     const href = unwrapSearchHref(match[1] ?? "", base);
@@ -149,17 +143,11 @@ function parseSearchEngineHtml(html: string, base: string) {
   return candidates;
 }
 
-function parseMarketplaceMarkdown(markdown: string) {
+export function parseMarketplaceMarkdown(markdown: string) {
   const candidates: GroundedMlCandidate[] = [];
   for (const match of markdown.matchAll(/\[([^\]]{3,220})\]\((https?:\/\/[^)]+)\)/g)) {
     const title = stripHtml(match[1] ?? "");
     const candidate = directCandidate(match[2] ?? "", title);
-    if (candidate) candidates.push(candidate);
-  }
-
-  // Jina às vezes preserva o MLB no texto mesmo quando o link é simplificado.
-  for (const match of markdown.matchAll(/\b(MLB[\s-]?\d{6,})\b/gi)) {
-    const candidate = idCandidate(match[1] ?? "");
     if (candidate) candidates.push(candidate);
   }
   return candidates;
@@ -184,7 +172,6 @@ async function discoverFromMarketplaceSearch(query: string, limit: number) {
     `https://lista.mercadolivre.com.br/comprar-${encodeURIComponent(slug)}`,
   ];
 
-  // A página de resultados é a fonte semântica principal: palavra-chave => várias ofertas.
   for (const marketplaceUrl of marketplaceUrls) {
     const readerUrls = [
       `https://r.jina.ai/${marketplaceUrl}`,
@@ -230,105 +217,23 @@ async function discoverFromSearchEngines(query: string, limit: number) {
   return dedupe(candidates, limit, query);
 }
 
-function parseStructuredLines(text: string) {
-  const parsed: GroundedMlCandidate[] = [];
-  for (const line of text.split(/\r?\n/)) {
-    const match = line.match(/\b(MLB[\s-]?\d{6,})\b\s*(?:\|\|\||\||-|—|:)\s*(.*)$/i);
-    if (!match) continue;
-    const id = normalizeItemId(match[1] ?? "");
-    if (!id) continue;
-    const parts = (match[2] ?? "").trim().split(/\s*\|\|\|\s*/);
-    const title = (parts[0] ?? "").replace(/^t[ií]tulo\s*[:=-]?\s*/i, "").trim();
-    const urlPart = parts.find((part) => /https?:\/\//i.test(part)) ?? "";
-    parsed.push((urlPart ? directCandidate(urlPart.trim(), title || null) : null) ?? idCandidate(id, title || null)!);
-  }
-  return parsed;
-}
-
-async function resolveGroundingUri(value: string, title: string | null) {
-  const direct = directCandidate(value, title);
-  if (direct) return direct;
-  let current = value;
-  for (let hop = 0; hop < MAX_REDIRECTS; hop += 1) {
-    let parsed: URL;
-    try { parsed = new URL(current); } catch { return null; }
-    const host = parsed.hostname.toLowerCase();
-    if (!(host === "vertexaisearch.cloud.google.com" || host.endsWith(".google.com") || host.endsWith(".googleusercontent.com"))) return null;
-    try {
-      const response = await fetch(current, { method: "GET", redirect: "manual", headers: { "User-Agent": WEB_UA }, signal: AbortSignal.timeout(REDIRECT_TIMEOUT_MS) });
-      const location = response.headers.get("location");
-      if (!location) return directCandidate(response.url, title);
-      current = new URL(location, current).toString();
-      const candidate = directCandidate(current, title);
-      if (candidate) return candidate;
-    } catch { return null; }
-  }
-  return null;
-}
-
-async function discoverWithGemini(query: string, limit: number) {
-  const key = apiKey();
-  if (!key) return [] as GroundedMlCandidate[];
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(DEFAULT_MODEL)}:generateContent`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text:
-          `Faça uma busca de MARKETPLACE por ${JSON.stringify(query)} no Mercado Livre Brasil. ` +
-          `A entrada é uma PALAVRA-CHAVE, não um código MLB. Encontre VÁRIOS anúncios/ofertas diferentes cujo título contenha ou seja claramente relacionado ao termo, como os resultados de lista.mercadolivre.com.br/${normalizeSearchTerm(query)}. ` +
-          `Retorne até ${limit} ofertas diferentes. Para cada oferta use uma linha: MLB1234567890 ||| TÍTULO DO ANÚNCIO ||| URL. ` +
-          `Use apenas URLs/IDs encontrados nas fontes do Google Search; não invente dados comerciais.` }]}],
-        tools: [{ google_search: {} }],
-        generationConfig: { temperature: 0, maxOutputTokens: 4096 },
-      }),
-    });
-    if (!response.ok) return [];
-    const payload = await response.json() as GeminiGroundingPayload;
-    const candidates: GroundedMlCandidate[] = [];
-    for (const candidate of payload.candidates ?? []) {
-      const text = candidate.content?.parts?.map((part) => part.text ?? "").join("\n") ?? "";
-      const structured = parseStructuredLines(text);
-      candidates.push(...structured);
-      const titleById = new Map(structured.map((item) => [item.id, item.sourceTitle]));
-      const resolved = await Promise.all((candidate.groundingMetadata?.groundingChunks ?? []).slice(0, limit * 3).map(async (chunk) => {
-        const uri = chunk.web?.uri;
-        if (!uri) return null;
-        const item = await resolveGroundingUri(uri, chunk.web?.title ?? null);
-        if (!item) return null;
-        return { ...item, sourceTitle: titleById.get(item.id) ?? item.sourceTitle };
-      }));
-      for (const item of resolved) if (item) candidates.push(item);
-    }
-    return dedupe(candidates, limit, query);
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
+/**
+ * Descoberta complementar sem geração: devolve somente candidatos cuja URL real
+ * foi observada nas páginas consultadas. Gemini não participa desta etapa.
+ */
 export async function discoverMlItemLinksWithGoogle(query: string, desired = 20): Promise<GroundedMlCandidate[]> {
   const limit = Math.max(5, Math.min(50, desired));
-
   const marketplace = await discoverFromMarketplaceSearch(query, limit);
   if (marketplace.length >= Math.min(limit, 10)) return marketplace;
 
-  const [gemini, engines] = await Promise.all([
-    discoverWithGemini(query, limit),
-    discoverFromSearchEngines(query, limit),
-  ]);
-
-  const combined = dedupe([...marketplace, ...gemini, ...engines], limit, query);
+  const engines = await discoverFromSearchEngines(query, limit);
+  const combined = dedupe([...marketplace, ...engines], limit, query);
   console.info("[ML keyword discovery]", {
     query,
     marketplace_candidates: marketplace.length,
-    gemini_candidates: gemini.length,
     search_engine_candidates: engines.length,
     final_candidates: combined.length,
+    generated_candidates: 0,
   });
   return combined;
 }
