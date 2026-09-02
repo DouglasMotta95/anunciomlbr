@@ -5,6 +5,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 
 describe("contrato de publicação Mercado Livre", () => {
   const publish = read("src/lib/publish.functions.ts");
+  const publishMode = read("src/lib/ml-publish-mode.server.ts");
   const ui = read("src/components/app/PublishButton.tsx");
   const listings = read("src/routes/_authenticated/anuncios.tsx");
   const migration = read("supabase/migrations/20260902165000_publish_permalink_and_claim.sql");
@@ -30,18 +31,55 @@ describe("contrato de publicação Mercado Livre", () => {
 
   test("retry de item já publicado não chama nova criação", () => {
     const existingGuard = publish.indexOf("if (existing.published_ml_id)");
-    const postCall = publish.indexOf("publishListingToMl(context.userId, data.listing_id)");
+    const postCall = publish.indexOf("publishListingToMlWithStatus(context.userId, data.listing_id, data.publication_status)");
     expect(existingGuard).toBeGreaterThan(-1);
     expect(postCall).toBeGreaterThan(existingGuard);
   });
 
+  test("publicação aceita ativo ou pausado e não duplica se a pausa falhar", () => {
+    expect(publish).toContain('z.enum(["active", "paused"])');
+    expect(publish).toContain("status: result.status");
+    expect(publishMode).toContain('body: JSON.stringify({ status: "paused" })');
+    expect(publishMode).toContain("nunca repetimos o POST /items");
+    expect(publishMode).toContain('status: "active"');
+    expect(ui).toContain("Publicar já ativo");
+    expect(ui).toContain("Publicar como pausado");
+  });
+
   test("UI só mostra sucesso quando backend retorna ok e mantém prova visível", () => {
     expect(ui).toContain('if (!res.ok)');
-    expect(ui).toContain("Publicado no Mercado Livre");
+    expect(ui).toContain("Publicado pausado no Mercado Livre");
+    expect(ui).toContain("Publicado ativo no Mercado Livre");
     expect(ui).toContain("Abrir anúncio no Mercado Livre");
     expect(listings).toContain("Rascunho — ainda não publicado");
     expect(listings).toContain("Abrir publicação criada");
     expect(listings).toContain("published_permalink");
+  });
+});
+
+describe("contrato da tela Buscar e copiar", () => {
+  const search = read("src/lib/ml-public-search.functions.ts");
+  const publicFallback = read("src/lib/ml-public-site-fallback.server.ts");
+  const buscar = read("src/routes/_authenticated/buscar.tsx");
+
+  test("site público só é usado quando a busca confirmada retorna zero", () => {
+    expect(search).toContain("if (byId.size === 0)");
+    expect(search).toContain("searchMercadoLivrePublicSiteFallback");
+    expect(publicFallback).toContain("https://lista.mercadolivre.com.br/");
+    expect(publicFallback).toContain("itemIdFromRealMlUrl");
+  });
+
+  test("cada card expõe ver anúncio e duplicar anúncio", () => {
+    expect(buscar).toContain("Ver anúncio");
+    expect(buscar).toContain("Duplicar anúncio");
+  });
+
+  test("duplicação só confirma depois de receber ID real e oferece link para o editor", () => {
+    expect(buscar).toContain("!result.id");
+    expect(buscar).toContain("Duplicação criada e confirmada");
+    expect(buscar).toContain("Duplicação criada no painel");
+    expect(buscar).toContain('to: "/editor/$id"');
+    expect(buscar).toContain("Duplicação não concluída");
   });
 });
 
