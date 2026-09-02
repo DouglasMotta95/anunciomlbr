@@ -42,9 +42,10 @@ expect("src/routes/api/public/ml/callback.ts", ["already_connected", '.eq("ml_us
 
 expect("src/lib/ml-discovery.server.ts", ["/sites/MLB/search", "strict_verified_marketplace_items", "marketplaceApiSearch", "verifyCandidates", "verified_item === true", 'item.status === "active"', "isMercadoLivrePermalink", "discoverMlItemLinksWithGoogle", 'source_kind: "marketplace"'], "busca comum exibe somente anúncios reais e validados do marketplace");
 expectNot("src/lib/ml-discovery.server.ts", ["/products/search?status=active&site_id=MLB&q=", "baseItem("], "busca comum não usa catálogo nem candidatos não validados");
-expect("src/lib/ml-google-discovery.server.ts", ["google_search", "GEMINI_API_KEY", "lista.mercadolivre.com.br", "site:produto.mercadolivre.com.br/MLB", "A entrada é uma PALAVRA-CHAVE", "Encontre VÁRIOS anúncios/ofertas diferentes", "discoverFromMarketplaceSearch"], "busca por palavra consulta marketplace e descobre várias ofertas reais");
-expectNot("src/lib/ml-google-discovery.server.ts", ["anúncios INDIVIDUAIS"], "busca por palavra não é tratada como item único");
-expect("src/lib/ml-public-search.functions.ts", ["marketplace-keyword-multi-offer", "consulta de marketplace", "várias ofertas"], "endpoint comum trata texto como palavra-chave de marketplace");
+expect("src/lib/ml-google-discovery.server.ts", ["lista.mercadolivre.com.br", "site:produto.mercadolivre.com.br/MLB", "mlItemIdFromRealUrl", "url.pathname", "discoverFromMarketplaceSearch", "generated_candidates: 0"], "descoberta por palavra aceita somente URLs reais com MLB no pathname");
+expectNot("src/lib/ml-google-discovery.server.ts", ["canonicalItemUrl", "idCandidate", "google_search", "GEMINI_API_KEY"], "descoberta não gera candidatos ou URLs com IA");
+expect("src/lib/ml-gemini-search.server.ts", ["applyCandidateOrder", "indexes", "não pode criar, alterar ou sugerir IDs, URLs, títulos ou novos candidatos", "discoverMlItemLinksWithGoogle"], "Gemini somente reordena candidatos previamente coletados");
+expect("src/lib/ml-public-search.functions.ts", ["marketplace-keyword-multi-offer", "consulta de marketplace", "várias ofertas", "real-url-candidates-gemini-rerank"], "endpoint comum trata texto como palavra-chave de marketplace");
 expect("src/routes/_authenticated/buscar.tsx", ["createListingDraft", "verified_item", "Comparar no ML", "normalizeSearchTerm", "Vendas só são exibidas"], "busca/cópia mostra somente métricas verificadas");
 expectNot("src/routes/_authenticated/buscar.tsx", ["Ranking:", "Trophy"], "busca não inventa ranking visual");
 
