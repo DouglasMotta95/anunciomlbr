@@ -479,7 +479,7 @@ async function resolveLink(raw: string): Promise<ResolvedLink> {
 
 export const searchMercadoLivre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(200).optional() }).parse(data))
+  .validator((data: unknown) => z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const limit = data.limit ?? 20;
     const tokens = await getTokens(context.userId);
@@ -502,7 +502,7 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
 
 export const searchMercadoLivreProducts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(200).optional() }).parse(data))
+  .validator((data: unknown) => z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
     if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para usar a busca.", items: [] };
@@ -513,7 +513,7 @@ export const searchMercadoLivreProducts = createServerFn({ method: "POST" })
 
 export const searchMercadoLivreSeller = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(200).optional() }).parse(data))
+  .validator((data: unknown) => z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
     if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para usar a busca.", items: [] };
@@ -523,7 +523,7 @@ export const searchMercadoLivreSeller = createServerFn({ method: "POST" })
 
 export const getMercadoLivreItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ id: z.string().trim().regex(/^MLB-?\d+$/i, "ID inválido. Use MLB1234567890.") }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().trim().regex(/^MLB-?\d+$/i, "ID inválido. Use MLB1234567890.") }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
     if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para consultar o anúncio.", items: [] };
@@ -533,7 +533,7 @@ export const getMercadoLivreItem = createServerFn({ method: "POST" })
 
 export const getMercadoLivreItemDescription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ id: z.string().trim().regex(/^MLB-?\d+$/i) }).parse(data))
+  .validator((data: unknown) => z.object({ id: z.string().trim().regex(/^MLB-?\d+$/i) }).parse(data))
   .handler(async ({ data, context }) => {
     const tokens = await getTokens(context.userId);
     if (!tokens.length) return { ok: false as const, description: null, reason: "Conecte sua conta do Mercado Livre." };
@@ -543,7 +543,7 @@ export const getMercadoLivreItemDescription = createServerFn({ method: "POST" })
 
 export const getMercadoLivreItemFromLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) => z.object({ link: z.string().trim().min(4).max(1000), limit: z.number().int().min(1).max(200).optional() }).parse(data))
+  .validator((data: unknown) => z.object({ link: z.string().trim().min(4).max(1000), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
     if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para consultar o link.", items: [] };

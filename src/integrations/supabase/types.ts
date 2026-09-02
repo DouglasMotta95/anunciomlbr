@@ -348,6 +348,7 @@ export type Database = {
           activated_at: string | null
           ads_quota: number | null
           ads_used: number
+          ai_credits_used: number
           code: string
           created_at: string
           created_by: string | null
@@ -366,6 +367,7 @@ export type Database = {
           activated_at?: string | null
           ads_quota?: number | null
           ads_used?: number
+          ai_credits_used?: number
           code: string
           created_at?: string
           created_by?: string | null
@@ -384,6 +386,7 @@ export type Database = {
           activated_at?: string | null
           ads_quota?: number | null
           ads_used?: number
+          ai_credits_used?: number
           code?: string
           created_at?: string
           created_by?: string | null
@@ -404,6 +407,32 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listing_quota_claims: {
+        Row: {
+          created_at: string
+          listing_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          listing_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          listing_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_quota_claims_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: true
+            referencedRelation: "listings"
             referencedColumns: ["id"]
           },
         ]
@@ -1389,6 +1418,18 @@ export type Database = {
           used: number
         }[]
       }
+      ai_credit_status: {
+        Args: { p_user_id: string }
+        Returns: {
+          credit_limit: number
+          remaining: number
+          used: number
+        }[]
+      }
+      claim_listing_quota: {
+        Args: { _listing_id: string; _user_id: string }
+        Returns: boolean
+      }
       consume_ad_quota: {
         Args: { _amount: number; _user_id: string }
         Returns: boolean
@@ -1402,6 +1443,7 @@ export type Database = {
           used: number
         }[]
       }
+      consume_coupon_use: { Args: { _code: string }; Returns: boolean }
       ensure_referral_code: { Args: never; Returns: string }
       generate_license_code: { Args: { _plan_code: string }; Returns: string }
       has_role: {
@@ -1439,8 +1481,19 @@ export type Database = {
         | "expired"
         | "suspended"
         | "cancelled"
-      listing_status: "draft" | "active" | "paused" | "error"
-      plan_kind: "subscription" | "ad_package" | "subscription_with_ad_limit"
+      listing_status:
+        | "draft"
+        | "active"
+        | "paused"
+        | "error"
+        | "closed"
+        | "under_review"
+        | "inactive"
+      plan_kind:
+        | "subscription"
+        | "ad_package"
+        | "subscription_with_ad_limit"
+        | "ai_package"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1456,12 +1509,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1485,11 +1538,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1510,11 +1563,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1535,11 +1588,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1552,11 +1605,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1586,8 +1639,21 @@ export const Constants = {
         "suspended",
         "cancelled",
       ],
-      listing_status: ["draft", "active", "paused", "error"],
-      plan_kind: ["subscription", "ad_package", "subscription_with_ad_limit"],
+      listing_status: [
+        "draft",
+        "active",
+        "paused",
+        "error",
+        "closed",
+        "under_review",
+        "inactive",
+      ],
+      plan_kind: [
+        "subscription",
+        "ad_package",
+        "subscription_with_ad_limit",
+        "ai_package",
+      ],
     },
   },
 } as const

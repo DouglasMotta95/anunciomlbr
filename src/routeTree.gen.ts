@@ -42,6 +42,7 @@ import { Route as AuthenticatedRevendedorRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSaudeAnunciosRouteImport } from './routes/_authenticated/saude-anuncios'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as CheckoutIndexRouteImport } from './routes/checkout/index'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout/success'
 import { Route as AuthenticatedEditorIdRouteImport } from './routes/_authenticated/editor.$id'
@@ -221,6 +222,11 @@ const AdminLoginRoute = AdminLoginRouteImport.update({
   path: '/admin/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
+} as any)
 const CheckoutIndexRoute = CheckoutIndexRouteImport.update({
   id: '/checkout/',
   path: '/checkout/',
@@ -256,7 +262,7 @@ const ApiPublicWebhooksMercadopagoRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/privacidade': typeof PrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
@@ -287,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/saude-anuncios': typeof AuthenticatedSaudeAnunciosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/checkout/': typeof CheckoutIndexRoute
   '/editor/$id': typeof AuthenticatedEditorIdRoute
@@ -296,7 +303,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/privacidade': typeof PrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
@@ -327,6 +334,7 @@ export interface FileRoutesByTo {
   '/saude-anuncios': typeof AuthenticatedSaudeAnunciosRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/checkout': typeof CheckoutIndexRoute
   '/editor/$id': typeof AuthenticatedEditorIdRoute
@@ -338,7 +346,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/privacidade': typeof PrivacidadeRoute
   '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
@@ -369,6 +377,7 @@ export interface FileRoutesById {
   '/_authenticated/saude-anuncios': typeof AuthenticatedSaudeAnunciosRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/admin/login': typeof AdminLoginRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/checkout/': typeof CheckoutIndexRoute
   '/_authenticated/editor/$id': typeof AuthenticatedEditorIdRoute
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/saude-anuncios'
     | '/vendas'
     | '/admin/login'
+    | '/auth/callback'
     | '/checkout/success'
     | '/checkout/'
     | '/editor/$id'
@@ -451,6 +461,7 @@ export interface FileRouteTypes {
     | '/saude-anuncios'
     | '/vendas'
     | '/admin/login'
+    | '/auth/callback'
     | '/checkout/success'
     | '/checkout'
     | '/editor/$id'
@@ -492,6 +503,7 @@ export interface FileRouteTypes {
     | '/_authenticated/saude-anuncios'
     | '/_authenticated/vendas'
     | '/admin/login'
+    | '/auth/callback'
     | '/checkout/success'
     | '/checkout/'
     | '/_authenticated/editor/$id'
@@ -503,7 +515,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   PrivacidadeRoute: typeof PrivacidadeRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   TermosRoute: typeof TermosRoute
@@ -748,6 +760,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/checkout/': {
       id: '/checkout/'
       path: '/checkout'
@@ -856,10 +875,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   PrivacidadeRoute: PrivacidadeRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   TermosRoute: TermosRoute,
