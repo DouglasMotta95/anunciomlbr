@@ -34,7 +34,6 @@ function isValidMercadoPagoSignature(request: Request, dataId: string, secret: s
 
   const rawTimestamp = Number(ts);
   if (!Number.isFinite(rawTimestamp) || rawTimestamp <= 0) return false;
-  // A documentação do Mercado Pago possui exemplos em 10 e 13 dígitos.
   const timestampMs = rawTimestamp < 1_000_000_000_000 ? rawTimestamp * 1000 : rawTimestamp;
   const maxAgeMs = 10 * 60 * 1000;
   if (Math.abs(Date.now() - timestampMs) > maxAgeMs) return false;
@@ -113,7 +112,7 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: payment, error: paymentError } = await supabaseAdmin
           .from("payments")
-          .select("id,user_id,plan_id,amount_cents,status")
+          .select("id,user_id,plan_id,amount_cents,status,raw")
           .eq("id", internalId)
           .maybeSingle();
 
@@ -131,8 +130,14 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           console.error("Mercado Pago amount mismatch", { paymentId, internalId });
           return json({ ok: false, reason: "amount_mismatch" }, 409);
         }
-        if (mpPayment.currency_id && mpPayment.currency_id !== "BRL") {
+        if (mpPayment.currency_id !== "BRL") {
           return json({ ok: false, reason: "currency_mismatch" }, 409);
+        }
+        if (mpPayment.external_reference && mpPayment.external_reference !== payment.id) {
+          return json({ ok: false, reason: "reference_mismatch" }, 409);
+        }
+        if (mpPayment.metadata?.payment_id && mpPayment.metadata.payment_id !== payment.id) {
+          return json({ ok: false, reason: "metadata_payment_mismatch" }, 409);
         }
         if (
           mpPayment.metadata?.user_id &&
@@ -149,14 +154,23 @@ export const Route = createFileRoute("/api/public/webhooks/mercadopago")({
           return json({ ok: false, reason: "plan_mismatch" }, 409);
         }
 
-        await supabaseAdmin
+        const preservedRaw =
+          payment.raw && typeof payment.raw === "object" && !Array.isArray(payment.raw)
+            ? (payment.raw as Record<string, unknown>)
+            : {};
+        const { error: updateError } = await supabaseAdmin
           .from("payments")
           .update({
             status: mpPayment.status ?? "unknown",
             provider_ref: paymentId,
-            raw: mpPayment as never,
+            raw: { ...preservedRaw, mercado_pago: mpPayment } as never,
           })
-          .eq("id", payment.id);
+          .eq("id", payment.id)
+          .eq("amount_cents", payment.amount_cents);
+        if (updateError) {
+          console.error("Mercado Pago webhook persistence failed", updateError.message);
+          return json({ ok: false, reason: "persistence_failed" }, 500);
+        }
 
         if (mpPayment.status !== "approved") {
           return json({ ok: true, status: mpPayment.status });
