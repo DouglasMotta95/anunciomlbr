@@ -1,6 +1,7 @@
 import type { SearchMlItem } from "@/lib/ml-search-production.functions";
 import { normalizeSearchText } from "@/lib/ml-search-input";
 import { discoverMlItemLinksWithGoogle } from "@/lib/ml-google-discovery.server";
+import { geminiGenerateJson } from "@/lib/gemini.server";
 
 const GENERIC_TITLES = new Set([
   "mercado livre",
@@ -32,9 +33,7 @@ function titleScore(query: string, title: string) {
   return Math.round((words.filter((word) => t.includes(word)).length / words.length) * 100);
 }
 
-function toSearchItem(candidate: Awaited<ReturnType<typeof discoverMlItemLinksWithGoogle>>[number]): SearchMlItem | null {
-  if (!candidate.url) return null;
-
+function toSearchItem(candidate: Awaited<ReturnType<typeof discoverMlItemLinksWithGoogle>>[number]): SearchMlItem {
   return {
     id: candidate.id,
     title: cleanSourceTitle(candidate.sourceTitle, candidate.id),
@@ -55,13 +54,47 @@ function toSearchItem(candidate: Awaited<ReturnType<typeof discoverMlItemLinksWi
   };
 }
 
+/**
+ * Aplica uma ordenação devolvida por IA exclusivamente sobre itens já existentes.
+ * Índices inválidos, repetidos ou extras são descartados e nunca criam candidatos.
+ */
+export function applyCandidateOrder<T>(candidates: T[], indexes: unknown, desired: number): T[] {
+  const ordered: T[] = [];
+  const seen = new Set<number>();
+  if (Array.isArray(indexes)) {
+    for (const value of indexes) {
+      if (!Number.isInteger(value)) continue;
+      const index = Number(value);
+      if (index < 0 || index >= candidates.length || seen.has(index)) continue;
+      seen.add(index);
+      ordered.push(candidates[index]!);
+      if (ordered.length >= desired) return ordered;
+    }
+  }
+  for (let index = 0; index < candidates.length && ordered.length < desired; index += 1) {
+    if (seen.has(index)) continue;
+    ordered.push(candidates[index]!);
+  }
+  return ordered;
+}
+
+async function rankWithGemini(query: string, items: SearchMlItem[], desired: number) {
+  if (items.length <= 1) return items.slice(0, desired);
+  const payload = items.map((item, index) => ({ index, title: item.title }));
+  const response = await geminiGenerateJson<{ indexes?: unknown }>(
+    `Ordene os candidatos abaixo por relevância para a busca ${JSON.stringify(query)}. ` +
+      `Responda SOMENTE JSON no formato {"indexes":[0,1,2]}. ` +
+      `Você não pode criar, alterar ou sugerir IDs, URLs, títulos ou novos candidatos. ` +
+      `Use apenas índices presentes nesta lista:\n${JSON.stringify(payload)}`,
+    { temperature: 0, maxOutputTokens: 512 },
+  );
+  if (!response.ok) return items.slice().sort((a, b) => titleScore(query, b.title) - titleScore(query, a.title)).slice(0, desired);
+  return applyCandidateOrder(items, response.result.indexes, desired);
+}
+
 export async function searchAdsWithGeminiGrounding(query: string, desired = 20): Promise<SearchMlItem[]> {
   const requested = Math.max(5, Math.min(50, Math.max(desired * 2, 20)));
-  const grounded = await discoverMlItemLinksWithGoogle(query, requested);
-
-  return grounded
-    .map(toSearchItem)
-    .filter((item): item is SearchMlItem => item !== null)
-    .sort((a, b) => titleScore(query, b.title) - titleScore(query, a.title))
-    .slice(0, desired);
+  const discovered = await discoverMlItemLinksWithGoogle(query, requested);
+  const items = discovered.map(toSearchItem);
+  return rankWithGemini(query, items, desired);
 }
