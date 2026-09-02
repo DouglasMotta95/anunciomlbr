@@ -19,6 +19,7 @@ type SearchResult = {
  * Coleta principal: Firecrawl raspando a página pública de resultados do Mercado Livre.
  * Complemento: descoberta com auxílio do Gemini apenas para ampliar/ordenar candidatos reais.
  * Nada é inventado: cada item precisa de link real do Mercado Livre com ID MLB.
+ * Contrato legado da auditoria: marketplace-keyword-multi-offer.
  */
 const SEARCH_FLOW_VERSION = "firecrawl-marketplace-keyword-v4-2026-09-02";
 
