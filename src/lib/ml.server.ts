@@ -9,6 +9,21 @@ export type MlTokenState =
   | { ok: true; accessToken: string; mlUserId: string | null }
   | { ok: false; reason: string };
 
+export type MlListingStatus = "active" | "paused" | "closed" | "under_review" | "inactive";
+
+/**
+ * Converte o status real do Mercado Livre para o enum local.
+ * Um item que já existe no ML nunca deve virar rascunho por status desconhecido:
+ * nesse caso usamos `inactive`, que é conservador e não sugere publicação ativa.
+ */
+export function mapMlListingStatus(value: unknown): MlListingStatus {
+  const status = String(value ?? "").trim().toLowerCase();
+  if (status === "active" || status === "paused" || status === "closed" || status === "under_review" || status === "inactive") {
+    return status;
+  }
+  return "inactive";
+}
+
 /**
  * Devolve um access_token válido para o usuário, renovando via refresh_token
  * quando estiver expirado (ou a menos de 5 min de expirar).
@@ -274,7 +289,7 @@ export async function syncUserListings(userId: string, limit = 1000): Promise<Ml
         : [];
       const thumbnail = typeof item["thumbnail"] === "string" ? (item["thumbnail"] as string) : null;
       const images = pictures.length > 0 ? pictures : thumbnail ? [thumbnail] : [];
-      const mlStatus = String(item["status"] ?? "");
+      const mlStatus = item["status"];
 
       const values = {
         user_id: userId,
@@ -287,7 +302,7 @@ export async function syncUserListings(userId: string, limit = 1000): Promise<Ml
         source_ml_id: mlId,
         source_permalink: (item["permalink"] as string) ?? null,
         published_ml_id: mlId,
-        status: (mlStatus === "paused" ? "paused" : mlStatus === "active" ? "active" : "draft") as never,
+        status: mapMlListingStatus(mlStatus) as never,
         images: images as never,
         updated_at: new Date().toISOString(),
       };
