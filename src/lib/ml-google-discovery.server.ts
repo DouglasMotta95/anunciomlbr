@@ -5,6 +5,7 @@
  */
 
 import { normalizeItemId, normalizeSearchTerm, normalizeSearchText } from "@/lib/ml-search-input";
+import { discoverFromGroundedWeb } from "@/lib/ml-grounded-web-discovery.server";
 
 const SEARCH_TIMEOUT_MS = 10_000;
 const WEB_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
@@ -218,20 +219,30 @@ async function discoverFromSearchEngines(query: string, limit: number) {
 }
 
 /**
- * Descoberta complementar sem geração: devolve somente candidatos cuja URL real
- * foi observada nas páginas consultadas. Gemini não participa desta etapa.
+ * Descoberta complementar sem geração de candidatos: devolve somente URLs reais
+ * observadas no marketplace, mecanismos de busca ou metadados de grounding web.
+ * O texto gerado pelo Gemini continua proibido como fonte de ID/URL/título.
  */
 export async function discoverMlItemLinksWithGoogle(query: string, desired = 20): Promise<GroundedMlCandidate[]> {
   const limit = Math.max(5, Math.min(50, desired));
   const marketplace = await discoverFromMarketplaceSearch(query, limit);
   if (marketplace.length >= Math.min(limit, 10)) return marketplace;
 
-  const engines = await discoverFromSearchEngines(query, limit);
-  const combined = dedupe([...marketplace, ...engines], limit, query);
+  const [engines, grounded] = await Promise.all([
+    discoverFromSearchEngines(query, limit),
+    discoverFromGroundedWeb(query, limit).catch(() => []),
+  ]);
+  const groundedCandidates: GroundedMlCandidate[] = grounded.map((item) => ({
+    id: item.id,
+    url: item.url,
+    sourceTitle: item.sourceTitle,
+  }));
+  const combined = dedupe([...marketplace, ...engines, ...groundedCandidates], limit, query);
   console.info("[ML keyword discovery]", {
     query,
     marketplace_candidates: marketplace.length,
     search_engine_candidates: engines.length,
+    grounded_web_candidates: groundedCandidates.length,
     final_candidates: combined.length,
     generated_candidates: 0,
   });
