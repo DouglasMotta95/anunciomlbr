@@ -123,9 +123,9 @@ export const Route = createFileRoute("/api/public/ml/callback")({
 
         if (!mlUserId) return fail("identity_error");
 
-        // Uma conta de vendedor do Mercado Livre representa uma única operação.
-        // Impedimos que o mesmo seller seja conectado a dois usuários diferentes
-        // do ANÚNCIO ML, o que evita importar o mesmo catálogo em dois painéis.
+        // A checagem abaixo dá uma resposta amigável na maioria dos casos.
+        // A garantia contra duas conexões simultâneas fica no índice único parcial
+        // de ml_connections(ml_user_id) para registros connected=true.
         const { data: existingOwner, error: ownerLookupError } = await supabaseAdmin
           .from("ml_connections")
           .select("user_id")
@@ -175,6 +175,7 @@ export const Route = createFileRoute("/api/public/ml/callback")({
             message: connectionSaveError.message,
           });
           await supabaseAdmin.from("ml_tokens").delete().eq("user_id", userId);
+          if (connectionSaveError.code === "23505") return fail("already_connected");
           return fail("persist_error");
         }
 
