@@ -27,6 +27,16 @@ describe("extractAdsFromHtml", () => {
   test("ignora links sem ID MLB", () => {
     expect(extractAdsFromHtml(`<li><a href="https://www.mercadolivre.com.br/ofertas">Ofertas</a></li>`)).toHaveLength(0);
   });
+
+  test("ignora MLB presente apenas em query string", () => {
+    const html = `<li><a href="https://www.mercadolivre.com.br/ofertas?item=MLB1234567890">iPhone</a></li>`;
+    expect(extractAdsFromHtml(html)).toHaveLength(0);
+  });
+
+  test("ignora MLB presente apenas em fragmento", () => {
+    const html = `<li><a href="https://www.mercadolivre.com.br/ofertas#MLB1234567890">iPhone</a></li>`;
+    expect(extractAdsFromHtml(html)).toHaveLength(0);
+  });
 });
 
 describe("extractAdsFromMarkdown", () => {
@@ -40,5 +50,10 @@ describe("extractAdsFromMarkdown", () => {
     expect(ads).toHaveLength(1);
     expect(ads[0]!.id).toBe("MLB9876543210");
     expect(ads[0]!.price_cents).toBe(399900);
+  });
+
+  test("não transforma MLB solto em anúncio", () => {
+    const markdown = "Resultado relacionado: MLB1234567890 — iPhone 15";
+    expect(extractAdsFromMarkdown(markdown)).toHaveLength(0);
   });
 });
