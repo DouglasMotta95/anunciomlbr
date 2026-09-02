@@ -4,8 +4,22 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type PublishOutcome =
-  | { ok: true; ml_item_id: string; permalink: string | null; remaining: number }
+  | { ok: true; ml_item_id: string; permalink: string; remaining: number }
   | { ok: false; reason: string; code?: "quota" | "ml" };
+
+function publishedPermalink(mlItemId: string, providerPermalink: string | null | undefined) {
+  if (providerPermalink) {
+    try {
+      const url = new URL(providerPermalink);
+      const host = url.hostname.toLowerCase();
+      if (host === "mercadolivre.com.br" || host.endsWith(".mercadolivre.com.br") || host === "mercadolivre.com" || host.endsWith(".mercadolivre.com")) {
+        return url.toString();
+      }
+    } catch {}
+  }
+  const digits = mlItemId.replace(/^MLB-?/i, "").replace(/\D/g, "");
+  return `https://produto.mercadolivre.com.br/MLB-${digits}`;
+}
 
 async function getRemainingAds(userId: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -37,7 +51,7 @@ export const publishListing = createServerFn({ method: "POST" })
       return {
         ok: true,
         ml_item_id: String(existing.published_ml_id),
-        permalink: existing.source_permalink ?? null,
+        permalink: publishedPermalink(String(existing.published_ml_id), existing.source_permalink),
         remaining: await getRemainingAds(context.userId),
       };
     }
@@ -76,7 +90,7 @@ export const publishListing = createServerFn({ method: "POST" })
         return {
           ok: true,
           ml_item_id: String(raced.published_ml_id),
-          permalink: raced.source_permalink ?? null,
+          permalink: publishedPermalink(String(raced.published_ml_id), raced.source_permalink),
           remaining: await getRemainingAds(context.userId),
         };
       }
@@ -121,12 +135,13 @@ export const publishListing = createServerFn({ method: "POST" })
       return { ok: false, reason: result.reason, code: "ml" };
     }
 
+    const permalink = publishedPermalink(result.mlItemId, result.permalink);
     const { data: updated, error: updateError } = await adminListings
       .update({
         status: "active",
         published_ml_id: result.mlItemId,
         published_at: new Date().toISOString(),
-        source_permalink: result.permalink,
+        source_permalink: permalink,
         publishing_claim_token: null,
         publishing_claimed_at: null,
       })
@@ -153,14 +168,14 @@ export const publishListing = createServerFn({ method: "POST" })
       user_id: context.userId,
       kind: "listing_published",
       message: `Anúncio publicado no Mercado Livre (${result.mlItemId})`,
-      meta: { listing_id: data.listing_id, ml_item_id: result.mlItemId },
+      meta: { listing_id: data.listing_id, ml_item_id: result.mlItemId, permalink },
     });
     if (activityError) console.error("listing publish activity log failed", activityError.message);
 
     return {
       ok: true,
       ml_item_id: result.mlItemId,
-      permalink: result.permalink,
+      permalink,
       remaining: await getRemainingAds(context.userId),
     };
   });
