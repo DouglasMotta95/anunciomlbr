@@ -22,7 +22,6 @@ type ApiItem = {
   pictures?: Array<{ secure_url?: string; url?: string }>;
 };
 type SiteSearchBody = { results?: ApiItem[] };
-
 type Candidate = { id: string; permalink?: string | null };
 
 export type DiscoveryOutcome = {
@@ -87,6 +86,28 @@ function isMercadoLivrePermalink(value?: string | null) {
   }
 }
 
+/** Evidência de anúncio: o MLB precisa estar no pathname da própria URL real do ML. */
+export function itemIdFromRealMlUrl(value?: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (!isMercadoLivrePermalink(url.toString())) return null;
+    const id = normalizeItemId(url.pathname);
+    return id && /^MLB\d+$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function cleanRealMlPermalink(value?: string | null) {
+  const url = webUrl(value);
+  if (!url || !itemIdFromRealMlUrl(url)) return null;
+  const parsed = new URL(url);
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString();
+}
+
 function jsonLdCards(html: string, query: string) {
   const cards: PublicCard[] = [];
   const visit = (value: unknown) => {
@@ -95,8 +116,8 @@ function jsonLdCards(html: string, query: string) {
     const row = value as Record<string, unknown>;
     const rowItem = row["item"];
     const obj = (rowItem && typeof rowItem === "object" ? rowItem : row) as Record<string, unknown>;
-    const url = webUrl(typeof obj["url"] === "string" ? obj["url"] : typeof row["url"] === "string" ? row["url"] : null);
-    const id = itemId(url) ?? itemId(typeof obj["sku"] === "string" ? obj["sku"] : null) ?? itemId(typeof obj["productID"] === "string" ? obj["productID"] : null);
+    const url = cleanRealMlPermalink(typeof obj["url"] === "string" ? obj["url"] : typeof row["url"] === "string" ? row["url"] : null);
+    const id = itemIdFromRealMlUrl(url);
     const title = typeof obj["name"] === "string" ? obj["name"].trim() : "";
     if (id && url && title && relevant(query, title)) cards.push({ id, title, permalink: url });
     Object.values(row).forEach(visit);
@@ -110,8 +131,8 @@ function jsonLdCards(html: string, query: string) {
 function htmlCards(html: string, query: string) {
   const cards: PublicCard[] = [];
   for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-    const href = webUrl(match[1]);
-    const id = itemId(href) ?? itemId(match[0]);
+    const href = cleanRealMlPermalink(match[1]);
+    const id = itemIdFromRealMlUrl(href);
     if (!href || !id) continue;
     const block = match[0];
     const titleAttr = block.match(/(?:title|aria-label)=["']([^"']{3,220})["']/i)?.[1];
@@ -163,9 +184,10 @@ async function api(path: string, accessTokens: string[], statuses: number[]) {
 function apiToItem(row: ApiItem, fallbackPermalink?: string | null): SearchMlItem | null {
   const id = itemId(row.id);
   const title = row.title?.trim() ?? "";
-  const permalink = webUrl(row.permalink) ?? webUrl(fallbackPermalink);
+  const permalink = cleanRealMlPermalink(row.permalink) ?? cleanRealMlPermalink(fallbackPermalink);
+  const permalinkId = itemIdFromRealMlUrl(permalink);
   const price = priceCents(row.price);
-  if (!id || !/^MLB\d+$/.test(id) || row.site_id && row.site_id !== "MLB" || !title || !price || !permalink || !isMercadoLivrePermalink(permalink)) return null;
+  if (!id || !/^MLB\d+$/.test(id) || permalinkId !== id || row.site_id && row.site_id !== "MLB" || !title || !price || !permalink) return null;
   if (row.status && row.status !== "active") return null;
   const thumbnail = webUrl(row.thumbnail);
   const images = (row.pictures ?? []).map((picture) => webUrl(picture.secure_url ?? picture.url)).filter((value): value is string => !!value);
@@ -207,7 +229,9 @@ async function marketplaceApiSearch(query: string, desired: number, accessTokens
 
 async function verifyCandidates(query: string, candidates: Candidate[], accessTokens: string[], statuses: number[]) {
   const verified: SearchMlItem[] = [];
-  const unique = Array.from(new Map(candidates.map((candidate) => [candidate.id, candidate])).values());
+  const unique = Array.from(new Map(candidates
+    .filter((candidate) => itemIdFromRealMlUrl(candidate.permalink) === candidate.id)
+    .map((candidate) => [candidate.id, candidate])).values());
   for (let offset = 0; offset < unique.length; offset += 20) {
     const batch = unique.slice(offset, offset + 20);
     const body = await api(`/items?ids=${encodeURIComponent(batch.map((candidate) => candidate.id).join(","))}`, accessTokens, statuses);
@@ -262,7 +286,7 @@ export async function discoverPublicAds(userId: string, query: string, desired =
     const { discoverMlItemLinksWithGoogle } = await import("@/lib/ml-google-discovery.server");
     const grounded = await discoverMlItemLinksWithGoogle(query, Math.min(50, Math.max(desired * 2, 20)));
     googleCandidates = grounded.length;
-    const googleVerified = await verifyCandidates(query, grounded, accessTokens, statuses);
+    const googleVerified = await verifyCandidates(query, grounded.map((candidate) => ({ id: candidate.id, permalink: candidate.url })), accessTokens, statuses);
     result.push(...googleVerified.filter((item) => !result.some((existing) => existing.id === item.id)));
   }
 
@@ -275,7 +299,7 @@ export async function discoverPublicAds(userId: string, query: string, desired =
   }
 
   const items = Array.from(new Map(result.map((item) => [item.id, item])).values())
-    .filter((item) => item.verified_item === true && item.status === "active" && item.price_cents != null && item.price_cents > 0 && !!item.permalink && isMercadoLivrePermalink(item.permalink) && relevant(query, item.title))
+    .filter((item) => item.verified_item === true && item.status === "active" && item.price_cents != null && item.price_cents > 0 && !!item.permalink && itemIdFromRealMlUrl(item.permalink) === item.id && relevant(query, item.title))
     .sort((a, b) => relevanceScore(query, b.title) - relevanceScore(query, a.title))
     .slice(0, desired);
 
