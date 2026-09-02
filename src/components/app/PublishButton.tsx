@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowUpRight, Loader2, PackagePlus, Rocket } from "lucide-react";
+import { ArrowUpRight, ExternalLink, Loader2, PackagePlus, Rocket } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -30,12 +30,19 @@ export function PublishButton({ listingId, disabled, preview }: { listingId: str
       await queryClient.invalidateQueries({ queryKey: ["ad-quota"] });
       await queryClient.invalidateQueries({ queryKey: ["listing", listingId] });
       await queryClient.invalidateQueries({ queryKey: ["listings"] });
-      toast.success("Anúncio publicado no Mercado Livre", { description: "Publicar um rascunho existente não consome outra unidade da sua franquia." });
+      toast.success(`Publicado no Mercado Livre · ${res.ml_item_id}`, {
+        description: "O anúncio foi confirmado pelo Mercado Livre. Use o botão abaixo para abrir e conferir a publicação.",
+        duration: 12000,
+        action: {
+          label: "Abrir no Mercado Livre",
+          onClick: () => window.open(res.permalink, "_blank", "noopener,noreferrer"),
+        },
+      });
     },
     onError: () => toast.error("Não foi possível publicar agora."),
   });
 
-  return <AlertDialog><AlertDialogTrigger asChild><Button size="sm" disabled={disabled || publish.isPending}>{publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Rocket className="mr-2 h-4 w-4"/>}Publicar no Mercado Livre</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Prévia final antes de publicar</AlertDialogTitle><AlertDialogDescription>Confira o anúncio que será enviado para sua conta do Mercado Livre. Publicar este rascunho não desconta outra unidade da franquia.</AlertDialogDescription></AlertDialogHeader>{preview&&<div className="grid gap-4 rounded-2xl border bg-muted/20 p-4 sm:grid-cols-[120px_1fr]">{preview.image?<img src={preview.image} alt={preview.title} className="aspect-square w-full rounded-xl border bg-white object-contain p-2"/>:<div className="flex aspect-square items-center justify-center rounded-xl bg-muted text-xs text-muted-foreground">Sem imagem</div>}<div><p className="font-semibold leading-5">{preview.title||"Anúncio sem título"}</p><p className="mt-2 text-2xl font-extrabold">{formatBRL(preview.priceCents)}</p>{preview.stock!=null&&<p className="mt-1 text-xs text-muted-foreground">Estoque: {preview.stock}</p>}</div></div>}<AlertDialogFooter><AlertDialogCancel>Voltar e revisar</AlertDialogCancel><AlertDialogAction disabled={publish.isPending} onClick={() => publish.mutate()}>{publish.isPending ? "Publicando..." : "Confirmar publicação"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>;
+  return <AlertDialog><AlertDialogTrigger asChild><Button size="sm" disabled={disabled || publish.isPending}>{publish.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Rocket className="mr-2 h-4 w-4"/>}Publicar no Mercado Livre</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Prévia final antes de publicar</AlertDialogTitle><AlertDialogDescription>Confira o anúncio que será enviado para sua conta do Mercado Livre. Após a confirmação, o sistema exibirá o código MLB e um link direto para você conferir a publicação real.</AlertDialogDescription></AlertDialogHeader>{preview&&<div className="grid gap-4 rounded-2xl border bg-muted/20 p-4 sm:grid-cols-[120px_1fr]">{preview.image?<img src={preview.image} alt={preview.title} className="aspect-square w-full rounded-xl border bg-white object-contain p-2"/>:<div className="flex aspect-square items-center justify-center rounded-xl bg-muted text-xs text-muted-foreground">Sem imagem</div>}<div><p className="font-semibold leading-5">{preview.title||"Anúncio sem título"}</p><p className="mt-2 text-2xl font-extrabold">{formatBRL(preview.priceCents)}</p>{preview.stock!=null&&<p className="mt-1 text-xs text-muted-foreground">Estoque: {preview.stock}</p>}<p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><ExternalLink className="h-3.5 w-3.5"/>O link real será mostrado após o Mercado Livre confirmar a publicação.</p></div></div>}<AlertDialogFooter><AlertDialogCancel>Voltar e revisar</AlertDialogCancel><AlertDialogAction disabled={publish.isPending} onClick={() => publish.mutate()}>{publish.isPending ? "Publicando..." : "Confirmar publicação"}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>;
 }
 
 export function AdQuotaBar() {
