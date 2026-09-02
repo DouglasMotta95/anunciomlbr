@@ -16,12 +16,12 @@ type SearchResult = {
  * Entrada única da busca comum por palavra-chave.
  *
  * "iphone" é uma consulta de marketplace e precisa devolver várias ofertas reais.
- * Coleta principal: Firecrawl raspando a página pública de resultados do Mercado Livre.
- * Complemento: descoberta em páginas reais; Gemini somente reordena candidatos já coletados.
- * Nada é inventado: cada item precisa de URL real do Mercado Livre com MLB no próprio pathname.
+ * Firecrawl é a fonte principal quando a credencial do projeto está disponível.
+ * Como redundância, a descoberta usa páginas reais, mecanismos de busca e grounding web.
+ * Gemini não pode criar candidatos: somente URLs reais com MLB no pathname são aceitas.
  * Contrato legado da auditoria: marketplace-keyword-multi-offer.
  */
-const SEARCH_FLOW_VERSION = "real-url-candidates-gemini-rerank-v5-2026-09-02";
+const SEARCH_FLOW_VERSION = "real-url-multisource-gemini-rerank-v6-2026-09-02";
 
 function relevance(query: string, title: string) {
   const q = normalizeSearchText(query);
@@ -69,15 +69,15 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     const desired = Math.min(Math.max(data.limit ?? 20, 1), 50);
     const query = data.query.trim();
 
-    console.info("[ML public search]", { version: SEARCH_FLOW_VERSION, query, desired, strategy: "real-links-first-gemini-rerank" });
+    console.info("[ML public search]", { version: SEARCH_FLOW_VERSION, query, desired, strategy: "real-links-multisource-gemini-rerank" });
 
     const byId = new Map<string, SearchMlItem>();
 
     const { firecrawlSearchMercadoLivre, firecrawlConfigured } = await import("@/lib/ml-firecrawl.server");
-    const configured = firecrawlConfigured();
-    let firecrawlError: string | null = configured ? null : "A coleta de anúncios (Firecrawl) ainda não está conectada neste projeto.";
+    const firecrawlAvailable = firecrawlConfigured();
+    let firecrawlError: string | null = null;
 
-    if (configured) {
+    if (firecrawlAvailable) {
       const outcome = await firecrawlSearchMercadoLivre(query, desired);
       firecrawlError = outcome.error;
       for (const ad of outcome.ads) if (!byId.has(ad.id)) byId.set(ad.id, toItem(ad));
@@ -94,12 +94,21 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       .sort((a, b) => relevance(query, b.title) - relevance(query, a.title))
       .slice(0, desired);
 
+    console.info("[ML public search result]", {
+      version: SEARCH_FLOW_VERSION,
+      query,
+      firecrawl_available: firecrawlAvailable,
+      items: items.length,
+    });
+
     return {
       ok: items.length > 0,
       configured: true,
       reason: items.length
-        ? `${items.length} anúncio(s) com link real do Mercado Livre encontrado(s) para “${query}”. A IA apenas reordena candidatos já coletados.`
-        : firecrawlError ?? `Não foi possível carregar as ofertas do Mercado Livre para “${query}” agora.`,
+        ? `${items.length} anúncio(s) com link real do Mercado Livre encontrado(s) para “${query}”.`
+        : firecrawlError
+          ? `Nenhuma oferta real pôde ser carregada para “${query}” agora. A coleta principal respondeu sem anúncios válidos e as fontes de redundância também não retornaram links utilizáveis.`
+          : `Nenhuma oferta real pôde ser carregada para “${query}” agora. A busca tentou as fontes web disponíveis sem fabricar anúncios ou códigos MLB.`,
       items,
     };
   });
