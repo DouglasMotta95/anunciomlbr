@@ -45,6 +45,26 @@ describe("contrato de publicação Mercado Livre", () => {
   });
 });
 
+describe("contrato de vínculo Mercado Livre", () => {
+  const callback = read("src/routes/api/public/ml/callback.ts");
+  const migration = read("supabase/migrations/20260902203000_unique_connected_ml_account.sql");
+
+  test("uma conta ML ativa pertence a um único login do ANÚNCIO ML", () => {
+    expect(callback).toContain('.eq("ml_user_id", mlUserId)');
+    expect(callback).toContain('.eq("connected", true)');
+    expect(callback).toContain('connectionSaveError.code === "23505"');
+    expect(callback).toContain('fail("already_connected")');
+    expect(migration).toContain("create unique index if not exists ml_connections_connected_ml_user_uidx");
+    expect(migration).toContain("where connected = true and ml_user_id is not null");
+  });
+
+  test("dedupe preserva anúncios locais e revoga somente o token da conexão secundária", () => {
+    expect(migration).toContain("set connected = false");
+    expect(migration).toContain("delete from public.ml_tokens");
+    expect(migration).not.toContain("delete from public.listings");
+  });
+});
+
 describe("contrato de confirmação Mercado Pago", () => {
   const licensing = read("src/lib/licensing.server.ts");
   const webhook = read("src/routes/api/public/webhooks/mercadopago.ts");
