@@ -24,11 +24,10 @@ export const publishListing = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ listing_id: z.string().uuid() }).parse(data))
   .handler(async ({ data, context }): Promise<PublishOutcome> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const adminListings = supabaseAdmin.from("listings") as any;
 
-    // Idempotência: uma repetição do clique/retry não pode criar outro anúncio no ML.
-    const { data: existing, error: existingError } = await context.supabase
-      .from("listings")
-      .select("published_ml_id, source_permalink")
+    const { data: existing, error: existingError } = await adminListings
+      .select("published_ml_id,source_permalink,publishing_claim_token,publishing_claimed_at")
       .eq("id", data.listing_id)
       .eq("user_id", context.userId)
       .maybeSingle();
@@ -42,21 +41,99 @@ export const publishListing = createServerFn({ method: "POST" })
         remaining: await getRemainingAds(context.userId),
       };
     }
+    if (existing.publishing_claim_token) {
+      return {
+        ok: false,
+        reason: "Este anúncio já está com uma publicação em andamento. Atualize a página antes de tentar novamente.",
+        code: "ml",
+      };
+    }
+
+    // Claim atômico no banco. Se duas requisições chegarem juntas, apenas uma
+    // consegue trocar NULL por seu token; a outra recebe zero linhas atualizadas.
+    const claimToken = globalThis.crypto.randomUUID();
+    const claimedAt = new Date().toISOString();
+    const { data: claim, error: claimError } = await adminListings
+      .update({ publishing_claim_token: claimToken, publishing_claimed_at: claimedAt })
+      .eq("id", data.listing_id)
+      .eq("user_id", context.userId)
+      .is("published_ml_id", null)
+      .is("publishing_claim_token", null)
+      .select("id")
+      .maybeSingle();
+
+    if (claimError) {
+      console.error("listing publication claim failed", claimError.message);
+      return { ok: false, reason: "Não foi possível reservar este anúncio para publicação.", code: "ml" };
+    }
+    if (!claim) {
+      const { data: raced } = await adminListings
+        .select("published_ml_id,source_permalink")
+        .eq("id", data.listing_id)
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (raced?.published_ml_id) {
+        return {
+          ok: true,
+          ml_item_id: String(raced.published_ml_id),
+          permalink: raced.source_permalink ?? null,
+          remaining: await getRemainingAds(context.userId),
+        };
+      }
+      return {
+        ok: false,
+        reason: "Este anúncio já está com uma publicação em andamento. Aguarde e atualize a página.",
+        code: "ml",
+      };
+    }
+
+    const releaseClaim = async () => {
+      const { error } = await adminListings
+        .update({ publishing_claim_token: null, publishing_claimed_at: null })
+        .eq("id", data.listing_id)
+        .eq("user_id", context.userId)
+        .eq("publishing_claim_token", claimToken)
+        .is("published_ml_id", null);
+      if (error) console.error("listing publication claim release failed", error.message);
+    };
 
     const { publishListingToMl } = await import("./ml.server");
-    const result = await publishListingToMl(context.userId, data.listing_id);
-    if (!result.ok) return { ok: false, reason: result.reason, code: "ml" };
+    let result: Awaited<ReturnType<typeof publishListingToMl>>;
+    try {
+      result = await publishListingToMl(context.userId, data.listing_id);
+    } catch (error) {
+      // Falha de rede é ambígua: o ML pode ter criado o anúncio e a resposta ter
+      // se perdido. Mantemos o claim para impedir um retry que poderia duplicá-lo.
+      console.error("listing publication returned ambiguous network failure", {
+        listingId: data.listing_id,
+        message: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        ok: false,
+        reason: "A comunicação com o Mercado Livre foi interrompida durante a publicação. Não publique novamente agora; atualize a página e confira sua conta do Mercado Livre.",
+        code: "ml",
+      };
+    }
 
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from("listings")
+    if (!result.ok) {
+      // Uma resposta explícita de recusa do ML é segura para retry.
+      await releaseClaim();
+      return { ok: false, reason: result.reason, code: "ml" };
+    }
+
+    const { data: updated, error: updateError } = await adminListings
       .update({
         status: "active",
         published_ml_id: result.mlItemId,
         published_at: new Date().toISOString(),
         source_permalink: result.permalink,
+        publishing_claim_token: null,
+        publishing_claimed_at: null,
       })
       .eq("id", data.listing_id)
       .eq("user_id", context.userId)
+      .eq("publishing_claim_token", claimToken)
+      .is("published_ml_id", null)
       .select("id")
       .maybeSingle();
 
