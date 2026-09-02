@@ -352,7 +352,7 @@ async function itemFromProduct(productId: string, accessToken: string): Promise<
 
 export const searchMercadoLivre = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         query: z.string().trim().min(1).max(120),
@@ -401,7 +401,7 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
 
 export const searchMercadoLivreProducts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         query: z.string().trim().min(1).max(120),
@@ -439,7 +439,7 @@ export const searchMercadoLivreProducts = createServerFn({ method: "POST" })
 
 export const searchMercadoLivreSeller = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         query: z.string().trim().min(2).max(120),
@@ -474,7 +474,7 @@ export const searchMercadoLivreSeller = createServerFn({ method: "POST" })
 
 export const getMercadoLivreItemFromLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z.object({ link: z.string().trim().url().max(600) }).parse(data),
   )
   .handler(async ({ data, context }): Promise<SearchResult> => {
@@ -582,7 +582,7 @@ export const disconnectMercadoLivre = createServerFn({ method: "POST" })
 
 export const getMercadoLivreItem = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data: unknown) =>
+  .validator((data: unknown) =>
     z
       .object({
         id: z
