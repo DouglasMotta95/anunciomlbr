@@ -7,18 +7,39 @@ export type PublishOutcome =
   | { ok: true; ml_item_id: string; permalink: string; remaining: number }
   | { ok: false; reason: string; code?: "quota" | "ml" };
 
-function publishedPermalink(mlItemId: string, providerPermalink: string | null | undefined) {
-  if (providerPermalink) {
-    try {
-      const url = new URL(providerPermalink);
-      const host = url.hostname.toLowerCase();
-      if (host === "mercadolivre.com.br" || host.endsWith(".mercadolivre.com.br") || host === "mercadolivre.com" || host.endsWith(".mercadolivre.com")) {
-        return url.toString();
-      }
-    } catch {}
+function validMlPermalink(providerPermalink: string | null | undefined) {
+  if (!providerPermalink) return null;
+  try {
+    const url = new URL(providerPermalink);
+    const host = url.hostname.toLowerCase();
+    const isMl = host === "mercadolivre.com.br" || host.endsWith(".mercadolivre.com.br") || host === "mercadolivre.com" || host.endsWith(".mercadolivre.com");
+    if (!isMl) return null;
+    return url.toString();
+  } catch {
+    return null;
   }
-  const digits = mlItemId.replace(/^MLB-?/i, "").replace(/\D/g, "");
-  return `https://produto.mercadolivre.com.br/MLB-${digits}`;
+}
+
+async function confirmPublishedPermalink(userId: string, mlItemId: string, candidate?: string | null) {
+  const direct = validMlPermalink(candidate);
+  if (direct) return direct;
+
+  const { getValidMlAccessToken } = await import("./ml.server");
+  const token = await getValidMlAccessToken(userId);
+  if (!token.ok) return null;
+
+  try {
+    const response = await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(mlItemId)}?attributes=id,permalink,status`, {
+      headers: { Authorization: `Bearer ${token.accessToken}`, Accept: "application/json" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { id?: string; permalink?: string };
+    if (String(payload.id ?? "") !== mlItemId) return null;
+    return validMlPermalink(payload.permalink);
+  } catch {
+    return null;
+  }
 }
 
 async function getRemainingAds(userId: string) {
@@ -41,20 +62,33 @@ export const publishListing = createServerFn({ method: "POST" })
     const adminListings = supabaseAdmin.from("listings") as any;
 
     const { data: existing, error: existingError } = await adminListings
-      .select("published_ml_id,source_permalink,publishing_claim_token,publishing_claimed_at")
+      .select("published_ml_id,published_permalink,publishing_claim_token,publishing_claimed_at")
       .eq("id", data.listing_id)
       .eq("user_id", context.userId)
       .maybeSingle();
     if (existingError) return { ok: false, reason: "Não foi possível validar o anúncio antes da publicação.", code: "ml" };
     if (!existing) return { ok: false, reason: "Anúncio não encontrado.", code: "ml" };
+
     if (existing.published_ml_id) {
+      const permalink = await confirmPublishedPermalink(context.userId, String(existing.published_ml_id), existing.published_permalink);
+      if (!permalink) {
+        return {
+          ok: false,
+          reason: `O anúncio ${existing.published_ml_id} já consta como publicado, mas o Mercado Livre não devolveu um permalink verificável agora. Nenhuma nova publicação foi criada.`,
+          code: "ml",
+        };
+      }
+      if (permalink !== existing.published_permalink) {
+        await adminListings.update({ published_permalink: permalink }).eq("id", data.listing_id).eq("user_id", context.userId);
+      }
       return {
         ok: true,
         ml_item_id: String(existing.published_ml_id),
-        permalink: publishedPermalink(String(existing.published_ml_id), existing.source_permalink),
+        permalink,
         remaining: await getRemainingAds(context.userId),
       };
     }
+
     if (existing.publishing_claim_token) {
       return {
         ok: false,
@@ -82,17 +116,20 @@ export const publishListing = createServerFn({ method: "POST" })
     }
     if (!claim) {
       const { data: raced } = await adminListings
-        .select("published_ml_id,source_permalink")
+        .select("published_ml_id,published_permalink")
         .eq("id", data.listing_id)
         .eq("user_id", context.userId)
         .maybeSingle();
       if (raced?.published_ml_id) {
-        return {
-          ok: true,
-          ml_item_id: String(raced.published_ml_id),
-          permalink: publishedPermalink(String(raced.published_ml_id), raced.source_permalink),
-          remaining: await getRemainingAds(context.userId),
-        };
+        const permalink = await confirmPublishedPermalink(context.userId, String(raced.published_ml_id), raced.published_permalink);
+        if (permalink) {
+          return {
+            ok: true,
+            ml_item_id: String(raced.published_ml_id),
+            permalink,
+            remaining: await getRemainingAds(context.userId),
+          };
+        }
       }
       return {
         ok: false,
@@ -135,16 +172,27 @@ export const publishListing = createServerFn({ method: "POST" })
       return { ok: false, reason: result.reason, code: "ml" };
     }
 
-    const permalink = publishedPermalink(result.mlItemId, result.permalink);
+    const permalink = await confirmPublishedPermalink(context.userId, result.mlItemId, result.permalink);
+    if (!permalink) {
+      console.error("listing published but permalink could not be verified", { listingId: data.listing_id, mlItemId: result.mlItemId });
+      // O item já foi criado. Mantemos o claim para bloquear qualquer retry destrutivo.
+      return {
+        ok: false,
+        reason: `O Mercado Livre criou o anúncio ${result.mlItemId}, mas não foi possível confirmar o permalink real. Não publique novamente; procure pelo código informado na sua conta do Mercado Livre.`,
+        code: "ml",
+      };
+    }
+
+    const persistence = {
+      status: "active",
+      published_ml_id: result.mlItemId,
+      published_permalink: permalink,
+      published_at: new Date().toISOString(),
+      publishing_claim_token: null,
+      publishing_claimed_at: null,
+    };
     const { data: updated, error: updateError } = await adminListings
-      .update({
-        status: "active",
-        published_ml_id: result.mlItemId,
-        published_at: new Date().toISOString(),
-        source_permalink: permalink,
-        publishing_claim_token: null,
-        publishing_claimed_at: null,
-      })
+      .update(persistence)
       .eq("id", data.listing_id)
       .eq("user_id", context.userId)
       .eq("publishing_claim_token", claimToken)
@@ -156,12 +204,25 @@ export const publishListing = createServerFn({ method: "POST" })
       console.error("listing published on ML but local persistence failed", {
         listingId: data.listing_id,
         mlItemId: result.mlItemId,
+        error: updateError?.message,
       });
-      return {
-        ok: false,
-        reason: `O anúncio foi criado no Mercado Livre (${result.mlItemId}), mas o painel não conseguiu salvar o vínculo. Não publique novamente; atualize a página e procure o anúncio pelo código informado.`,
-        code: "ml",
-      };
+
+      // Segunda tentativa deliberadamente idempotente: apenas o mesmo claim pode
+      // vincular o MLB já criado; nunca chama POST /items novamente.
+      const { data: recovered } = await adminListings
+        .update(persistence)
+        .eq("id", data.listing_id)
+        .eq("user_id", context.userId)
+        .eq("publishing_claim_token", claimToken)
+        .select("id")
+        .maybeSingle();
+      if (!recovered) {
+        return {
+          ok: false,
+          reason: `O anúncio foi criado no Mercado Livre (${result.mlItemId}), mas o painel não conseguiu salvar o vínculo. Não publique novamente; atualize a página e procure o anúncio pelo código informado.`,
+          code: "ml",
+        };
+      }
     }
 
     const { error: activityError } = await supabaseAdmin.from("activity_events").insert({
