@@ -31,18 +31,27 @@ export type FirecrawlOutcome = {
 };
 
 function firecrawlKey() {
-  return process.env["FIRECRAWL_API_KEY"] ?? null;
+  return process.env["FIRECRAWL_API_KEY"]?.trim() || null;
+}
+
+function lovableGatewayKey() {
+  return process.env["LOVABLE_API_KEY"]?.trim() || null;
 }
 
 export function firecrawlConfigured() {
-  return !!firecrawlKey();
+  const key = firecrawlKey();
+  if (!key) return false;
+  if (key.startsWith("lovc_")) return !!lovableGatewayKey();
+  return true;
 }
 
 function requestTarget(path: string) {
   const key = firecrawlKey();
   if (!key) return null;
-  const lovableKey = process.env["LOVABLE_API_KEY"];
-  if (key.startsWith("lovc_") && lovableKey) {
+
+  if (key.startsWith("lovc_")) {
+    const lovableKey = lovableGatewayKey();
+    if (!lovableKey) return null;
     return {
       url: `${GATEWAY_V2}${path}`,
       headers: {
@@ -52,6 +61,7 @@ function requestTarget(path: string) {
       } as Record<string, string>,
     };
   }
+
   return {
     url: `${DIRECT_V2}${path}`,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` } as Record<string, string>,
@@ -260,7 +270,7 @@ function searchUrls(query: string) {
 export async function firecrawlSearchMercadoLivre(query: string, desired = 20): Promise<FirecrawlOutcome> {
   const statuses: number[] = [];
   if (!firecrawlConfigured()) {
-    return { configured: false, ads: [], statuses, error: "Firecrawl não está configurado neste projeto." };
+    return { configured: false, ads: [], statuses, error: "Firecrawl não está configurado corretamente neste projeto." };
   }
 
   const found = new Map<string, FirecrawlAd>();
