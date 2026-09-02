@@ -30,6 +30,8 @@ jobs:
         run: bun run typecheck
       - name: Testes do parser de busca Mercado Livre
         run: bun run test:search
+      - name: Testes da coleta Firecrawl Mercado Livre
+        run: bun run test:firecrawl
       - name: Testes do callGemini
         run: bun run test:gemini
       - name: Auditoria de segurança
