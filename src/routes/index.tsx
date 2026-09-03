@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { VisitTracker } from "@/components/VisitTracker";
 import { MobileStickyCta, PlanPeriodComparisonSection } from "@/components/landing/ConversionSections";
 import { CreditsExplainer } from "@/components/landing/CreditsExplainer";
+import { InteractiveProductDemo } from "@/components/landing/InteractiveProductDemo";
 import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
 import { PlanPurchaseSection } from "@/components/landing/PlanPurchaseSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
@@ -42,6 +43,7 @@ function Landing() {
       <main>
         <PremiumHero />
         <ProductTrustBar />
+        <Reveal><InteractiveProductDemo /></Reveal>
         <Reveal><SalesShowcase /></Reveal>
         <Reveal><PremiumCapabilities /></Reveal>
         <Reveal><VerifiedFeaturesSection /></Reveal>
