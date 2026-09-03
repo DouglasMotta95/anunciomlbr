@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const WINDOW_15_MIN = 15 * 60 * 1000;
 const WINDOW_24_HOURS = 24 * 60 * 60 * 1000;
+const WINDOW_DEVICE_HISTORY = 365 * 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS_15_MIN = 5;
 const MAX_REGISTERED_PER_IP_24H = 3;
 
@@ -29,8 +30,7 @@ function requestIp() {
   const forwarded = cleanHeader(headers.get("x-forwarded-for"), 256);
   if (forwarded !== "unknown") return forwarded.split(",")[0]?.trim().slice(0, 64) || "unknown";
 
-  const real = cleanHeader(headers.get("x-real-ip"), 64);
-  return real;
+  return cleanHeader(headers.get("x-real-ip"), 64);
 }
 
 async function sha256(value: string) {
@@ -74,7 +74,7 @@ async function recentBy(column: "device_hash" | "ip_hash", value: string, since:
     .eq(column, value)
     .gte("created_at", since)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(100);
   if (error) throw new Error(`Proteção de cadastro indisponível: ${error.message}`);
   return (data ?? []) as EventRow[];
 }
@@ -88,8 +88,10 @@ export const checkRegistrationAbuse = createServerFn({ method: "POST" })
     const now = Date.now();
     const since15 = new Date(now - WINDOW_15_MIN).toISOString();
     const since24 = new Date(now - WINDOW_24_HOURS).toISOString();
+    const sinceDeviceHistory = new Date(now - WINDOW_DEVICE_HISTORY).toISOString();
     const email = normalizedEmail(data.email);
     const ip = requestIp();
+    const hasReliableIp = ip !== "unknown";
     const request = getRequest();
     const userAgent = cleanHeader(request?.headers?.get("user-agent") ?? null, 512);
 
@@ -100,14 +102,18 @@ export const checkRegistrationAbuse = createServerFn({ method: "POST" })
       privateHash("ua", userAgent),
     ]);
 
-    const [device24, ip24, device15, ip15] = await Promise.all([
-      recentBy("device_hash", deviceHash, since24),
-      recentBy("ip_hash", ipHash, since24),
-      recentBy("device_hash", deviceHash, since15),
-      recentBy("ip_hash", ipHash, since15),
+    const deviceHistoryPromise = recentBy("device_hash", deviceHash, sinceDeviceHistory);
+    const device15Promise = recentBy("device_hash", deviceHash, since15);
+    const ip24Promise = hasReliableIp ? recentBy("ip_hash", ipHash, since24) : Promise.resolve([] as EventRow[]);
+    const ip15Promise = hasReliableIp ? recentBy("ip_hash", ipHash, since15) : Promise.resolve([] as EventRow[]);
+    const [deviceHistory, ip24, device15, ip15] = await Promise.all([
+      deviceHistoryPromise,
+      ip24Promise,
+      device15Promise,
+      ip15Promise,
     ]);
 
-    const registeredOnDevice = device24.find((row) => row.status === "registered" && row.email_hash !== emailHash);
+    const registeredOnDevice = deviceHistory.find((row) => row.status === "registered" && row.email_hash !== emailHash);
     if (registeredOnDevice) {
       return {
         allowed: false as const,
@@ -118,7 +124,7 @@ export const checkRegistrationAbuse = createServerFn({ method: "POST" })
 
     const registeredOnIp = ip24.filter((row) => row.status === "registered");
     const distinctUsersOnIp = new Set(registeredOnIp.map((row) => row.user_id).filter(Boolean));
-    if (distinctUsersOnIp.size >= MAX_REGISTERED_PER_IP_24H) {
+    if (hasReliableIp && distinctUsersOnIp.size >= MAX_REGISTERED_PER_IP_24H) {
       return {
         allowed: false as const,
         code: "ip_registration_limit" as const,
@@ -126,7 +132,7 @@ export const checkRegistrationAbuse = createServerFn({ method: "POST" })
       };
     }
 
-    if (device15.length >= MAX_ATTEMPTS_15_MIN || ip15.length >= MAX_ATTEMPTS_15_MIN * 2) {
+    if (device15.length >= MAX_ATTEMPTS_15_MIN || (hasReliableIp && ip15.length >= MAX_ATTEMPTS_15_MIN * 2)) {
       return {
         allowed: false as const,
         code: "too_many_attempts" as const,
@@ -163,8 +169,7 @@ export const confirmRegistrationAbuse = createServerFn({ method: "POST" })
       .eq("reservation_token_hash", reservationTokenHash)
       .eq("status", "attempt")
       .gte("created_at", cutoff)
-      .select("id")
-      .limit(1);
+      .select("id");
 
     if (error) throw new Error(`Não foi possível concluir a proteção do cadastro: ${error.message}`);
     return { ok: Array.isArray(rows) && rows.length === 1 };
