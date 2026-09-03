@@ -7,7 +7,7 @@ import { normalizeItemId, normalizeSearchText } from "@/lib/ml-search-input";
 import type { SearchMlItem } from "@/lib/ml-search-production.functions";
 
 const ML_API = "https://api.mercadolibre.com";
-const SEARCH_FLOW_VERSION = "verified-parallel-firecrawl-enrich-v11-2026-09-03";
+const SEARCH_FLOW_VERSION = "verified-parallel-firecrawl-enrich-v12-2026-09-03";
 
 type SearchResult = {
   ok: boolean;
@@ -179,8 +179,34 @@ async function verifyCandidates(query: string, candidates: SearchMlItem[], token
   return verified;
 }
 
+function mergeSearchItem(existing: SearchMlItem, item: SearchMlItem): SearchMlItem {
+  const existingImages = existing.images ?? [];
+  const incomingImages = item.images ?? [];
+  const thumbnail = existing.thumbnail ?? item.thumbnail;
+  return {
+    ...existing,
+    price_cents: existing.price_cents ?? item.price_cents,
+    thumbnail,
+    permalink: existing.permalink ?? item.permalink,
+    category: existing.category ?? item.category,
+    seller: existing.seller ?? item.seller,
+    condition: existing.condition ?? item.condition,
+    available_quantity: existing.available_quantity ?? item.available_quantity,
+    sold_quantity: existing.sold_quantity ?? item.sold_quantity,
+    status: existing.status ?? item.status,
+    images: existingImages.length ? existingImages : incomingImages.length ? incomingImages : thumbnail ? [thumbnail] : [],
+    attributes: existing.attributes?.length ? existing.attributes : item.attributes ?? [],
+    source_kind: existing.source_kind ?? item.source_kind,
+    seller_id: existing.seller_id ?? item.seller_id,
+    verified_item: existing.verified_item === true || item.verified_item === true,
+  };
+}
+
 function addItems(target: Map<string, SearchMlItem>, items: SearchMlItem[]) {
-  for (const item of items) if (!target.has(item.id)) target.set(item.id, item);
+  for (const item of items) {
+    const existing = target.get(item.id);
+    target.set(item.id, existing ? mergeSearchItem(existing, item) : item);
+  }
 }
 
 function mergeEnrichment(verified: SearchMlItem[], enriched: Array<{ id: string; price_cents: number | null; thumbnail: string | null }>) {
@@ -224,7 +250,10 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     const [tokens, officialItems, fallback] = await Promise.all([tokensPromise, officialPromise, fallbackPromise]);
 
     const publicCandidates = fallback.items.filter((item) => strictSearchRelevanceScore(query, item.title) >= 120);
-    const incomplete = publicCandidates.filter((item) => !item.thumbnail || item.price_cents == null);
+    const incomplete = Array.from(new Map([...officialItems, ...publicCandidates]
+      .filter((item): item is Candidate => !!item.permalink && itemIdFromRealMlUrl(item.permalink) === item.id)
+      .filter((item) => !item.thumbnail || item.price_cents == null)
+      .map((item) => [item.id, item])).values());
 
     let firecrawlConfiguredFlag = false;
     let firecrawlCalled = false;
@@ -239,7 +268,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
           const outcome = await firecrawlEnrichMercadoLivreAds(incomplete.map((item) => ({
             id: item.id,
             title: item.title,
-            permalink: item.permalink!,
+            permalink: item.permalink,
             price_cents: item.price_cents,
             thumbnail: item.thumbnail,
           })));
@@ -252,7 +281,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     enrichmentItems = enriched;
 
     const byId = new Map<string, SearchMlItem>();
-    addItems(byId, officialItems);
+    addItems(byId, mergeEnrichment(officialItems, enriched));
     addItems(byId, mergeEnrichment(verifiedPublic, enriched));
 
     if (byId.size < Math.min(desired, 5)) {
@@ -294,12 +323,13 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       .filter((item) => item.verified_item === true)
       .filter((item) => item.status === "active")
       .filter((item) => !!item.permalink && itemIdFromRealMlUrl(item.permalink) === item.id)
-      .filter((item) => item.price_cents != null && item.price_cents > 0)
       .filter((item) => strictSearchRelevanceScore(query, item.title) >= 120)
       .sort((a, b) => {
         const score = strictSearchRelevanceScore(query, b.title) - strictSearchRelevanceScore(query, a.title);
         if (score) return score;
-        return Number(!!b.thumbnail) - Number(!!a.thumbnail);
+        const completenessB = Number(b.price_cents != null) + Number(!!b.thumbnail);
+        const completenessA = Number(a.price_cents != null) + Number(!!a.thumbnail);
+        return completenessB - completenessA;
       })
       .slice(0, desired);
 
@@ -316,6 +346,8 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       firecrawl_enriched_items: enrichmentItems.length,
       ml_verify_statuses: mlStatuses,
       final_items: items.length,
+      final_missing_price: items.filter((item) => item.price_cents == null).length,
+      final_missing_image: items.filter((item) => !item.thumbnail).length,
       final_without_confirmed_permalink: items.filter((item) => !item.permalink || itemIdFromRealMlUrl(item.permalink) !== item.id).length,
     });
 
