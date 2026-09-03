@@ -1,7 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, Link2, Loader2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, HeartPulse, Lightbulb, Link2, Loader2, Search, ShieldCheck, Sparkles, TrendingUp } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/app/AppShell";
@@ -9,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDateTime } from "@/lib/format";
 import {
   disconnectMercadoLivre,
   getMlConnection,
@@ -16,8 +19,6 @@ import {
 } from "@/lib/ml.functions";
 import { openMercadoLivreOAuthStart } from "@/lib/ml-oauth-client";
 import type { MlSyncResult } from "@/lib/ml.server";
-import { supabase } from "@/integrations/supabase/client";
-import { formatDateTime } from "@/lib/format";
 
 const title = "Conectar Mercado Livre — ANÚNCIO ML";
 const description =
@@ -30,7 +31,14 @@ type MlConnectionView = {
   listings_count?: number | null;
 };
 
-type OnboardingDestination = "/dashboard" | "/buscar";
+type OnboardingDestination = "/dashboard" | "/buscar" | "/oportunidades" | "/precificacao" | "/saude-anuncios";
+
+const goals = [
+  { id: "copy", title: "Buscar e copiar anúncios", text: "Encontrar referências e começar um rascunho.", icon: Search, destination: "/buscar" as const },
+  { id: "improve", title: "Melhorar meus anúncios", text: "Encontrar pontos de melhoria com o Raio-X.", icon: HeartPulse, destination: "/saude-anuncios" as const },
+  { id: "profit", title: "Entender preço e margem", text: "Simular preço antes de tomar uma decisão.", icon: TrendingUp, destination: "/precificacao" as const },
+  { id: "priorities", title: "Descobrir o que fazer primeiro", text: "Abrir a Central de Oportunidades e priorizar ações.", icon: Lightbulb, destination: "/oportunidades" as const },
+] as const;
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
@@ -49,6 +57,7 @@ function OnboardingPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const [selectedGoal, setSelectedGoal] = useState<(typeof goals)[number]["id"]>("copy");
   const fetchConnection = useServerFn(getMlConnection);
 
   const { data, isLoading } = useQuery({
@@ -109,11 +118,12 @@ function OnboardingPage() {
 
   const connected = !!connection?.connected;
   const finishing = finish.isPending || !user?.id;
+  const goal = goals.find((item) => item.id === selectedGoal) ?? goals[0];
 
   return (
     <AppShell
       title="Vamos configurar sua conta"
-      description="Três passos rápidos para começar a copiar e otimizar anúncios."
+      description="Conecte o Mercado Livre e escolha o que você quer fazer primeiro."
     >
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
@@ -189,21 +199,55 @@ function OnboardingPage() {
         </Card>
       </div>
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="text-base">2. Comece a usar</CardTitle>
+      <Card className="mt-4 overflow-hidden">
+        <CardHeader className="border-b border-border/70">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">2. O que você quer fazer primeiro?</CardTitle>
+              <p className="mt-1 text-xs text-muted-foreground">Vamos abrir o sistema já no ponto mais útil para o seu objetivo.</p>
+            </div>
+            <Badge variant="outline"><Sparkles className="mr-1 h-3.5 w-3.5" />Experiência personalizada</Badge>
+          </div>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Button onClick={() => finish.mutate("/dashboard")} disabled={finishing}>
-            {finish.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Ir para o dashboard
-          </Button>
-          <Button variant="outline" onClick={() => finish.mutate("/buscar")} disabled={finishing}>
-            Buscar meu primeiro anúncio
-          </Button>
-          <Button variant="ghost" onClick={() => finish.mutate("/dashboard")} disabled={finishing}>
-            Fazer depois
-          </Button>
+        <CardContent className="pt-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {goals.map((item) => {
+              const Icon = item.icon;
+              const selected = selectedGoal === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedGoal(item.id)}
+                  className={`group rounded-xl border p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${selected ? "border-primary/50 bg-primary/[.06] shadow-sm" : "border-border/70 bg-background"}`}
+                >
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${selected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}><Icon className="h-5 w-5" /></span>
+                  <p className="mt-4 text-sm font-black">{item.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.text}</p>
+                  <div className="mt-4 flex items-center gap-2 text-xs font-bold text-primary">{selected ? <CheckCircle2 className="h-4 w-4" /> : null}{selected ? "Selecionado" : "Escolher"}</div>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-4 border-primary/15 bg-primary/[.03]">
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.12em] text-primary">3. Entrar no ANÚNCIO ML</p>
+            <p className="mt-1 font-semibold">Seu primeiro destino: {goal.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Você pode acessar todos os outros módulos pelo menu a qualquer momento.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => finish.mutate(goal.destination)} disabled={finishing}>
+              {finish.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Começar agora
+            </Button>
+            <Button variant="ghost" onClick={() => finish.mutate("/dashboard")} disabled={finishing}>
+              Ir para visão geral
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </AppShell>
