@@ -60,13 +60,31 @@ describe("contrato de publicação Mercado Livre", () => {
 describe("contrato da tela Buscar e copiar", () => {
   const search = read("src/lib/ml-public-search.functions.ts");
   const publicFallback = read("src/lib/ml-public-site-fallback.server.ts");
+  const enrich = read("src/lib/ml-firecrawl-enrich.server.ts");
   const buscar = read("src/routes/_authenticated/buscar.tsx");
 
-  test("site público só é usado quando a busca confirmada retorna zero", () => {
-    expect(search).toContain("if (byId.size === 0)");
-    expect(search).toContain("searchMercadoLivrePublicSiteFallback");
+  test("API oficial e site público iniciam em paralelo e todo candidato é confirmado", () => {
+    expect(search).toContain("const officialPromise = tokensPromise.then");
+    expect(search).toContain("const fallbackPromise = searchMercadoLivrePublicSiteFallback");
+    expect(search).toContain("Promise.all([tokensPromise, officialPromise, fallbackPromise])");
+    expect(search).toContain("verifyCandidates(query, publicCandidates");
+    expect(search).toContain("item.verified_item === true");
+    expect(search).toContain("itemIdFromRealMlUrl(item.permalink) === item.id");
     expect(publicFallback).toContain("https://lista.mercadolivre.com.br/");
     expect(publicFallback).toContain("itemIdFromRealMlUrl");
+  });
+
+  test("Firecrawl completa dados faltantes visitando o permalink real", () => {
+    expect(search).toContain("const incomplete = publicCandidates.filter");
+    expect(search).toContain("firecrawlEnrichMercadoLivreAds");
+    expect(enrich).toContain("url: candidate.permalink");
+    expect(enrich).toContain("itemIdFromRealMlUrl(candidate.permalink) !== candidate.id");
+  });
+
+  test("grounding nunca entra direto na lista sem confirmação oficial", () => {
+    expect(search).toContain("searchAdsWithGeminiGrounding");
+    expect(search).toContain("verifyCandidates(query, groundedCandidates");
+    expect(search).not.toContain("addItems(byId, groundedCandidates)");
   });
 
   test("cada card expõe ver anúncio e duplicar anúncio", () => {
