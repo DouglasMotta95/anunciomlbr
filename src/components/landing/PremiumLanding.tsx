@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   PackageSearch,
+  Rocket,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
@@ -17,65 +18,72 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-const benefits = [
-  "Busque anúncios e produtos no Mercado Livre em uma única tela",
-  "Crie cópias editáveis sem sujar o título com “cópia” ou “copy”",
-  "Use IA para revisar título, descrição, atributos e qualidade do anúncio",
-  "Acompanhe anúncios, vendas, estoque e utilização do plano",
+const flow = [
+  { icon: PackageSearch, label: "Buscar", hint: "referências reais" },
+  { icon: Copy, label: "Copiar", hint: "rascunho editável" },
+  { icon: Wand2, label: "Otimizar", hint: "IA com contexto" },
+  { icon: Rocket, label: "Publicar", hint: "fluxo integrado" },
 ];
 
 export function PremiumHero() {
   return (
     <section className="relative overflow-hidden border-b border-border/60">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/.12),transparent_34%),radial-gradient(circle_at_85%_15%,hsl(var(--warning)/.09),transparent_28%)]" />
-      <div className="relative mx-auto grid max-w-6xl gap-12 px-4 py-16 lg:grid-cols-[.92fr_1.08fr] lg:items-center lg:py-24">
-        <div>
+      <div className="pointer-events-none absolute left-[8%] top-24 h-40 w-40 rounded-full bg-primary/10 blur-3xl motion-safe:animate-pulse" />
+      <div className="pointer-events-none absolute right-[8%] top-40 h-52 w-52 rounded-full bg-secondary/10 blur-3xl motion-safe:animate-pulse" />
+
+      <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-14 lg:grid-cols-[.88fr_1.12fr] lg:items-center lg:py-20">
+        <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-3 motion-safe:duration-700">
           <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
             <Zap className="mr-1.5 h-3.5 w-3.5" /> CENTRAL PARA VENDEDORES DO MERCADO LIVRE
           </Badge>
-          <h1 className="mt-5 text-balance text-4xl font-black leading-[1.03] tracking-tight sm:text-5xl lg:text-6xl">
-            Trabalhe seus anúncios mais rápido. <span className="text-gradient">Venda melhor no Mercado Livre.</span>
+          <h1 className="mt-5 text-balance text-4xl font-black leading-[1.02] tracking-tight sm:text-5xl lg:text-6xl">
+            Seu Mercado Livre, <span className="text-gradient">mais rápido e inteligente.</span>
           </h1>
           <p className="mt-5 max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg">
-            Busque referências, copie estruturas, edite, otimize com IA, publique e acompanhe sua operação em uma central feita para vendedores do Mercado Livre.
+            Da pesquisa à publicação, organize a operação em um painel visual feito para quem vende de verdade.
           </p>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            {benefits.map((benefit) => (
-              <div key={benefit} className="flex items-start gap-3 rounded-2xl border border-border/60 bg-surface/50 p-3.5">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary">
-                  <Check className="h-3.5 w-3.5" />
+          <div className="mt-7 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {flow.map((item, index) => (
+              <div
+                key={item.label}
+                className="group relative overflow-hidden rounded-2xl border border-border/60 bg-background/55 p-3 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:bg-surface/70 hover:shadow-lg"
+                style={{ animationDelay: `${index * 90}ms` }}
+              >
+                <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105">
+                  <item.icon className="h-4 w-4" />
                 </span>
-                <p className="text-sm font-medium leading-5 text-foreground/90">{benefit}</p>
+                <p className="text-sm font-extrabold">{item.label}</p>
+                <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{item.hint}</p>
+                {index < flow.length - 1 && <ArrowRight className="absolute right-2 top-2 hidden h-3.5 w-3.5 text-muted-foreground/40 sm:block" />}
               </div>
             ))}
           </div>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg" className="gap-2 font-bold shadow-glow">
+            <Button asChild size="lg" className="gap-2 font-bold shadow-glow transition-transform duration-200 hover:-translate-y-0.5">
               <Link to="/auth" search={{ mode: "signup" }}>
-                Começar agora — 10 anúncios grátis <ArrowRight className="h-4 w-4" />
+                Testar com 10 anúncios <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
-              <a href="#planos">Ver planos e preços</a>
+            <Button asChild size="lg" variant="outline" className="transition-transform duration-200 hover:-translate-y-0.5">
+              <a href="#planos">Ver planos</a>
             </Button>
           </div>
 
-          <p className="mt-3 text-xs font-medium text-muted-foreground">
-            Teste sem cartão · 10 anúncios grátis · integração oficial com Mercado Livre
-          </p>
-
-          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-success" /> OAuth do Mercado Livre</span>
-            <span className="inline-flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" /> IA aplicada sob demanda</span>
-            <span className="inline-flex items-center gap-1.5"><ShoppingBag className="h-4 w-4 text-primary" /> Dados reais no painel autenticado</span>
+          <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-success" /> OAuth oficial</span>
+            <span className="inline-flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" /> IA sob demanda</span>
+            <span className="inline-flex items-center gap-1.5"><ShoppingBag className="h-4 w-4 text-primary" /> Sem cartão no teste</span>
           </div>
         </div>
 
-        <div className="relative">
+        <div className="relative motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-700 lg:delay-150">
           <div className="absolute -inset-8 rounded-[40px] bg-primary/5 blur-3xl" />
-          <AppMockup className="relative" />
+          <div className="float-soft relative">
+            <AppMockup />
+          </div>
         </div>
       </div>
     </section>
@@ -92,9 +100,13 @@ export function ProductTrustBar() {
   return (
     <section className="border-b border-border/60 bg-surface/30 py-5">
       <div className="mx-auto grid max-w-6xl gap-3 px-4 sm:grid-cols-2 lg:grid-cols-4">
-        {items.map((item) => (
-          <div key={item.text} className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 text-xs font-medium text-muted-foreground">
-            <item.icon className="h-4 w-4 shrink-0 text-primary" />
+        {items.map((item, index) => (
+          <div
+            key={item.text}
+            className="group flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 text-xs font-medium text-muted-foreground transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-background/70 hover:text-foreground"
+            style={{ transitionDelay: `${index * 20}ms` }}
+          >
+            <item.icon className="h-4 w-4 shrink-0 text-primary transition-transform duration-300 group-hover:scale-110" />
             <span>{item.text}</span>
           </div>
         ))}
@@ -106,23 +118,23 @@ export function ProductTrustBar() {
 const capabilities = [
   {
     icon: PackageSearch,
-    title: "Buscar e trazer anúncios",
-    text: "Pesquise por palavra-chave, produto, ID, link ou vendedor e leve a estrutura do anúncio para dentro do ANÚNCIO ML.",
+    title: "Encontre o que importa",
+    text: "Pesquise por palavra-chave, produto, ID, link ou vendedor com confirmação antes de entrar na sua tela.",
   },
   {
     icon: Copy,
-    title: "Criar cópias de verdade",
-    text: "Duplique anúncios já salvos no sistema com imagens e atributos, mantendo o título limpo para edição.",
+    title: "Transforme em rascunho",
+    text: "Leve a estrutura para o painel e trabalhe em cima dela sem bagunçar o anúncio original.",
   },
   {
     icon: Wand2,
-    title: "Otimizar com contexto",
-    text: "A IA considera título, descrição, categoria, preço e atributos disponíveis antes de sugerir melhorias.",
+    title: "Melhore com contexto",
+    text: "Use IA sobre dados disponíveis do anúncio, sem depender de sugestões soltas e desconectadas.",
   },
   {
     icon: BarChart3,
-    title: "Acompanhar a operação",
-    text: "Veja anúncios ativos, utilização do plano, vendas sincronizadas e desempenho sem números fictícios na área do cliente.",
+    title: "Acompanhe a operação",
+    text: "Centralize anúncios, vendas, estoque, oportunidades e uso do plano em uma visão única.",
   },
 ];
 
@@ -131,22 +143,23 @@ export function PremiumCapabilities() {
     <section id="como-funciona" className="border-b border-border/60 bg-surface/20 py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4">
         <div className="mx-auto max-w-3xl text-center">
-          <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">COMO O ANÚNCIO ML AJUDA</Badge>
-          <h2 className="mt-4 text-balance text-3xl font-black sm:text-4xl">Do anúncio encontrado ao acompanhamento da operação</h2>
+          <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">FLUXO DE TRABALHO</Badge>
+          <h2 className="mt-4 text-balance text-3xl font-black sm:text-4xl">Menos troca de tela. Mais ação.</h2>
           <p className="mt-3 text-pretty leading-7 text-muted-foreground">
-            Quatro etapas claras para reduzir trabalho repetitivo e manter a operação organizada em um único painel.
+            O ANÚNCIO ML organiza o caminho do vendedor em etapas simples, visuais e conectadas.
           </p>
         </div>
 
         <div className="mt-10 grid gap-4 md:grid-cols-2">
           {capabilities.map((item, index) => (
-            <Card key={item.title} className="group overflow-hidden border-border/60 bg-background/70 transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-lg">
-              <CardContent className="p-6">
+            <Card key={item.title} className="group overflow-hidden border-border/60 bg-background/70 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
+              <CardContent className="relative p-6">
+                <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/5 blur-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                 <div className="flex items-start justify-between gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-all duration-300 group-hover:-translate-y-1 group-hover:scale-105">
                     <item.icon className="h-5 w-5" />
                   </span>
-                  <span className="font-display text-4xl font-black text-foreground/5">0{index + 1}</span>
+                  <span className="font-display text-4xl font-black text-foreground/5 transition-colors group-hover:text-primary/10">0{index + 1}</span>
                 </div>
                 <h3 className="mt-5 text-lg font-extrabold">{item.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{item.text}</p>
