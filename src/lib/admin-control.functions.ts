@@ -48,6 +48,69 @@ export const adminGetControlCenter = createServerFn({ method: "GET" })
     };
   });
 
+export const adminReleaseMlConnection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: unknown) => z.object({
+    user_id: z.string().uuid(),
+    ml_user_id: z.string().trim().min(1).max(80).nullable().optional(),
+  }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as any;
+
+    const { data: connection, error: lookupError } = await db
+      .from("ml_connections")
+      .select("user_id,ml_user_id,nickname,connected")
+      .eq("user_id", data.user_id)
+      .maybeSingle();
+    if (lookupError) throw new Error(`Falha ao localizar vínculo Mercado Livre: ${lookupError.message}`);
+    if (!connection) throw new Error("Vínculo Mercado Livre não encontrado para esse usuário.");
+    if (data.ml_user_id && connection.ml_user_id && String(connection.ml_user_id) !== data.ml_user_id) {
+      throw new Error("A conta Mercado Livre mudou desde que o painel foi carregado. Atualize a tela antes de tentar novamente.");
+    }
+
+    const now = new Date().toISOString();
+    const { error: disconnectError } = await db
+      .from("ml_connections")
+      .update({ connected: false, updated_at: now })
+      .eq("user_id", data.user_id);
+    if (disconnectError) throw new Error(`Falha ao liberar vínculo Mercado Livre: ${disconnectError.message}`);
+
+    // O token antigo precisa ser removido para impedir que o login antigo continue
+    // operando a conta depois de o administrador liberar o vínculo. Anúncios locais
+    // e histórico ficam preservados.
+    const { error: tokenError } = await db.from("ml_tokens").delete().eq("user_id", data.user_id);
+    if (tokenError) {
+      // Se o token não puder ser removido, restauramos o estado conectado para não
+      // deixar uma conta "liberada" ainda utilizável pelo usuário anterior.
+      await db.from("ml_connections").update({ connected: true, updated_at: new Date().toISOString() }).eq("user_id", data.user_id);
+      throw new Error(`Falha ao revogar token Mercado Livre: ${tokenError.message}`);
+    }
+
+    // Estados OAuth pendentes do usuário antigo deixam de ter utilidade após reset.
+    await db.from("ml_oauth_states").delete().eq("user_id", data.user_id);
+
+    await db.from("activity_events").insert({
+      user_id: context.userId,
+      kind: "admin_ml_binding_released",
+      message: `Vínculo Mercado Livre ${connection.nickname || connection.ml_user_id || "sem identificação"} liberado pelo administrador.`,
+      meta: {
+        target_user_id: data.user_id,
+        ml_user_id: connection.ml_user_id ?? null,
+        nickname: connection.nickname ?? null,
+        was_connected: Boolean(connection.connected),
+      },
+    });
+
+    return {
+      ok: true,
+      user_id: data.user_id,
+      ml_user_id: connection.ml_user_id ?? null,
+      nickname: connection.nickname ?? null,
+    };
+  });
+
 export const adminUpdatePlanFeatureFlags = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown)=>z.object({plan_id:z.string().uuid(),flags:z.record(z.enum(FEATURE_KEYS),z.boolean())}).parse(data))
