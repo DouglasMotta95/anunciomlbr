@@ -83,14 +83,15 @@ describe("contrato da tela Buscar e copiar", () => {
     expect(search).toContain("[...officialItems, ...publicCandidates]");
     expect(search).toContain("firecrawlEnrichMercadoLivreAds");
     expect(search).toContain("mergeEnrichment(officialItems, enriched)");
-    expect(search).toContain("mergeEnrichment(verifiedPublic, enriched)");
+    expect(search).toContain("mergeEnrichment(publicItems, enriched)");
     expect(enrich).toContain("url: candidate.permalink");
     expect(enrich).toContain("itemIdFromRealMlUrl(candidate.permalink) !== candidate.id");
   });
 
-  test("grounding nunca entra direto na lista sem confirmação oficial", () => {
+  test("grounding nunca entra direto na lista sem permalink real confirmado", () => {
     expect(search).toContain("searchAdsWithGeminiGrounding");
-    expect(search).toContain("verifyCandidates(query, groundedCandidates");
+    expect(search).toContain('confirmByPermalink(item, "gemini_grounding")');
+    expect(search).toContain("verifyCandidates(query, confirmedGrounded");
     expect(search).not.toContain("addItems(byId, groundedCandidates)");
   });
 
