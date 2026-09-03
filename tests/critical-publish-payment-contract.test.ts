@@ -63,12 +63,17 @@ describe("contrato da tela Buscar e copiar", () => {
   const enrich = read("src/lib/ml-firecrawl-enrich.server.ts");
   const buscar = read("src/routes/_authenticated/buscar.tsx");
 
-  test("API oficial e site público iniciam em paralelo e todo candidato é confirmado", () => {
-    expect(search).toContain("const officialPromise = tokensPromise.then");
-    expect(search).toContain("const fallbackPromise = searchMercadoLivrePublicSiteFallback");
-    expect(search).toContain("Promise.all([tokensPromise, officialPromise, fallbackPromise])");
+  test("conta conectada é exigida antes da busca paralela e todo candidato é confirmado", () => {
+    const connectionGuard = search.indexOf("if (!tokens.length)");
+    const officialStart = search.indexOf("const officialPromise = officialSearch");
+    const publicStart = search.indexOf("const fallbackPromise = searchMercadoLivrePublicSiteFallback");
+    expect(connectionGuard).toBeGreaterThan(-1);
+    expect(officialStart).toBeGreaterThan(connectionGuard);
+    expect(publicStart).toBeGreaterThan(connectionGuard);
+    expect(search).toContain("Promise.all([officialPromise, fallbackPromise])");
     expect(search).toContain("verifyCandidates(query, publicCandidates");
     expect(search).toContain("item.verified_item === true");
+    expect(search).toContain("isBrazilMlPermalink(item.permalink)");
     expect(search).toContain("itemIdFromRealMlUrl(item.permalink) === item.id");
     expect(publicFallback).toContain("https://lista.mercadolivre.com.br/");
     expect(publicFallback).toContain("itemIdFromRealMlUrl");
