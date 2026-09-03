@@ -7,7 +7,8 @@ import { normalizeItemId, normalizeSearchText } from "@/lib/ml-search-input";
 import type { SearchMlItem } from "@/lib/ml-search-production.functions";
 
 const ML_API = "https://api.mercadolibre.com";
-const SEARCH_FLOW_VERSION = "verified-parallel-firecrawl-enrich-v12-2026-09-03";
+const SEARCH_FLOW_VERSION = "public-ml-like-search-verified-v13-2026-09-03";
+const MIN_RELEVANCE = 100;
 
 type SearchResult = {
   ok: boolean;
@@ -38,33 +39,49 @@ type ApiItem = {
 
 type Candidate = SearchMlItem & { permalink: string };
 
-const STOP = new Set(["de", "da", "do", "das", "dos", "com", "para", "por", "e", "em", "o", "a"]);
+const STOP = new Set(["de", "da", "do", "das", "dos", "com", "para", "por", "e", "em", "o", "a", "um", "uma"]);
+const ACCESSORY_LEADS = new Set([
+  "adaptador", "adesivo", "cabo", "capa", "carregador", "case", "controle", "extensao", "kit", "livro", "manual", "pelicula", "protetor", "suporte",
+]);
 
 function words(value: string) {
   return normalizeSearchText(value).split(" ").filter((word) => word.length >= 2 && !STOP.has(word));
 }
 
-/** Relevância deliberadamente rígida para evitar resultados só incidentalmente relacionados. */
+/**
+ * Relevância genérica para funcionar como uma busca pública do Mercado Livre:
+ * aceita qualquer produto, exige os termos pesquisados no título e só pune
+ * resultados claramente acessórios quando a pesquisa é por um único produto/marca.
+ */
 export function strictSearchRelevanceScore(query: string, title: string) {
   const q = normalizeSearchText(query);
   const t = normalizeSearchText(title);
   if (!q || !t) return 0;
-  if (t === q) return 200;
-  if (t.startsWith(`${q} `)) return 180;
+  if (t === q) return 240;
+  if (t.startsWith(`${q} `)) return 220;
+  if (t.includes(` ${q} `) || t.endsWith(` ${q}`)) return 190;
 
   const queryWords = words(query);
   const titleWords = words(title);
   if (!queryWords.length || !titleWords.length) return 0;
 
   if (queryWords.length === 1) {
-    return titleWords[0] === queryWords[0] ? 160 : 0;
+    const needle = queryWords[0]!;
+    const position = titleWords.indexOf(needle);
+    if (position < 0) return 0;
+    if (position > 0 && ACCESSORY_LEADS.has(titleWords[0]!) && titleWords[0] !== needle) return 0;
+    return Math.max(110, 170 - position * 8);
   }
 
-  const matched = queryWords.filter((word) => titleWords.includes(word)).length;
-  if (matched !== queryWords.length) return 0;
-  const firstQueryWordAt = titleWords.indexOf(queryWords[0]!);
-  if (firstQueryWordAt > 1) return 0;
-  return t.includes(q) ? 150 : 120;
+  const positions = queryWords.map((word) => titleWords.indexOf(word));
+  if (positions.some((position) => position < 0)) return 0;
+
+  const ordered = positions.every((position, index) => index === 0 || position > positions[index - 1]!);
+  const firstPosition = positions[0]!;
+  const phraseBonus = t.includes(q) ? 35 : 0;
+  const orderBonus = ordered ? 20 : 0;
+  const startBonus = firstPosition === 0 ? 25 : firstPosition === 1 ? 15 : 0;
+  return 105 + phraseBonus + orderBonus + startBonus;
 }
 
 function cleanHttps(value?: string | null) {
@@ -147,18 +164,18 @@ async function mlGet(path: string, tokens: string[], statuses: number[]) {
 }
 
 async function officialSearch(query: string, desired: number, tokens: string[], statuses: number[]) {
-  const body = await mlGet(`/sites/MLB/search?q=${encodeURIComponent(query)}&limit=${Math.min(desired, 50)}`, tokens, statuses) as { results?: ApiItem[] } | null;
+  const body = await mlGet(`/sites/MLB/search?q=${encodeURIComponent(query)}&limit=${Math.min(Math.max(desired * 2, 20), 50)}`, tokens, statuses) as { results?: ApiItem[] } | null;
   return (Array.isArray(body?.results) ? body.results : [])
     .map((row) => confirmedApiItem(row))
     .filter((item): item is SearchMlItem => !!item)
-    .filter((item) => strictSearchRelevanceScore(query, item.title) >= 120)
+    .filter((item) => strictSearchRelevanceScore(query, item.title) >= MIN_RELEVANCE)
     .slice(0, desired);
 }
 
 async function verifyCandidates(query: string, candidates: SearchMlItem[], tokens: string[], statuses: number[]) {
   const valid = Array.from(new Map(candidates
     .filter((candidate): candidate is Candidate => !!candidate.permalink && itemIdFromRealMlUrl(candidate.permalink) === candidate.id)
-    .filter((candidate) => strictSearchRelevanceScore(query, candidate.title) >= 120)
+    .filter((candidate) => strictSearchRelevanceScore(query, candidate.title) >= MIN_RELEVANCE)
     .map((candidate) => [candidate.id, candidate])).values());
   if (!valid.length) return [] as SearchMlItem[];
 
@@ -173,7 +190,7 @@ async function verifyCandidates(query: string, candidates: SearchMlItem[], token
       if (!row) continue;
       const id = normalizeItemId(row.id ?? "");
       const item = confirmedApiItem(row, id ? byId.get(id) : undefined);
-      if (item && strictSearchRelevanceScore(query, item.title) >= 120) verified.push(item);
+      if (item && strictSearchRelevanceScore(query, item.title) >= MIN_RELEVANCE) verified.push(item);
     }
   }
   return verified;
@@ -224,6 +241,14 @@ function mergeEnrichment(verified: SearchMlItem[], enriched: Array<{ id: string;
   });
 }
 
+function resultQualityScore(item: SearchMlItem) {
+  return Number(item.price_cents != null) * 5
+    + Number(!!item.thumbnail) * 4
+    + Number(!!item.seller || !!item.seller_id) * 2
+    + Number(item.sold_quantity != null)
+    + Number(item.available_quantity != null);
+}
+
 export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => z.object({
@@ -240,16 +265,16 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       version: SEARCH_FLOW_VERSION,
       query,
       desired,
-      strategy: "official-and-public-parallel-verify-every-result",
+      strategy: "public-mercado-livre-like-search-verify-and-rank",
     });
 
     const { searchMercadoLivrePublicSiteFallback } = await import("@/lib/ml-public-site-fallback.server");
     const tokensPromise = accessTokens(context.userId);
     const officialPromise = tokensPromise.then((tokens) => officialSearch(query, desired, tokens, mlStatuses));
-    const fallbackPromise = searchMercadoLivrePublicSiteFallback(query, desired);
+    const fallbackPromise = searchMercadoLivrePublicSiteFallback(query, Math.min(desired * 2, 50));
     const [tokens, officialItems, fallback] = await Promise.all([tokensPromise, officialPromise, fallbackPromise]);
 
-    const publicCandidates = fallback.items.filter((item) => strictSearchRelevanceScore(query, item.title) >= 120);
+    const publicCandidates = fallback.items.filter((item) => strictSearchRelevanceScore(query, item.title) >= MIN_RELEVANCE);
     const incomplete = Array.from(new Map([...officialItems, ...publicCandidates]
       .filter((item): item is Candidate => !!item.permalink && itemIdFromRealMlUrl(item.permalink) === item.id)
       .filter((item) => !item.thumbnail || item.price_cents == null)
@@ -284,12 +309,12 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     addItems(byId, mergeEnrichment(officialItems, enriched));
     addItems(byId, mergeEnrichment(verifiedPublic, enriched));
 
-    if (byId.size < Math.min(desired, 5)) {
+    if (byId.size < Math.min(desired, 8)) {
       const { firecrawlSearchMercadoLivre, firecrawlConfigured } = await import("@/lib/ml-firecrawl.server");
       firecrawlConfiguredFlag = firecrawlConfiguredFlag || firecrawlConfigured();
       if (firecrawlConfigured()) {
         firecrawlCalled = true;
-        const outcome = await firecrawlSearchMercadoLivre(query, desired);
+        const outcome = await firecrawlSearchMercadoLivre(query, Math.min(desired * 2, 50));
         firecrawlStatuses.push(...outcome.statuses);
         const candidates = outcome.ads.map((ad): SearchMlItem => ({
           id: ad.id,
@@ -313,9 +338,9 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       }
     }
 
-    if (byId.size < Math.min(desired, 5)) {
+    if (byId.size < Math.min(desired, 8)) {
       const { searchAdsWithGeminiGrounding } = await import("@/lib/ml-gemini-search.server");
-      const groundedCandidates = await searchAdsWithGeminiGrounding(query, desired).catch(() => [] as SearchMlItem[]);
+      const groundedCandidates = await searchAdsWithGeminiGrounding(query, Math.min(desired * 2, 50)).catch(() => [] as SearchMlItem[]);
       addItems(byId, await verifyCandidates(query, groundedCandidates, tokens, mlStatuses));
     }
 
@@ -323,13 +348,13 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       .filter((item) => item.verified_item === true)
       .filter((item) => item.status === "active")
       .filter((item) => !!item.permalink && itemIdFromRealMlUrl(item.permalink) === item.id)
-      .filter((item) => strictSearchRelevanceScore(query, item.title) >= 120)
+      .filter((item) => strictSearchRelevanceScore(query, item.title) >= MIN_RELEVANCE)
       .sort((a, b) => {
-        const score = strictSearchRelevanceScore(query, b.title) - strictSearchRelevanceScore(query, a.title);
-        if (score) return score;
-        const completenessB = Number(b.price_cents != null) + Number(!!b.thumbnail);
-        const completenessA = Number(a.price_cents != null) + Number(!!a.thumbnail);
-        return completenessB - completenessA;
+        const relevance = strictSearchRelevanceScore(query, b.title) - strictSearchRelevanceScore(query, a.title);
+        if (relevance) return relevance;
+        const quality = resultQualityScore(b) - resultQualityScore(a);
+        if (quality) return quality;
+        return (b.sold_quantity ?? -1) - (a.sold_quantity ?? -1);
       })
       .slice(0, desired);
 
