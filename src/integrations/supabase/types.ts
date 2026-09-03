@@ -452,6 +452,9 @@ export type Database = {
           price_cents: number | null
           published_at: string | null
           published_ml_id: string | null
+          published_permalink: string | null
+          publishing_claim_token: string | null
+          publishing_claimed_at: string | null
           sku: string | null
           source_ml_id: string | null
           source_permalink: string | null
@@ -475,6 +478,9 @@ export type Database = {
           price_cents?: number | null
           published_at?: string | null
           published_ml_id?: string | null
+          published_permalink?: string | null
+          publishing_claim_token?: string | null
+          publishing_claimed_at?: string | null
           sku?: string | null
           source_ml_id?: string | null
           source_permalink?: string | null
@@ -498,6 +504,9 @@ export type Database = {
           price_cents?: number | null
           published_at?: string | null
           published_ml_id?: string | null
+          published_permalink?: string | null
+          publishing_claim_token?: string | null
+          publishing_claimed_at?: string | null
           sku?: string | null
           source_ml_id?: string | null
           source_permalink?: string | null
