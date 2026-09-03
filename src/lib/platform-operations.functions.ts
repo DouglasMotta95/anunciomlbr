@@ -7,21 +7,28 @@ const operationSchema = z.enum(["pause", "activate", "price_simulation", "stock_
 
 export const getPlatformFoundation = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = context.supabase as any;
-  const [accounts, members, operations, kits] = await Promise.all([
+  const [accounts, members, operations, kits, listings] = await Promise.all([
     db.from("seller_accounts").select("*").eq("owner_user_id", context.userId).order("created_at", { ascending: false }),
     db.from("workspace_members").select("*").eq("owner_user_id", context.userId).order("created_at", { ascending: false }),
     db.from("bulk_operations").select("*").eq("user_id", context.userId).order("created_at", { ascending: false }).limit(20),
     db.from("product_kits").select("*").eq("user_id", context.userId).order("created_at", { ascending: false }),
+    db.from("listings").select("id,title,ml_id,status,price_cents").eq("user_id", context.userId).order("updated_at", { ascending: false }).limit(200),
   ]);
-  return { accounts: accounts.data ?? [], members: members.data ?? [], operations: operations.data ?? [], kits: kits.data ?? [] };
+  return { accounts: accounts.data ?? [], members: members.data ?? [], operations: operations.data ?? [], kits: kits.data ?? [], listings: listings.data ?? [] };
 });
 
 export const syncPrimarySellerAccount = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = context.supabase as any;
   const { data: connection } = await db.from("ml_connections").select("ml_user_id,nickname,connected").eq("user_id", context.userId).maybeSingle();
   if (!connection?.ml_user_id) return { ok: false as const, reason: "missing_connection" };
-  const { error } = await db.from("seller_accounts").upsert({ owner_user_id: context.userId, ml_user_id: String(connection.ml_user_id), nickname: connection.nickname ?? null, label: connection.nickname || "Conta principal", status: connection.connected ? "connected" : "disconnected", is_primary: true, updated_at: new Date().toISOString() }, { onConflict: "owner_user_id,ml_user_id" });
-  if (error) return { ok: false as const, reason: error.message };
+  const mlUserId = String(connection.ml_user_id);
+  const values = { nickname: connection.nickname ?? null, label: connection.nickname || "Conta principal", status: connection.connected ? "connected" : "disconnected", is_primary: true, updated_at: new Date().toISOString() };
+  const { data: existing, error: lookupError } = await db.from("seller_accounts").select("id").eq("owner_user_id", context.userId).eq("ml_user_id", mlUserId).maybeSingle();
+  if (lookupError) return { ok: false as const, reason: lookupError.message };
+  const write = existing?.id
+    ? await db.from("seller_accounts").update(values).eq("id", existing.id).eq("owner_user_id", context.userId)
+    : await db.from("seller_accounts").insert({ owner_user_id: context.userId, ml_user_id: mlUserId, ...values });
+  if (write.error) return { ok: false as const, reason: write.error.message };
   return { ok: true as const };
 });
 
