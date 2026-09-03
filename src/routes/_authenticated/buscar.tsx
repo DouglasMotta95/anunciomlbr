@@ -242,7 +242,7 @@ function SearchPage() {
               <label className="sr-only" htmlFor="result-limit">Quantidade de resultados</label><select id="result-limit" value={resultLimit} onChange={e=>setResultLimit(Number(e.target.value))} className="h-14 rounded-2xl border bg-background px-3 text-sm font-semibold shadow-sm"><option value={20}>20 resultados</option><option value={50}>50 resultados</option></select>
               <Button type="submit" size="lg" className="h-14 rounded-2xl bg-yellow-400 px-6 text-black hover:bg-yellow-300" disabled={runSearch.isPending || query.trim().length < 2}>{runSearch.isPending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Search className="h-4 w-4"/>}{runSearch.isPending ? "Buscando..." : "Buscar"}</Button>
             </form>
-            <p className="mt-2 text-xs text-muted-foreground">Vendas só aparecem quando o Mercado Livre confirma esse dado pela API.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Vendas só são exibidas quando o Mercado Livre confirma esse dado pela API.</p>
           </div>
           <div className="grid gap-2 rounded-2xl border border-yellow-400/20 bg-background/75 p-4 backdrop-blur"><p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Encontre por</p><div className="grid gap-2 text-sm"><span className="rounded-xl bg-muted/60 px-3 py-2">Palavra-chave no marketplace</span><span className="rounded-xl bg-muted/60 px-3 py-2">ID do anúncio · MLB123...</span><span className="rounded-xl bg-muted/60 px-3 py-2">Link do Mercado Livre</span><span className="rounded-xl bg-muted/60 px-3 py-2">Vendedor · @NICKNAME ou ID</span></div></div>
         </div>
