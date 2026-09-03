@@ -1,24 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Layers3, ShieldCheck } from "lucide-react";
+import { AppShell } from "@/components/app/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getPlatformFoundation } from "@/lib/platform-operations.functions";
-
-export const Route = createFileRoute("/_authenticated/operacao-massa")({ component: BulkOperationsPage });
-
-function BulkOperationsPage() {
-  const load = useServerFn(getPlatformFoundation);
-  const [data, setData] = useState<any>(null);
-  useEffect(() => { void load().then(setData); }, [load]);
-  return <div className="space-y-6">
-    <div><p className="text-sm font-medium text-primary">Operação</p><h1 className="text-3xl font-semibold tracking-tight">Operações em massa</h1><p className="mt-2 max-w-3xl text-muted-foreground">Prepare ações sobre vários anúncios com validação de propriedade, lote auditável e simulação antes de qualquer escrita externa.</p></div>
-    <div className="grid gap-4 md:grid-cols-3">
-      <Card><CardHeader><CardTitle className="flex items-center gap-2"><Layers3 className="size-5"/>Lotes</CardTitle><CardDescription>Últimas operações registradas.</CardDescription></CardHeader><CardContent className="text-3xl font-semibold">{data?.operations?.length ?? "—"}</CardContent></Card>
-      <Card><CardHeader><CardTitle>Limite seguro</CardTitle><CardDescription>Até 200 anúncios por lote.</CardDescription></CardHeader><CardContent className="text-3xl font-semibold">200</CardContent></Card>
-      <Card><CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="size-5"/>Modo atual</CardTitle><CardDescription>Ações novas começam sem escrita externa.</CardDescription></CardHeader><CardContent className="font-medium">Simulação protegida</CardContent></Card>
-    </div>
-    <Card><CardHeader><CardTitle>Fluxo de produção</CardTitle><CardDescription>Selecione anúncios em Meus anúncios e use o lote para revisar pausa, ativação, preço, estoque ou cópia interna. A confirmação externa só deve ser liberada por operação depois dos guardrails específicos.</CardDescription></CardHeader><CardContent><Button asChild><Link to="/anuncios">Selecionar anúncios</Link></Button></CardContent></Card>
-  </div>;
-}
+import { createBulkOperation, getPlatformFoundation } from "@/lib/platform-operations.functions";
+export const Route=createFileRoute("/_authenticated/operacao-massa")({component:BulkOperationsPage});
+function BulkOperationsPage(){
+ const load=useServerFn(getPlatformFoundation),simulate=useServerFn(createBulkOperation);const[data,setData]=useState<any>(null),[selected,setSelected]=useState<string[]>([]),[operation,setOperation]=useState<"pause"|"activate"|"stock_review"|"listing_review"|"copy_draft">("listing_review"),[busy,setBusy]=useState(false),[message,setMessage]=useState("");const refresh=useCallback(async()=>setData(await load()),[load]);useEffect(()=>{void refresh()},[refresh]);function toggle(id:string){setSelected(v=>v.includes(id)?v.filter(x=>x!==id):[...v,id])}async function run(){if(!selected.length)return;setBusy(true);setMessage("");try{const r=await simulate({data:{operationType:operation,listingIds:selected}});setMessage(`Simulação registrada: ${r.result?.target_count??selected.length} anúncio(s), sem escrita externa.`);await refresh()}catch(e){setMessage(e instanceof Error?e.message:"Falha ao simular operação.")}finally{setBusy(false)}}
+ return <AppShell title="Operações em massa" description="Prepare lotes auditáveis com validação de propriedade antes de qualquer escrita externa."><div className="space-y-6"><div className="grid gap-4 md:grid-cols-3"><Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Layers3 className="size-5"/>Lotes</CardTitle><CardDescription>Últimas operações registradas.</CardDescription></CardHeader><CardContent className="text-3xl font-semibold">{data?.operations?.length??"—"}</CardContent></Card><Card><CardHeader><CardTitle className="text-base">Limite seguro</CardTitle><CardDescription>Até 200 anúncios por lote.</CardDescription></CardHeader><CardContent className="text-3xl font-semibold">200</CardContent></Card><Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldCheck className="size-5"/>Modo atual</CardTitle><CardDescription>Nenhuma ação desta tela escreve no ML.</CardDescription></CardHeader><CardContent className="font-medium">Simulação protegida</CardContent></Card></div><Card><CardHeader><CardTitle className="text-base">Preparar lote</CardTitle><CardDescription>Selecione os anúncios e registre a operação para revisão/auditoria.</CardDescription></CardHeader><CardContent className="space-y-4"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={operation} onChange={e=>setOperation(e.target.value as any)}><option value="listing_review">Revisar anúncios</option><option value="stock_review">Revisar estoque</option><option value="pause">Simular pausa</option><option value="activate">Simular ativação</option><option value="copy_draft">Simular cópia interna</option></select><div className="max-h-72 space-y-2 overflow-auto rounded-xl border p-3">{data?.listings?.map((l:any)=><label key={l.id} className="flex cursor-pointer items-center gap-3 rounded-lg border p-3"><input type="checkbox" checked={selected.includes(l.id)} onChange={()=>toggle(l.id)}/><span className="min-w-0"><span className="block truncate text-sm font-medium">{l.title}</span><span className="text-xs text-muted-foreground">{l.ml_id||"Rascunho interno"} · {l.status}</span></span></label>)}</div><div className="flex items-center gap-3"><Button onClick={()=>void run()} disabled={busy||!selected.length}>{busy?"Registrando...":`Simular lote (${selected.length})`}</Button>{message&&<p className="text-sm text-muted-foreground">{message}</p>}</div></CardContent></Card></div></AppShell>}
