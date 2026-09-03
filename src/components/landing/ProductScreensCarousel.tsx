@@ -15,10 +15,13 @@ const slides = [
   { id: "automation", title: "Automação", benefit: "Avalie regras com guardrails antes de executar.", icon: Bot },
 ] as const;
 
+type SlideId = (typeof slides)[number]["id"];
+
 export function ProductScreensCarousel() {
   const [index, setIndex] = useState(0);
   const [interacted, setInteracted] = useState(false);
   const touchStart = useRef<number | null>(null);
+  const active = slides[index] ?? slides[0];
 
   useEffect(() => {
     if (interacted || typeof window === "undefined" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -26,7 +29,6 @@ export function ProductScreensCarousel() {
     return () => window.clearInterval(timer);
   }, [interacted]);
 
-  const active = slides[index] ?? slides[0];
   const go = (next: number) => {
     setInteracted(true);
     setIndex((next + slides.length) % slides.length);
@@ -39,7 +41,7 @@ export function ProductScreensCarousel() {
           <div className="max-w-3xl">
             <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary"><Sparkles className="mr-1.5 h-3.5 w-3.5" /> TOUR VISUAL</Badge>
             <h2 className="mt-4 text-balance text-3xl font-black sm:text-5xl">Passe pelas principais telas do ANÚNCIO ML.</h2>
-            <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">Uma apresentação visual do produto para você entender como as áreas se conectam. Todos os números exibidos aqui são demonstrativos.</p>
+            <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">Cada tela mostra um momento vivo do fluxo. Os valores são demonstrativos e servem apenas para apresentar a experiência do produto.</p>
           </div>
           <div className="flex gap-2">
             <Button type="button" variant="outline" size="icon" aria-label="Slide anterior" onClick={() => go(index - 1)}><ArrowLeft className="h-4 w-4" /></Button>
@@ -48,7 +50,17 @@ export function ProductScreensCarousel() {
         </div>
 
         <div
-          className="mt-9 overflow-hidden rounded-[2rem] border border-border/70 bg-card shadow-[var(--shadow-panel)]"
+          className="mt-9 overflow-hidden rounded-[2rem] border border-border/70 bg-card shadow-[var(--shadow-panel)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+          role="region"
+          aria-roledescription="carrossel"
+          aria-label="Telas do ANÚNCIO ML"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowLeft") go(index - 1);
+            if (event.key === "ArrowRight") go(index + 1);
+          }}
+          onMouseEnter={() => setInteracted(true)}
+          onFocus={() => setInteracted(true)}
           onTouchStart={(event) => { touchStart.current = event.touches[0]?.clientX ?? null; }}
           onTouchEnd={(event) => {
             const start = touchStart.current;
@@ -60,31 +72,65 @@ export function ProductScreensCarousel() {
             go(distance < 0 ? index + 1 : index - 1);
           }}
         >
-          <div key={active.id} className="grid animate-in fade-in slide-in-from-right-3 duration-500 lg:grid-cols-[.34fr_.66fr]">
-            <div className="border-b border-border/70 bg-surface/30 p-6 sm:p-8 lg:border-b-0 lg:border-r">
+          <div key={active.id} className="grid motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-500 lg:grid-cols-[.34fr_.66fr]">
+            <div className="border-b border-border/70 bg-surface/30 p-5 sm:p-8 lg:border-b-0 lg:border-r">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><active.icon className="h-5 w-5" /></div>
-              <p className="mt-6 text-xs font-extrabold uppercase tracking-[.16em] text-primary">Slide {String(index + 1).padStart(2, "0")}</p>
+              <p className="mt-5 text-xs font-extrabold uppercase tracking-[.16em] text-primary">Slide {String(index + 1).padStart(2, "0")} · {String(slides.length).padStart(2, "0")}</p>
               <h3 className="mt-2 text-2xl font-black sm:text-3xl">{active.title}</h3>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">{active.benefit}</p>
-              <div className="mt-6 flex flex-wrap gap-1.5">{slides.map((slide, itemIndex) => <button key={slide.id} type="button" aria-label={`Abrir ${slide.title}`} onClick={() => go(itemIndex)} className={`h-1.5 rounded-full transition-all duration-300 ${itemIndex === index ? "w-8 bg-primary" : "w-3 bg-muted"}`} />)}</div>
+              <div className="mt-6 flex flex-wrap gap-1.5">{slides.map((slide, itemIndex) => <button key={slide.id} type="button" aria-label={`Abrir ${slide.title}`} aria-current={itemIndex === index ? "true" : undefined} onClick={() => go(itemIndex)} className={`h-2 rounded-full transition-all duration-300 ${itemIndex === index ? "w-9 bg-primary" : "w-3 bg-muted hover:bg-muted-foreground/40"}`} />)}</div>
               <p className="mt-5 text-[11px] font-semibold uppercase tracking-[.12em] text-muted-foreground">Dados ilustrativos</p>
             </div>
-            <div className="p-5 sm:p-7"><SlidePreview id={active.id} /></div>
+            <div className="min-w-0 p-4 sm:p-7"><SlidePreview id={active.id} /></div>
           </div>
         </div>
+        <p className="mt-3 text-center text-xs text-muted-foreground sm:hidden">Deslize para os lados para explorar as telas.</p>
       </div>
     </section>
   );
 }
 
-function SlidePreview({ id }: { id: (typeof slides)[number]["id"] }) {
-  if (id === "dashboard") return <div className="grid gap-3 sm:grid-cols-2"><Panel title="Receita · 30 dias" value="R$ 28,4 mil" /><Panel title="Saúde operacional" value="91/100" /><div className="sm:col-span-2 rounded-2xl border p-5"><p className="text-sm font-black">Desempenho</p><div className="mt-7 flex h-40 items-end gap-2">{[28,42,36,55,48,66,61,75,72,86,82,94].map((height,i)=><span key={i} className="flex-1 rounded-t bg-primary/25" style={{height:`${height}%`}} />)}</div></div></div>;
-  if (id === "opportunities") return <div className="space-y-3">{["Margem abaixo da meta","Estoque crítico","Anúncio com cadastro incompleto"].map((text,i)=><div key={text} className="flex items-center gap-3 rounded-2xl border p-4"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-xs font-black text-primary">0{i+1}</span><div className="flex-1"><p className="text-sm font-black">{text}</p><p className="text-xs text-muted-foreground">Exemplo de oportunidade operacional.</p></div><ArrowRight className="h-4 w-4 text-muted-foreground" /></div>)}</div>;
-  if (id === "market") return <div><div className="grid gap-3 sm:grid-cols-3"><Panel title="Preço mínimo" value="R$ 109" /><Panel title="Mediana" value="R$ 124" /><Panel title="Preço máximo" value="R$ 149" /></div><div className="mt-4 rounded-2xl border p-5"><div className="flex items-center gap-2 text-sm font-black"><BarChart3 className="h-4 w-4 text-primary" />Faixa de mercado</div><div className="mt-6 h-3 overflow-hidden rounded-full bg-muted"><div className="h-full w-[62%] rounded-full bg-primary" /></div></div></div>;
-  if (id === "competition") return <div className="space-y-4">{[["Sua oferta",72],["Concorrente A",88],["Concorrente B",61]].map(([label,value])=><div key={String(label)} className="rounded-2xl border p-4"><div className="mb-2 flex justify-between text-sm"><span className="font-semibold">{label}</span><span>{value}%</span></div><Progress value={Number(value)} /></div>)}</div>;
-  if (id === "pricing") return <div className="grid gap-3 sm:grid-cols-3"><Panel title="Preço simulado" value="R$ 129,90" /><Panel title="Margem" value="24,6%" /><Panel title="Resultado/unidade" value="R$ 31,95" /></div>;
-  if (id === "health") return <div className="grid gap-4 lg:grid-cols-[.4fr_.6fr]"><div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border bg-primary/[.05]"><HeartPulse className="h-6 w-6 text-primary" /><p className="mt-4 text-5xl font-black">85</p><p className="text-xs text-muted-foreground">score demonstrativo</p></div><div className="space-y-4 rounded-2xl border p-5">{[["Título",92],["Cadastro",84],["Apresentação",76],["Consistência",88]].map(([label,value])=><div key={String(label)}><div className="mb-1 flex justify-between text-xs"><span>{label}</span><span>{value}/100</span></div><Progress value={Number(value)} /></div>)}</div></div>;
-  return <div className="grid gap-3 sm:grid-cols-2">{["Estoque baixo","Margem baixa","Saúde do anúncio","Mudança de concorrente"].map((title)=><div key={title} className="rounded-2xl border p-4"><div className="flex items-center justify-between"><Bot className="h-5 w-5 text-primary" /><Badge variant="outline">Dry-run</Badge></div><p className="mt-4 text-sm font-black">{title}</p><p className="mt-1 text-xs text-muted-foreground">Regra demonstrativa sem ação externa nesta vitrine.</p></div>)}</div>;
+function SlidePreview({ id }: { id: SlideId }) {
+  if (id === "dashboard") return <DashboardPreview />;
+  if (id === "opportunities") return <OpportunitiesPreview />;
+  if (id === "market") return <MarketPreview />;
+  if (id === "competition") return <CompetitionPreview />;
+  if (id === "pricing") return <PricingPreview />;
+  if (id === "health") return <HealthPreview />;
+  return <AutomationPreview />;
 }
 
-function Panel({ title, value }: { title: string; value: string }) { return <div className="rounded-2xl border bg-background p-4"><div className="flex items-center justify-between"><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{title}</p><ShieldCheck className="h-3.5 w-3.5 text-primary" /></div><p className="mt-3 text-2xl font-black">{value}</p><p className="mt-1 text-[11px] text-muted-foreground">dado demonstrativo</p></div>; }
+function DashboardPreview() {
+  const bars = [28, 42, 36, 55, 48, 66, 61, 75, 72, 86, 82, 94];
+  return <div className="grid gap-3 sm:grid-cols-2"><Panel title="Receita · 30 dias" value="R$ 28,4 mil" /><Panel title="Saúde operacional" value="91/100" /><div className="sm:col-span-2 rounded-2xl border bg-background p-4 sm:p-5"><div className="flex items-center justify-between"><p className="text-sm font-black">Desempenho</p><Badge variant="outline">Demonstração</Badge></div><div className="mt-7 flex h-40 items-end gap-1.5 sm:gap-2">{bars.map((height, i) => <span key={i} className="flex-1 origin-bottom rounded-t bg-primary/25 transition-all duration-300 hover:bg-primary/50 motion-safe:animate-in motion-safe:slide-in-from-bottom-2" style={{ height: `${height}%`, animationDelay: `${i * 45}ms` }} />)}</div></div></div>;
+}
+
+function OpportunitiesPreview() {
+  return <div className="space-y-3">{["Margem abaixo da meta", "Estoque crítico", "Anúncio com cadastro incompleto"].map((text, i) => <div key={text} className="flex items-center gap-3 rounded-2xl border bg-background p-4 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2" style={{ animationDelay: `${i * 90}ms` }}><span className={`flex h-9 w-9 items-center justify-center rounded-xl text-xs font-black ${i === 0 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>0{i + 1}</span><div className="min-w-0 flex-1"><p className="text-sm font-black">{text}</p><p className="text-xs text-muted-foreground">Exemplo de oportunidade operacional.</p></div><ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" /></div>)}</div>;
+}
+
+function MarketPreview() {
+  return <div><div className="grid gap-3 sm:grid-cols-3"><Panel title="Preço mínimo" value="R$ 109" /><Panel title="Mediana" value="R$ 124" /><Panel title="Preço máximo" value="R$ 149" /></div><div className="mt-4 rounded-2xl border bg-background p-4 sm:p-5"><div className="flex items-center gap-2 text-sm font-black"><BarChart3 className="h-4 w-4 text-primary" />Faixa de mercado</div><div className="mt-6 h-3 overflow-hidden rounded-full bg-muted"><div className="h-full w-[62%] rounded-full bg-primary motion-safe:animate-in motion-safe:slide-in-from-left motion-safe:duration-700" /></div><div className="mt-3 flex justify-between text-[11px] text-muted-foreground"><span>abaixo da mediana</span><span>faixa demonstrativa</span></div></div></div>;
+}
+
+function CompetitionPreview() {
+  return <div className="space-y-4">{[["Sua oferta",72],["Concorrente A",88],["Concorrente B",61]].map(([label, value], i) => <div key={String(label)} className="rounded-2xl border bg-background p-4 motion-safe:animate-in motion-safe:fade-in" style={{ animationDelay: `${i * 80}ms` }}><div className="mb-2 flex justify-between text-sm"><span className="font-semibold">{label}</span><span>{value}%</span></div><Progress value={Number(value)} /></div>)}</div>;
+}
+
+function PricingPreview() {
+  const [scenario, setScenario] = useState<"base" | "premium">("base");
+  const premium = scenario === "premium";
+  return <div><div className="flex flex-wrap gap-2"><Button size="sm" variant={!premium ? "default" : "outline"} onClick={() => setScenario("base")}>Preço R$ 129,90</Button><Button size="sm" variant={premium ? "default" : "outline"} onClick={() => setScenario("premium")}>Preço R$ 139,90</Button></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><Panel title="Preço simulado" value={premium ? "R$ 139,90" : "R$ 129,90"} /><Panel title="Margem" value={premium ? "29,1%" : "24,6%"} /><Panel title="Resultado/unidade" value={premium ? "R$ 40,71" : "R$ 31,95"} /></div><p className="mt-3 text-xs text-muted-foreground">Simulação local demonstrativa. Nenhum preço real é alterado.</p></div>;
+}
+
+function HealthPreview() {
+  return <div className="grid gap-4 lg:grid-cols-[.4fr_.6fr]"><div className="flex min-h-48 flex-col items-center justify-center rounded-2xl border bg-primary/[.05] p-5"><HeartPulse className="h-6 w-6 text-primary" /><p className="mt-4 text-5xl font-black motion-safe:animate-in motion-safe:zoom-in-75">85</p><p className="text-xs text-muted-foreground">score demonstrativo</p></div><div className="space-y-4 rounded-2xl border bg-background p-5">{[["Título",92],["Cadastro",84],["Apresentação",76],["Consistência",88]].map(([label, value]) => <div key={String(label)}><div className="mb-1 flex justify-between text-xs"><span>{label}</span><span>{value}/100</span></div><Progress value={Number(value)} /></div>)}</div></div>;
+}
+
+function AutomationPreview() {
+  return <div className="grid gap-3 sm:grid-cols-2">{["Estoque baixo", "Margem baixa", "Saúde do anúncio", "Mudança de concorrente"].map((title, i) => <div key={title} className="rounded-2xl border bg-background p-4 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2" style={{ animationDelay: `${i * 70}ms` }}><div className="flex items-center justify-between"><Bot className="h-5 w-5 text-primary" /><Badge variant="outline">Dry-run</Badge></div><p className="mt-4 text-sm font-black">{title}</p><p className="mt-1 text-xs text-muted-foreground">Regra demonstrativa sem ação externa nesta vitrine.</p></div>)}</div>;
+}
+
+function Panel({ title, value }: { title: string; value: string }) {
+  return <div className="rounded-2xl border bg-background p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30"><div className="flex items-center justify-between gap-2"><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{title}</p><ShieldCheck className="h-3.5 w-3.5 shrink-0 text-primary" /></div><p className="mt-3 break-words text-xl font-black sm:text-2xl">{value}</p><p className="mt-1 text-[11px] text-muted-foreground">dado demonstrativo</p></div>;
+}
