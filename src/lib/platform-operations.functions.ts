@@ -1,0 +1,78 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { getAuthenticatedUser } from "@/lib/auth.server";
+
+const roleSchema = z.enum(["manager", "operator", "viewer"]);
+const operationSchema = z.enum(["pause", "activate", "price_simulation", "stock_review", "listing_review", "copy_draft"]);
+
+async function admin() {
+  return (await import("@/integrations/supabase/client.server")).supabaseAdmin;
+}
+
+export const getPlatformFoundation = createServerFn({ method: "GET" }).handler(async () => {
+  const user = await getAuthenticatedUser();
+  const db = await admin();
+  const [accounts, members, operations, kits] = await Promise.all([
+    db.from("seller_accounts").select("*").eq("owner_user_id", user.id).order("created_at", { ascending: false }),
+    db.from("workspace_members").select("*").eq("owner_user_id", user.id).order("created_at", { ascending: false }),
+    db.from("bulk_operations").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(20),
+    db.from("product_kits").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+  ]);
+  return { accounts: accounts.data ?? [], members: members.data ?? [], operations: operations.data ?? [], kits: kits.data ?? [] };
+});
+
+export const syncPrimarySellerAccount = createServerFn({ method: "POST" }).handler(async () => {
+  const user = await getAuthenticatedUser();
+  const db = await admin();
+  const { data: connection } = await db.from("ml_connections").select("ml_user_id,nickname,connected").eq("user_id", user.id).maybeSingle();
+  if (!connection?.ml_user_id) return { ok: false as const, reason: "missing_connection" };
+  const { error } = await db.from("seller_accounts").upsert({
+    owner_user_id: user.id,
+    ml_user_id: String(connection.ml_user_id),
+    nickname: connection.nickname ?? null,
+    label: connection.nickname || "Conta principal",
+    status: connection.connected ? "connected" : "disconnected",
+    is_primary: true,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "owner_user_id,ml_user_id" });
+  if (error) return { ok: false as const, reason: error.message };
+  return { ok: true as const };
+});
+
+export const inviteWorkspaceMember = createServerFn({ method: "POST" })
+  .validator(z.object({ email: z.string().email(), role: roleSchema }))
+  .handler(async ({ data }) => {
+    const user = await getAuthenticatedUser();
+    const db = await admin();
+    const email = data.email.trim().toLowerCase();
+    const { error } = await db.from("workspace_members").upsert({ owner_user_id: user.id, member_email: email, role: data.role, status: "invited", updated_at: new Date().toISOString() }, { onConflict: "owner_user_id,member_email" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const createBulkOperation = createServerFn({ method: "POST" })
+  .validator(z.object({ operationType: operationSchema, listingIds: z.array(z.string().uuid()).min(1).max(200), payload: z.record(z.string(), z.unknown()).optional() }))
+  .handler(async ({ data }) => {
+    const user = await getAuthenticatedUser();
+    const db = await admin();
+    const { data: owned } = await db.from("listings").select("id").eq("user_id", user.id).in("id", data.listingIds);
+    const ownedIds = (owned ?? []).map((row: { id: string }) => row.id);
+    if (ownedIds.length !== new Set(data.listingIds).size) throw new Error("Há anúncios que não pertencem a esta conta.");
+    const { data: row, error } = await db.from("bulk_operations").insert({ user_id: user.id, operation_type: data.operationType, target_listing_ids: ownedIds, payload: data.payload ?? {}, status: "simulated", dry_run: true, result: { target_count: ownedIds.length, external_write: false } }).select("id,status,dry_run,result").single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export const createProductKit = createServerFn({ method: "POST" })
+  .validator(z.object({ name: z.string().trim().min(2).max(100), sku: z.string().trim().max(80).optional(), listingIds: z.array(z.string().uuid()).min(1).max(50) }))
+  .handler(async ({ data }) => {
+    const user = await getAuthenticatedUser();
+    const db = await admin();
+    const { data: owned } = await db.from("listings").select("id").eq("user_id", user.id).in("id", data.listingIds);
+    const ids = (owned ?? []).map((row: { id: string }) => row.id);
+    if (ids.length !== new Set(data.listingIds).size) throw new Error("Kit contém anúncio inválido.");
+    const quantities = Object.fromEntries(ids.map((id) => [id, 1]));
+    const { data: row, error } = await db.from("product_kits").insert({ user_id: user.id, name: data.name, sku: data.sku || null, component_listing_ids: ids, component_quantities: quantities }).select("id,name,sku,enabled").single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
