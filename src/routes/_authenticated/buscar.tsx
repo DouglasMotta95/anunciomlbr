@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/app/AppShell";
 import { BulkJobDialog } from "@/components/app/BulkJobDialog";
+import { SearchProgress } from "@/components/app/SearchProgress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -119,6 +120,13 @@ function SearchPage() {
         default: return searchKeyword({ data: { query: parsed.searchQuery ?? term, limit: resultLimit } });
       }
     },
+    onMutate: () => {
+      setItems([]);
+      setSelected({});
+      setDuplicatedDrafts({});
+      setNotice(null);
+      setSearched(false);
+    },
     onSuccess: (result) => {
       setSearched(true);
       setItems(result.items as DisplayItem[]);
@@ -127,7 +135,11 @@ function SearchPage() {
       setNotice(result.ok ? null : result.reason);
       if (result.ok && result.items.length) toast.success(`${result.items.length} anúncio(s) encontrado(s)`);
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Não foi possível buscar agora."),
+    onError: (error) => {
+      setSearched(true);
+      setItems([]);
+      toast.error(error instanceof Error ? error.message : "Não foi possível buscar agora.");
+    },
   });
 
   async function loadFullItem(item: DisplayItem) {
@@ -267,18 +279,14 @@ function SearchPage() {
           </form>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>Preço, vendas, estoque e situação só aparecem quando há confirmação nas fontes do Mercado Livre.</span>
-            {marketplaceSearchUrl && <a href={marketplaceSearchUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary">Comparar no ML<ExternalLink className="h-3 w-3" /></a>}
+            {marketplaceSearchUrl && <a href={marketplaceSearchUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-foreground transition-colors hover:text-primary">Comparar no ML<ExternalLink className="h-3 w-3" /></a>}
           </div>
         </CardContent>
       </Card>
 
       {notice && <div className="mt-4 rounded-lg border border-border/70 bg-muted/20 p-4 text-sm leading-6 text-muted-foreground">{notice}</div>}
 
-      {runSearch.isPending && (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-[420px] rounded-lg" />)}
-        </div>
-      )}
+      {runSearch.isPending && <SearchProgress term={query.trim()} />}
 
       {!runSearch.isPending && searched && !items.length && (
         <div className="mt-5 flex flex-col items-center gap-3 rounded-lg border border-dashed border-border/80 p-10 text-center text-muted-foreground">
@@ -307,11 +315,11 @@ function SearchPage() {
               const duplicated = duplicatedDrafts[item.id];
 
               return (
-                <Card key={item.id} className="overflow-hidden transition-colors hover:border-primary/35">
+                <Card key={item.id} className="group overflow-hidden transition-[border-color,box-shadow,transform] duration-300 ease-out hover:-translate-y-1 hover:border-primary/35 hover:shadow-lg motion-reduce:transform-none">
                   <CardContent className="p-0">
                     <div className="relative aspect-[4/3] overflow-hidden border-b border-border/70 bg-white">
                       <Checkbox checked={!!selected[item.id]} onCheckedChange={(checked) => setSelected((current) => ({ ...current, [item.id]: !!checked }))} className="absolute left-3 top-3 z-10 bg-background" />
-                      {image ? <img src={image} alt={item.title} loading={index < 4 ? "eager" : "lazy"} className="h-full w-full object-contain p-4" /> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Imagem indisponível</div>}
+                      {image ? <img src={image} alt={item.title} loading={index < 4 ? "eager" : "lazy"} className="h-full w-full object-contain p-4 transition-transform duration-300 ease-out group-hover:scale-[1.025] motion-reduce:transform-none" /> : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Imagem indisponível</div>}
                     </div>
 
                     <div className="space-y-3 p-4">
@@ -334,7 +342,7 @@ function SearchPage() {
 
                       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                         {item.available_quantity != null ? <span>Estoque: <strong className="text-foreground">{item.available_quantity}</strong></span> : <span />}
-                        <button type="button" className="inline-flex items-center gap-1 font-mono text-[10px] hover:text-foreground" onClick={async () => { await navigator.clipboard.writeText(item.id); toast.success("Código copiado"); }}><Clipboard className="h-3 w-3" />{item.id}</button>
+                        <button type="button" className="inline-flex items-center gap-1 font-mono text-[10px] transition-colors hover:text-foreground" onClick={async () => { await navigator.clipboard.writeText(item.id); toast.success("Código copiado"); }}><Clipboard className="h-3 w-3" />{item.id}</button>
                       </div>
 
                       {duplicated && (
