@@ -6,7 +6,9 @@ import {
 } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
+  ArrowDownRight,
   ArrowRight,
+  ArrowUpRight,
   Bell,
   Boxes,
   Bot,
@@ -20,6 +22,8 @@ import {
   Trophy,
   type LucideIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { AppShell } from "@/components/app/AppShell";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +64,8 @@ type MetricProps = {
   hint: string;
   icon: LucideIcon;
   loading?: boolean;
+  rawValue?: number;
+  formatter?: (value: number) => string;
 };
 
 type QuickProps = {
@@ -115,6 +121,8 @@ function DashboardPage() {
   const sales = overview?.sales;
   const champions = (overview as any)?.champions ?? [];
   const priorities = ((overview as any)?.opportunities ?? []).slice(0, 4);
+  const salesDaily = ((sales as any)?.daily ?? []) as Array<{ date: string; label: string; orders: number; units: number; revenue_cents: number }>;
+  const comparison = (sales as any)?.comparison ?? { orders_percent: 0, revenue_percent: 0, units_percent: 0 };
   const active = listings.filter((listing) => listing.status === "active").length;
   const optimized = listings.filter(
     (listing) => listing.ai_score !== null && listing.ai_score !== undefined && Number(listing.ai_score) > 0,
@@ -162,10 +170,10 @@ function DashboardPage() {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric loading={metricsLoading} label="Criados no ANÚNCIO ML" value={formatNumber(createdByPlatform)} hint="criados ou copiados" icon={PackagePlus} />
-        <Metric loading={listingsQuery.isLoading} label="Anúncios ativos" value={formatNumber(active)} hint="inclui anúncios sincronizados" icon={Boxes} />
-        <Metric loading={listingsQuery.isLoading} label="Otimizados com IA" value={formatNumber(optimized)} hint="com avaliação ou otimização" icon={Bot} />
-        <Metric loading={overviewQuery.isLoading} label="Faturamento · 30 dias" value={sales?.available ? formatBRL(sales.revenue_cents) : "—"} hint={sales?.available ? "pedidos consultados no Mercado Livre" : "aguardando dados de vendas"} icon={ShoppingBag} />
+        <Metric loading={metricsLoading} label="Criados no ANÚNCIO ML" value={formatNumber(createdByPlatform)} rawValue={createdByPlatform} hint="criados ou copiados" icon={PackagePlus} />
+        <Metric loading={listingsQuery.isLoading} label="Anúncios ativos" value={formatNumber(active)} rawValue={active} hint="inclui anúncios sincronizados" icon={Boxes} />
+        <Metric loading={listingsQuery.isLoading} label="Otimizados com IA" value={formatNumber(optimized)} rawValue={optimized} hint="com avaliação ou otimização" icon={Bot} />
+        <Metric loading={overviewQuery.isLoading} label="Faturamento · 30 dias" value={sales?.available ? formatBRL(sales.revenue_cents) : "—"} rawValue={sales?.available ? sales.revenue_cents : undefined} formatter={formatBRL} hint={sales?.available ? "pedidos consultados no Mercado Livre" : "aguardando dados de vendas"} icon={ShoppingBag} />
       </div>
 
       {(!connected || !hasListings || !hasOptimized) && (
@@ -264,6 +272,31 @@ function DashboardPage() {
         </Card>
       </div>
 
+      <Card className="mt-4 overflow-hidden">
+        <CardHeader className="border-b border-border/70">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><CardTitle>Desempenho de vendas</CardTitle><p className="mt-1 text-xs text-muted-foreground">Faturamento diário real dos últimos 30 dias.</p></div>
+            {sales?.available && <div className="flex flex-wrap gap-2"><TrendPill label="Faturamento" value={comparison.revenue_percent}/><TrendPill label="Pedidos" value={comparison.orders_percent}/><TrendPill label="Unidades" value={comparison.units_percent}/></div>}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-5">
+          {overviewQuery.isLoading ? <Skeleton className="h-72 w-full rounded-lg"/> : sales?.available && salesDaily.length ? (
+            <div className="h-72 w-full text-primary">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={salesDaily} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <defs><linearGradient id="salesRevenueFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3}/><stop offset="95%" stopColor="var(--primary)" stopOpacity={0.02}/></linearGradient></defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.18}/>
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={24} fontSize={11}/>
+                  <YAxis tickLine={false} axisLine={false} width={70} fontSize={11} tickFormatter={(value)=>`R$ ${Math.round(Number(value)/100).toLocaleString("pt-BR")}`}/>
+                  <Tooltip cursor={{ opacity: 0.08 }} formatter={(value:number)=>[formatBRL(Number(value)),"Faturamento"]} labelFormatter={(label)=>`Dia ${label}`}/>
+                  <Area type="monotone" dataKey="revenue_cents" stroke="var(--primary)" strokeWidth={2.2} fill="url(#salesRevenueFill)" activeDot={{ r: 4 }}/>
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <DataUnavailable text={connected ? "Ainda não há série de vendas disponível para o período." : "Conecte o Mercado Livre para carregar o gráfico com dados reais."}/>} 
+        </CardContent>
+      </Card>
+
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
         <Card>
           <CardHeader><CardTitle>Vendas · últimos 30 dias</CardTitle></CardHeader>
@@ -316,17 +349,33 @@ function Journey({ done, number, title, text, to }: JourneyProps) {
   );
 }
 
-function Metric({ label, value, hint, icon: Icon, loading = false }: MetricProps) {
+function AnimatedNumber({ value, formatter = formatNumber }: { value: number; formatter?: (value: number) => string }) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const start = performance.now(),duration = 650;
+    let frame = 0;
+    const tick = (now:number) => {const progress=Math.min(1,(now-start)/duration),eased=1-Math.pow(1-progress,3);setDisplay(Math.round(value*eased));if(progress<1)frame=requestAnimationFrame(tick);};
+    frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);
+  },[value]);
+  return <>{formatter(display)}</>;
+}
+
+function Metric({ label, value, hint, icon: Icon, loading = false, rawValue, formatter }: MetricProps) {
   return (
     <Card>
       <CardContent className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1"><p className="text-xs font-medium text-muted-foreground">{label}</p>{loading ? <Skeleton className="mt-2 h-8 w-28" /> : <p className="mt-2 text-2xl font-bold tracking-tight">{value}</p>}<p className="mt-1 text-xs leading-5 text-muted-foreground">{hint}</p></div>
+          <div className="min-w-0 flex-1"><p className="text-xs font-medium text-muted-foreground">{label}</p>{loading ? <Skeleton className="mt-2 h-8 w-28" /> : <p className="mt-2 text-2xl font-bold tracking-tight">{typeof rawValue === "number" ? <AnimatedNumber value={rawValue} formatter={formatter}/> : value}</p>}<p className="mt-1 text-xs leading-5 text-muted-foreground">{hint}</p></div>
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10"><Icon className="h-4 w-4 text-primary" /></div>
         </div>
       </CardContent>
     </Card>
   );
+}
+
+function TrendPill({label,value}:{label:string;value:number}){
+  const positive=value>0,negative=value<0,Icon=positive?ArrowUpRight:negative?ArrowDownRight:ArrowRight;
+  return <div className="flex items-center gap-1 rounded-md border border-border/70 bg-muted/20 px-2 py-1 text-[11px]"><Icon className="h-3 w-3"/><span className="text-muted-foreground">{label}</span><strong>{value>0?"+":""}{value.toLocaleString("pt-BR",{maximumFractionDigits:1})}%</strong></div>;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
