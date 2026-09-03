@@ -48,4 +48,20 @@ describe("qualidade da busca pública", () => {
     expect(source).toContain('const fallbackPromise = searchMercadoLivrePublicSiteFallback');
     expect(source).toContain('Promise.all([tokensPromise, officialPromise, fallbackPromise])');
   });
+
+  test("produto, vendedor, ID e link também exigem permalink real com MLB correspondente", () => {
+    const source = fs.readFileSync("src/lib/ml-search-production.functions.ts", "utf8");
+    expect(source).toContain('itemIdFromRealMlUrl(item.permalink) === id');
+    expect(source).toContain('verified_item: verifiedItem');
+    expect(source).toContain('output.push(...mapped.filter(isConfirmedRealMlItem))');
+    expect(source).toContain('mapped.filter((item) => isConfirmedActiveMlItem(item)');
+    expect(source).toContain('const items = result.items.filter(isConfirmedActiveMlItem)');
+    expect(source).toContain('result.item && isConfirmedRealMlItem(result.item)');
+  });
+
+  test("oferta de catálogo não cria card fallback sem permalink confirmado", () => {
+    const source = fs.readFileSync("src/lib/ml-search-production.functions.ts", "utf8");
+    expect(source).toContain('if (!detail || !isConfirmedActiveMlItem(detail)) return []');
+    expect(source).not.toContain('permalink: null,\n      category: row.category_id');
+  });
 });
