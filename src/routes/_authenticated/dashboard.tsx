@@ -19,7 +19,6 @@ import {
   Search,
   ShoppingBag,
   Sparkles,
-  Trophy,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -64,8 +63,8 @@ type MetricProps = {
   hint: string;
   icon: LucideIcon;
   loading?: boolean;
-  rawValue?: number;
-  formatter?: (value: number) => string;
+  rawValue?: number | undefined;
+  formatter?: ((value: number) => string) | undefined;
 };
 
 type QuickProps = {
@@ -349,7 +348,7 @@ function Journey({ done, number, title, text, to }: JourneyProps) {
   );
 }
 
-function AnimatedNumber({ value, formatter = formatNumber }: { value: number; formatter?: (value: number) => string }) {
+function AnimatedNumber({ value, formatter = formatNumber }: { value: number; formatter?: ((value: number) => string) | undefined }) {
   const [display, setDisplay] = useState(0);
   useEffect(() => {
     const start = performance.now(),duration = 650;
