@@ -209,7 +209,6 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     const query = data.query.trim();
     const mlStatuses: number[] = [];
     const firecrawlStatuses: number[] = [];
-    const tokensPromise = accessTokens(context.userId);
 
     console.info("[ML public search]", {
       version: SEARCH_FLOW_VERSION,
@@ -219,11 +218,10 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     });
 
     const { searchMercadoLivrePublicSiteFallback } = await import("@/lib/ml-public-site-fallback.server");
-    const [tokens, fallback] = await Promise.all([
-      tokensPromise,
-      searchMercadoLivrePublicSiteFallback(query, desired),
-    ]);
-    const officialPromise = officialSearch(query, desired, tokens, mlStatuses);
+    const tokensPromise = accessTokens(context.userId);
+    const officialPromise = tokensPromise.then((tokens) => officialSearch(query, desired, tokens, mlStatuses));
+    const fallbackPromise = searchMercadoLivrePublicSiteFallback(query, desired);
+    const [tokens, officialItems, fallback] = await Promise.all([tokensPromise, officialPromise, fallbackPromise]);
 
     const publicCandidates = fallback.items.filter((item) => strictSearchRelevanceScore(query, item.title) >= 120);
     const incomplete = publicCandidates.filter((item) => !item.thumbnail || item.price_cents == null);
@@ -250,7 +248,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
         })
       : Promise.resolve([]);
 
-    const [officialItems, verifiedPublic, enriched] = await Promise.all([officialPromise, verifyPublicPromise, enrichPromise]);
+    const [verifiedPublic, enriched] = await Promise.all([verifyPublicPromise, enrichPromise]);
     enrichmentItems = enriched;
 
     const byId = new Map<string, SearchMlItem>();
@@ -296,11 +294,12 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       .filter((item) => item.verified_item === true)
       .filter((item) => item.status === "active")
       .filter((item) => !!item.permalink && itemIdFromRealMlUrl(item.permalink) === item.id)
+      .filter((item) => item.price_cents != null && item.price_cents > 0)
       .filter((item) => strictSearchRelevanceScore(query, item.title) >= 120)
       .sort((a, b) => {
         const score = strictSearchRelevanceScore(query, b.title) - strictSearchRelevanceScore(query, a.title);
         if (score) return score;
-        return Number(!!b.thumbnail) - Number(!!a.thumbnail) || Number(b.price_cents != null) - Number(a.price_cents != null);
+        return Number(!!b.thumbnail) - Number(!!a.thumbnail);
       })
       .slice(0, desired);
 
