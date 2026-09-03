@@ -9,7 +9,7 @@ const demoProducts = [
   { title: "Fone Bluetooth Pro com Estojo de Carga", price: "R$ 129,90", seller: "Loja demonstrativa", score: "Boa referência" },
   { title: "Fone Sem Fio Bluetooth com Microfone", price: "R$ 99,90", seller: "Seller exemplo", score: "Título forte" },
   { title: "Headset Bluetooth Compacto Premium", price: "R$ 149,90", seller: "Operação exemplo", score: "Boa apresentação" },
-];
+] as const;
 
 const steps = [
   { label: "Buscar", icon: Search },
@@ -24,7 +24,7 @@ export function InteractiveProductDemo() {
   const [selected, setSelected] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  const activeProduct = useMemo(() => demoProducts[selected], [selected]);
+  const activeProduct = useMemo(() => demoProducts[selected] ?? demoProducts[0], [selected]);
 
   function startSearch() {
     if (!query.trim()) return;
