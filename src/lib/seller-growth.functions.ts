@@ -3,6 +3,21 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type Opportunity={key:string;severity:"high"|"medium"|"low";title:string;description:string;count:number;action_to:string};
+type DailySales={date:string;label:string;orders:number;units:number;revenue_cents:number};
+
+function percentChange(current:number,previous:number){
+  if(previous===0)return current>0?100:0;
+  return Math.round(((current-previous)/previous)*1000)/10;
+}
+
+function buildSalesDays(now:Date){
+  const days:DailySales[]=[];
+  for(let offset=29;offset>=0;offset--){
+    const date=new Date(now);date.setHours(0,0,0,0);date.setDate(date.getDate()-offset);
+    days.push({date:date.toISOString().slice(0,10),label:date.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"}),orders:0,units:0,revenue_cents:0});
+  }
+  return days;
+}
 
 export const getSellerGrowthOverview=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{
   const db=context.supabase as any;
@@ -32,16 +47,26 @@ export const getSellerGrowthOverview=createServerFn({method:"GET"}).middleware([
   add(incomplete,{key:"incomplete",severity:"medium",title:"Cadastro incompleto",description:"Anúncios em operação com campos importantes ausentes.",count:0,action_to:"/anuncios"});
   if(!mlConnected)opportunities.unshift({key:"ml-disconnected",severity:"high",title:"Mercado Livre desconectado",description:"Reconecte para sincronizar anúncios, vendas e automações.",count:1,action_to:"/integracoes"});
 
-  let sales={available:false,orders:0,revenue_cents:0,ticket_cents:0,units:0},champions:any[]=[];
+  let sales={available:false,orders:0,revenue_cents:0,ticket_cents:0,units:0,daily:[] as DailySales[],comparison:{orders_percent:0,revenue_percent:0,units_percent:0}},champions:any[]=[];
   if(mlConnected){
-    const now=new Date(),from=new Date(now);from.setDate(from.getDate()-30);
+    const now=new Date(),from60=new Date(now),cutoff30=new Date(now);from60.setDate(from60.getDate()-60);cutoff30.setDate(cutoff30.getDate()-30);
     try{
       const {fetchSellerOrders}=await import("@/lib/orders.server");
-      const result=await fetchSellerOrders(context.userId,from.toISOString(),now.toISOString());
+      const result=await fetchSellerOrders(context.userId,from60.toISOString(),now.toISOString());
       if(result.ok){
-        const paid=result.orders.filter(o=>!["cancelled","invalid"].includes(o.status)),revenue=paid.reduce((s,o)=>s+Math.round((o.paid_amount??o.total_amount)*100),0),rank=new Map<string,any>();let units=0;
-        for(const order of paid)for(const entry of order.items){units+=entry.quantity;const id=entry.item_id;if(!id)continue;const current=rank.get(id)??{ml_item_id:id,title:entry.title,units:0,revenue_cents:0};current.units+=entry.quantity;current.revenue_cents+=Math.round(entry.unit_price*entry.quantity*100);rank.set(id,current);}
-        sales={available:true,orders:paid.length,revenue_cents:revenue,ticket_cents:paid.length?Math.round(revenue/paid.length):0,units};
+        const paid=result.orders.filter(o=>!["cancelled","invalid"].includes(o.status));
+        const current=paid.filter(o=>new Date(o.date_created)>=cutoff30),previous=paid.filter(o=>{const d=new Date(o.date_created);return d>=from60&&d<cutoff30;});
+        const revenueOf=(orders:typeof paid)=>orders.reduce((s,o)=>s+Math.round((o.paid_amount??o.total_amount)*100),0);
+        const unitsOf=(orders:typeof paid)=>orders.reduce((sum,order)=>sum+order.items.reduce((s,item)=>s+item.quantity,0),0);
+        const revenue=revenueOf(current),previousRevenue=revenueOf(previous),units=unitsOf(current),previousUnits=unitsOf(previous);
+        const daily=buildSalesDays(now),byDate=new Map(daily.map(day=>[day.date,day]));
+        for(const order of current){
+          const key=new Date(order.date_created).toISOString().slice(0,10),day=byDate.get(key);if(!day)continue;
+          day.orders+=1;day.revenue_cents+=Math.round((order.paid_amount??order.total_amount)*100);day.units+=order.items.reduce((sum,item)=>sum+item.quantity,0);
+        }
+        const rank=new Map<string,any>();
+        for(const order of current)for(const entry of order.items){const id=entry.item_id;if(!id)continue;const currentRank=rank.get(id)??{ml_item_id:id,title:entry.title,units:0,revenue_cents:0};currentRank.units+=entry.quantity;currentRank.revenue_cents+=Math.round(entry.unit_price*entry.quantity*100);rank.set(id,currentRank);}
+        sales={available:true,orders:current.length,revenue_cents:revenue,ticket_cents:current.length?Math.round(revenue/current.length):0,units,daily,comparison:{orders_percent:percentChange(current.length,previous.length),revenue_percent:percentChange(revenue,previousRevenue),units_percent:percentChange(units,previousUnits)}};
         champions=Array.from(rank.values()).sort((a,b)=>b.units-a.units||b.revenue_cents-a.revenue_cents).slice(0,5).map((c:any)=>{const local=rows.find((r:any)=>r.source_ml_id===c.ml_item_id||r.published_ml_id===c.ml_item_id);const first=Array.isArray(local?.images)?local.images[0]:null;return {...c,listing_id:local?.id??null,permalink:typeof local?.source_permalink==="string"?local.source_permalink:null,title:local?.title??c.title,image:typeof first==="string"?first:first?.secure_url??first?.url??null};});
       }
     }catch(error){console.error("growth orders summary failed",error);}
@@ -59,9 +84,50 @@ export const getSellerGrowthOverview=createServerFn({method:"GET"}).middleware([
 
 export const calculateSmartPrice=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).validator((d:unknown)=>z.object({cost_cents:z.number().int().positive(),fees_percent:z.number().min(0).max(60).default(16),fixed_fees_cents:z.number().int().min(0).default(0),target_margin_percent:z.number().min(1).max(80).default(20)}).parse(d)).handler(async({data})=>{const v=data.fees_percent/100,m=data.target_margin_percent/100,den=1-v-m;if(den<=.05)throw new Error("Margem e taxas incompatíveis.");const p=Math.ceil((data.cost_cents+data.fixed_fees_cents)/den),f=Math.round(p*v)+data.fixed_fees_cents,l=p-data.cost_cents-f;return {suggested_price_cents:p,estimated_fees_cents:f,estimated_profit_cents:l,estimated_margin_percent:p?Math.round((l/p)*10000)/100:0};});
 export const getReferralSummary=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{const db=context.supabase as any,{data:code,error}=await db.rpc("ensure_referral_code");if(error)throw new Error("Não foi possível gerar seu código de indicação.");const {data:r}=await db.from("referrals").select("id,status,reward_ads,created_at").eq("referrer_user_id",context.userId).order("created_at",{ascending:false});return {code:String(code),total:r?.length??0,converted:(r??[]).filter((x:any)=>["converted","rewarded"].includes(x.status)).length,rewarded_ads:(r??[]).filter((x:any)=>x.status==="rewarded").reduce((s:number,x:any)=>s+Number(x.reward_ads??0),0),referrals:r??[]};});
-export const listCompetitorWatch=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{const {data,error}=await (context.supabase as any).from("competitor_watch").select("*").order("created_at",{ascending:false});if(error)throw new Error("Não foi possível carregar o radar.");return data??[];});
+
+export const listCompetitorWatch=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{
+  const db=context.supabase as any;
+  const {data,error}=await db.from("competitor_watch").select("*").order("created_at",{ascending:false});
+  if(error)throw new Error("Não foi possível carregar o radar.");
+  const rows=data??[],ids=rows.map((row:any)=>row.id);
+  if(!ids.length)return [];
+  const {data:snapshots}=await db.from("competitor_watch_snapshots").select("watch_id,price_cents,status,sold_quantity,available_quantity,captured_at").in("watch_id",ids).order("captured_at",{ascending:false});
+  const grouped=new Map<string,any[]>();
+  for(const snapshot of snapshots??[]){const list=grouped.get(snapshot.watch_id)??[];if(list.length<2)list.push(snapshot);grouped.set(snapshot.watch_id,list);}
+  return rows.map((row:any)=>{const history=grouped.get(row.id)??[],latest=history[0],previous=history[1];return {...row,history,price_delta_cents:latest?.price_cents!=null&&previous?.price_cents!=null?latest.price_cents-previous.price_cents:null,status_changed:Boolean(latest&&previous&&latest.status!==previous.status)};});
+});
+
+export const refreshCompetitorWatch=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).validator((d:unknown)=>z.object({id:z.string().uuid().optional()}).parse(d)).handler(async({data,context})=>{
+  const db=context.supabase as any;
+  let query=db.from("competitor_watch").select("*").eq("user_id",context.userId).order("created_at",{ascending:false}).limit(30);
+  if(data.id)query=query.eq("id",data.id);
+  const {data:rows,error}=await query;if(error)throw new Error("Não foi possível carregar os concorrentes.");
+  const watches=rows??[];if(!watches.length)return {updated:0,changes:0};
+  let updated=0,changes=0;
+  for(const watch of watches){
+    try{
+      const response=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(String(watch.ml_item_id))}`,{headers:{Accept:"application/json"}});
+      if(!response.ok)continue;
+      const item=await response.json() as Record<string,unknown>;
+      const id=String(item.id??"").toUpperCase();if(id!==String(watch.ml_item_id).toUpperCase())continue;
+      const price_cents=typeof item.price==="number"?Math.round(item.price*100):null;
+      const status=typeof item.status==="string"?item.status:null;
+      const sold_quantity=typeof item.sold_quantity==="number"?item.sold_quantity:null;
+      const available_quantity=typeof item.available_quantity==="number"?item.available_quantity:null;
+      const title=typeof item.title==="string"?item.title:null;
+      const permalink=typeof item.permalink==="string"?item.permalink:null;
+      if((watch.last_price_cents!=null&&price_cents!=null&&watch.last_price_cents!==price_cents)||(watch.last_status&&status&&watch.last_status!==status)||(watch.last_available_quantity!=null&&available_quantity!=null&&watch.last_available_quantity!==available_quantity))changes++;
+      const checkedAt=new Date().toISOString();
+      await db.from("competitor_watch_snapshots").insert({watch_id:watch.id,user_id:context.userId,price_cents,status,sold_quantity,available_quantity,title,permalink,captured_at:checkedAt});
+      await db.from("competitor_watch").update({title:title??watch.title,permalink:permalink??watch.permalink,last_price_cents:price_cents,last_status:status,last_sold_quantity:sold_quantity,last_available_quantity:available_quantity,last_checked_at:checkedAt}).eq("id",watch.id).eq("user_id",context.userId);
+      updated++;
+    }catch(error){console.error("competitor refresh failed",{watchId:watch.id,error});}
+  }
+  return {updated,changes};
+});
+
 export const addCompetitorWatch=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).validator((d:unknown)=>z.object({ml_item_id:z.string().trim().regex(/^MLB\d+$/i),title:z.string().max(200).nullish(),permalink:z.string().url().nullish()}).parse(d)).handler(async({data,context})=>{const db=context.supabase as any,id=data.ml_item_id.toUpperCase();const {data:row,error}=await db.from("competitor_watch").upsert({user_id:context.userId,ml_item_id:id,title:data.title??null,permalink:data.permalink??null},{onConflict:"user_id,ml_item_id"}).select("*").single();if(error)throw new Error("Não foi possível adicionar ao radar.");return row;});
-export const removeCompetitorWatch=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).validator((d:unknown)=>z.object({id:z.string().uuid()}).parse(d)).handler(async({data,context})=>{const {error}=await (context.supabase as any).from("competitor_watch").delete().eq("id",data.id).eq("user_id",context.userId);if(error)throw new Error("Não foi possível remover do radar.");return {ok:true as const};});
+export const removeCompetitorWatch=createServerFn({method:"POST"}).middleware([requireSupabaseAuth]).validator((d:unknown)=>z.object({id:z.string().uuid()}).parse(d)).handler(async({data,context})=>{const {error}=await (context.supabase as any).from("competitor_watch").delete().eq("id",data.id).eq("user_id",context.userId);if(error)throw new Error("Não foi possível remover este anúncio do radar.");return {ok:true as const};});
 
 export const getResellerDashboard=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{const {supabaseAdmin}=await import("@/integrations/supabase/client.server");const db=supabaseAdmin as any;const {data:reseller,error}=await db.from("resellers").select("*").eq("user_id",context.userId).maybeSingle();if(error)throw new Error("Não foi possível carregar o cadastro de revendedor.");if(!reseller)return {enabled:false as const,sales:[]};const {data:sales}=await db.from("reseller_sales").select("*,plans(name)").eq("reseller_id",reseller.id).order("created_at",{ascending:false}).limit(100);return {enabled:reseller.status==="active",reseller,sales:sales??[]};});
 export const adminListResellers=createServerFn({method:"GET"}).middleware([requireSupabaseAuth]).handler(async({context})=>{const {assertCapability}=await import("@/lib/permissions.server");await assertCapability(context,"admin.access");const {supabaseAdmin}=await import("@/integrations/supabase/client.server");const {data,error}=await (supabaseAdmin as any).from("resellers").select("*").order("created_at",{ascending:false});if(error)throw new Error("Não foi possível carregar os revendedores.");return data??[];});
