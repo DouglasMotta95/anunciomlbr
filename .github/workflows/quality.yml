@@ -26,20 +26,27 @@ jobs:
         run: bun run typecheck
       - name: Testes do parser de busca Mercado Livre
         run: bun run test:search
-      - name: Smoke real Mercado Livre - iPhone
+      - name: Smokes reais Mercado Livre - iPhone, Lovable e Netflix
         shell: bash
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
         run: |
-          for attempt in 1 2 3; do
-            echo "Tentativa $attempt do smoke real para iPhone"
-            if bun run test:search:live; then
-              exit 0
+          for query in iPhone Lovable Netflix; do
+            passed=false
+            for attempt in 1 2 3; do
+              echo "Tentativa $attempt do smoke real para $query"
+              if bun run scripts/live-ml-search-smoke.ts "$query"; then
+                passed=true
+                break
+              fi
+              sleep $((attempt * 2))
+            done
+            if [ "$passed" != "true" ]; then
+              echo "Smoke real falhou para $query"
+              exit 1
             fi
-            sleep $((attempt * 2))
           done
-          exit 1
       - name: Testes do callGemini
         run: bun run test:gemini
       - name: Testes da coleta Firecrawl Mercado Livre
