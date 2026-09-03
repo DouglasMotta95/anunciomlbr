@@ -26,6 +26,17 @@ jobs:
         run: bun run typecheck
       - name: Testes do parser de busca Mercado Livre
         run: bun run test:search
+      - name: Smoke real Mercado Livre - iPhone
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            echo "Tentativa $attempt do smoke real para iPhone"
+            if bun run test:search:live; then
+              exit 0
+            fi
+            sleep $((attempt * 2))
+          done
+          exit 1
       - name: Testes do callGemini
         run: bun run test:gemini
       - name: Testes da coleta Firecrawl Mercado Livre
