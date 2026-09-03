@@ -89,7 +89,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       version: SEARCH_FLOW_VERSION,
       query,
       desired,
-      strategy: "official-api-first-public-page-then-firecrawl",
+      strategy: "official-api-first-public-page-only-on-zero",
     });
 
     const byId = new Map<string, SearchMlItem>();
