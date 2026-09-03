@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const growth = readFileSync(new URL("../src/lib/seller-growth.functions.ts", import.meta.url), "utf8");
 const dashboard = readFileSync(new URL("../src/routes/_authenticated/dashboard.tsx", import.meta.url), "utf8");
 const growthPage = readFileSync(new URL("../src/routes/_authenticated/crescimento.tsx", import.meta.url), "utf8");
+const marketPage = readFileSync(new URL("../src/routes/_authenticated/mercado.tsx", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../supabase/migrations/20260903152000_competitor_watch_history.sql", import.meta.url), "utf8");
 
 describe("inteligência comercial", () => {
@@ -37,5 +38,14 @@ describe("inteligência comercial", () => {
     expect(growthPage).toContain('label="Preço"');
     expect(growthPage).toContain('label="Estoque"');
     expect(growthPage).toContain('label="Vendidos"');
+  });
+
+  test("pesquisa de mercado calcula indicadores apenas sobre anúncios confirmados e ativos", () => {
+    expect(marketPage).toContain('item.verified_item === true && item.permalink && item.status === "active"');
+    expect(marketPage).toContain("Preço médio");
+    expect(marketPage).toContain("Faixa de preço");
+    expect(marketPage).toContain("Vendedores");
+    expect(marketPage).toContain("median(prices)");
+    expect(marketPage).not.toContain("Math.random");
   });
 });
