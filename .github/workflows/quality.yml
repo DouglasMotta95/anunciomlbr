@@ -28,6 +28,9 @@ jobs:
         run: bun run test:search
       - name: Smoke real Mercado Livre - iPhone
         shell: bash
+        env:
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
         run: |
           for attempt in 1 2 3; do
             echo "Tentativa $attempt do smoke real para iPhone"
