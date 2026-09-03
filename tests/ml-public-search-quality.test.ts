@@ -21,10 +21,11 @@ describe("qualidade da busca pública", () => {
     expect(strictSearchRelevanceScore("mesa escritorio", "Mesa de Jantar 6 Lugares")).toBe(0);
   });
 
-  test("contrato final só admite anúncio confirmado e valida grounding antes de exibir", () => {
+  test("contrato final só admite anúncio brasileiro confirmado e valida grounding antes de exibir", () => {
     const source = fs.readFileSync("src/lib/ml-public-search.functions.ts", "utf8");
     expect(source).toContain('item.verified_item === true');
     expect(source).toContain('item.status === "active"');
+    expect(source).toContain('isBrazilMlPermalink(item.permalink)');
     expect(source).toContain('itemIdFromRealMlUrl(item.permalink) === item.id');
     expect(source).toContain('searchAdsWithGeminiGrounding');
     expect(source).toContain('verifyCandidates(query, groundedCandidates');
@@ -36,7 +37,7 @@ describe("qualidade da busca pública", () => {
     expect(source).toContain('Math.min(Math.max(desired * 2, 20), 50)');
     expect(source).toContain('resultQualityScore');
     expect(source).toContain('(b.sold_quantity ?? -1) - (a.sold_quantity ?? -1)');
-    expect(source).toContain('public-ml-like-search-verified-v13-2026-09-03');
+    expect(source).toContain('connected-mlb-search-verified-v14-2026-09-03');
   });
 
   test("anúncio real confirmado não é descartado só porque o preço ainda está ausente", () => {
@@ -46,23 +47,41 @@ describe("qualidade da busca pública", () => {
     expect(source).toContain('price_cents: existing.price_cents ?? item.price_cents');
   });
 
-  test("Firecrawl pode completar também item oficial e o merge preserva os dados mais completos", () => {
+  test("Firecrawl pode completar item oficial, mas só depois da conta ML ser validada", () => {
     const source = fs.readFileSync("src/lib/ml-public-search.functions.ts", "utf8");
+    expect(source).toContain('const tokens = await accessTokens(context.userId)');
+    expect(source).toContain('Conecte uma conta ativa do Mercado Livre para usar a busca.');
     expect(source).toContain('[...officialItems, ...publicCandidates]');
     expect(source).toContain('mergeEnrichment(officialItems, enriched)');
     expect(source).toContain('mergeEnrichment(verifiedPublic, enriched)');
-    expect(source).toContain('mergeSearchItem(existing, item)');
   });
 
-  test("busca oficial e página pública são iniciadas em paralelo", () => {
+  test("busca oficial e página pública só iniciam após token de conta conectada", () => {
     const source = fs.readFileSync("src/lib/ml-public-search.functions.ts", "utf8");
-    expect(source).toContain('const officialPromise = tokensPromise.then');
-    expect(source).toContain('const fallbackPromise = searchMercadoLivrePublicSiteFallback');
-    expect(source).toContain('Promise.all([tokensPromise, officialPromise, fallbackPromise])');
+    const guard = source.indexOf('if (!tokens.length)');
+    const official = source.indexOf('const officialPromise = officialSearch');
+    const fallback = source.indexOf('const fallbackPromise = searchMercadoLivrePublicSiteFallback');
+    expect(guard).toBeGreaterThan(-1);
+    expect(official).toBeGreaterThan(guard);
+    expect(fallback).toBeGreaterThan(guard);
   });
 
-  test("produto, vendedor, ID e link também exigem permalink real com MLB correspondente", () => {
+  test("multiget usa o endpoint bulk novo e aceita status_code", () => {
+    const publicSource = fs.readFileSync("src/lib/ml-public-search.functions.ts", "utf8");
+    const productionSource = fs.readFileSync("src/lib/ml-search-production.functions.ts", "utf8");
+    expect(publicSource).toContain('/items/bulk?ids=');
+    expect(publicSource).toContain('status_code');
+    expect(productionSource).toContain('new URL(`${ML_API}/items/bulk`)');
+    expect(productionSource).toContain('status_code?: number');
+    expect(productionSource).not.toContain('new URL(`${ML_API}/items`)');
+  });
+
+  test("produto, vendedor, ID e link também exigem conta conectada e permalink real", () => {
     const source = fs.readFileSync("src/lib/ml-search-production.functions.ts", "utf8");
+    expect(source).toContain('hasConnectedMlAccount(userId)');
+    expect(source).toContain('.eq("connected", true)');
+    expect(source).toContain('if (!tokens.length) return []');
+    expect(source).toContain('isBrazilMlPermalink(item.permalink)');
     expect(source).toContain('itemIdFromRealMlUrl(item.permalink) === id');
     expect(source).toContain('verified_item: verifiedItem');
     expect(source).toContain('output.push(...mapped.filter(isConfirmedRealMlItem))');
