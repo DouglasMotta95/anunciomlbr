@@ -36,6 +36,8 @@ jobs:
         run: bun run test:firecrawl
       - name: Regressões críticas de publicação e pagamento
         run: bun test tests/critical-publish-payment-contract.test.ts
+      - name: Proteção antiabuso de cadastro
+        run: bun test tests/registration-abuse.test.ts
       - name: Auditoria de segurança
         run: bun run audit:security
       - name: Auditoria de botões e ações
