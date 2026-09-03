@@ -9,6 +9,7 @@ import { PlanPurchaseSection } from "@/components/landing/PlanPurchaseSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
 import { ProductInsideShowcase } from "@/components/landing/ProductInsideShowcase";
+import { ProductScreensCarousel } from "@/components/landing/ProductScreensCarousel";
 import { PublicLandingNav } from "@/components/landing/PublicLandingNav";
 import { RealSocialProof } from "@/components/landing/RealSocialProof";
 import { Reveal } from "@/components/landing/Reveal";
@@ -42,6 +43,7 @@ function Landing() {
         <ProductTrustBar />
         <Reveal><InteractiveProductDemo /></Reveal>
         <Reveal><ProductInsideShowcase /></Reveal>
+        <Reveal><ProductScreensCarousel /></Reveal>
         <Reveal><SalesShowcase /></Reveal>
         <Reveal><PremiumCapabilities /></Reveal>
         <Reveal><VerifiedFeaturesSection /></Reveal>
