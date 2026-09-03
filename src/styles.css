@@ -4,11 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * ANÚNCIO ML — design system
- * Base escura "midnight", acento amarelo elétrico e azul marketplace.
- * Todas as cores em oklch e expostas como tokens semânticos.
- */
+/* ANÚNCIO ML — base visual do aplicativo. */
 
 @theme inline {
   --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
@@ -62,33 +58,30 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --shadow-glow: 0 0 0 1px oklch(0.86 0.17 92 / 0.25), 0 18px 60px -18px oklch(0.86 0.17 92 / 0.45);
-  --shadow-panel: 0 24px 70px -30px oklch(0.05 0.03 265 / 0.9);
+  --shadow-glow: 0 0 0 1px oklch(0.86 0.17 92 / 0.18), 0 14px 42px -24px oklch(0.86 0.17 92 / 0.3);
+  --shadow-panel: 0 18px 52px -38px oklch(0.05 0.03 265 / 0.8);
 }
 
 :root {
-  --radius: 0.9rem;
+  --radius: 0.72rem;
 
   --background: oklch(0.16 0.03 264);
   --foreground: oklch(0.97 0.005 250);
-  --surface: oklch(0.21 0.035 264);
+  --surface: oklch(0.205 0.033 264);
   --surface-foreground: oklch(0.97 0.005 250);
-  --card: oklch(0.22 0.036 264);
+  --card: oklch(0.215 0.034 264);
   --card-foreground: oklch(0.97 0.005 250);
   --popover: oklch(0.2 0.034 264);
   --popover-foreground: oklch(0.97 0.005 250);
 
-  /* amarelo elétrico */
   --primary: oklch(0.86 0.17 92);
   --primary-foreground: oklch(0.19 0.04 264);
-
-  /* azul marketplace */
   --secondary: oklch(0.6 0.19 258);
   --secondary-foreground: oklch(0.98 0.005 250);
 
-  --muted: oklch(0.27 0.035 264);
+  --muted: oklch(0.265 0.032 264);
   --muted-foreground: oklch(0.72 0.025 258);
-  --accent: oklch(0.3 0.05 264);
+  --accent: oklch(0.285 0.04 264);
   --accent-foreground: oklch(0.97 0.005 250);
 
   --destructive: oklch(0.62 0.22 22);
@@ -98,8 +91,8 @@
   --warning: oklch(0.8 0.16 70);
   --warning-foreground: oklch(0.19 0.04 264);
 
-  --border: oklch(0.32 0.035 264);
-  --input: oklch(0.32 0.035 264);
+  --border: oklch(0.305 0.032 264);
+  --input: oklch(0.31 0.032 264);
   --ring: oklch(0.86 0.17 92);
 
   --chart-1: oklch(0.86 0.17 92);
@@ -108,13 +101,13 @@
   --chart-4: oklch(0.7 0.19 20);
   --chart-5: oklch(0.75 0.13 300);
 
-  --sidebar: oklch(0.19 0.033 264);
+  --sidebar: oklch(0.19 0.031 264);
   --sidebar-foreground: oklch(0.9 0.01 250);
   --sidebar-primary: oklch(0.86 0.17 92);
   --sidebar-primary-foreground: oklch(0.19 0.04 264);
-  --sidebar-accent: oklch(0.27 0.04 264);
+  --sidebar-accent: oklch(0.26 0.035 264);
   --sidebar-accent-foreground: oklch(0.97 0.005 250);
-  --sidebar-border: oklch(0.29 0.035 264);
+  --sidebar-border: oklch(0.285 0.032 264);
   --sidebar-ring: oklch(0.86 0.17 92);
 }
 
@@ -127,11 +120,20 @@
     border-color: var(--color-border);
   }
 
+  html {
+    text-rendering: optimizeLegibility;
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: oklch(0.86 0.17 92 / 0.3);
+    color: var(--color-foreground);
   }
 
   button,
@@ -153,14 +155,23 @@
   h3,
   h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
+  }
+
+  h1,
+  h2 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 }
 
 @utility grid-noise {
   background-image:
-    radial-gradient(circle at 20% -10%, oklch(0.6 0.19 258 / 0.28), transparent 55%),
-    radial-gradient(circle at 85% 0%, oklch(0.86 0.17 92 / 0.18), transparent 45%);
+    radial-gradient(circle at 20% -10%, oklch(0.6 0.19 258 / 0.2), transparent 55%),
+    radial-gradient(circle at 85% 0%, oklch(0.86 0.17 92 / 0.12), transparent 45%);
 }
 
 @utility text-gradient {
@@ -171,15 +182,15 @@
 }
 
 @utility glass-panel {
-  background-color: oklch(0.22 0.036 264 / 0.75);
-  border: 1px solid oklch(0.36 0.04 264 / 0.8);
-  backdrop-filter: blur(14px);
+  background-color: oklch(0.215 0.034 264 / 0.88);
+  border: 1px solid oklch(0.34 0.035 264 / 0.72);
+  backdrop-filter: blur(12px);
   box-shadow: var(--shadow-panel);
 }
 
 @keyframes float-soft {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+  50% { transform: translateY(-8px); }
 }
 
 @utility float-soft {
