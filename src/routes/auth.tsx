@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -14,13 +15,26 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
+import { checkRegistrationAbuse, confirmRegistrationAbuse } from "@/lib/registration-abuse.functions";
 
 const searchSchema = z.object({ mode: z.enum(["login", "signup"]).optional(), ref: z.string().trim().min(3).max(32).optional() });
 const title = "Entrar ou criar conta — ANÚNCIO ML";
 const description = "Acesse sua conta ANÚNCIO ML ou crie a sua em segundos e ganhe 10 anúncios gratuitos para testar a plataforma.";
 const CUSTOMER_OAUTH_INTENT = "anuncioml_customer_oauth_intent";
+const REGISTRATION_DEVICE_ID = "anuncioml_registration_device_id";
+const REGISTRATION_RESERVATION = "anuncioml_registration_reservation";
 
 type OAuthIntent = "login" | "signup";
+
+function registrationDeviceId() {
+  const existing = localStorage.getItem(REGISTRATION_DEVICE_ID)?.trim();
+  if (existing && existing.length >= 16) return existing;
+  const id = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem(REGISTRATION_DEVICE_ID, id);
+  return id;
+}
 
 function readOAuthReturn() {
   if (typeof window === "undefined") return { accessToken: null, refreshToken: null, code: null, error: null, errorDescription: null };
@@ -77,6 +91,8 @@ function AuthPage() {
   const { mode, ref } = Route.useSearch();
   const navigate = useNavigate();
   const { user, loading: sessionLoading } = useAuth();
+  const checkRegistration = useServerFn(checkRegistrationAbuse);
+  const confirmRegistration = useServerFn(confirmRegistrationAbuse);
   const [preparingCustomerLogin, setPreparingCustomerLogin] = useState(true);
   const [isSignup, setIsSignup] = useState(mode === "signup" || !!ref);
   const [name, setName] = useState("");
@@ -96,6 +112,24 @@ function AuthPage() {
     return data?.onboarding_done ? "/dashboard" : "/onboarding";
   }
 
+  async function reserveRegistration(emailValue: string) {
+    const result = await checkRegistration({ data: { email: emailValue, deviceId: registrationDeviceId() } });
+    if (!result.allowed) throw new Error(result.message);
+    sessionStorage.setItem(REGISTRATION_RESERVATION, result.reservationToken);
+    return result.reservationToken;
+  }
+
+  async function confirmReservedRegistration(userId: string, emailValue?: string | null) {
+    let reservationToken = sessionStorage.getItem(REGISTRATION_RESERVATION);
+    if (!reservationToken) {
+      if (!emailValue) throw new Error("Não foi possível validar a origem deste cadastro.");
+      reservationToken = await reserveRegistration(emailValue);
+    }
+    const result = await confirmRegistration({ data: { reservationToken, userId } });
+    if (!result.ok) throw new Error("Não foi possível concluir a proteção deste cadastro.");
+    sessionStorage.removeItem(REGISTRATION_RESERVATION);
+  }
+
   useEffect(() => {
     if (sessionLoading) return undefined;
 
@@ -104,6 +138,15 @@ function AuthPage() {
     let unsubscribe: (() => void) | undefined;
 
     const routeAuthenticatedUser = async (userId: string, intent: OAuthIntent | null) => {
+      if (intent === "signup") {
+        const { data: authData } = await supabase.auth.getUser();
+        try {
+          await confirmReservedRegistration(userId, authData.user?.email ?? null);
+        } catch (error) {
+          await supabase.auth.signOut({ scope: "local" });
+          throw error;
+        }
+      }
       const destination = intent === "signup" ? "/onboarding" : await customerDestination(userId);
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       cleanOAuthReturnUrl();
@@ -113,11 +156,11 @@ function AuthPage() {
     if (user) {
       setPreparingCustomerLogin(true);
       const oauthIntent = sessionStorage.getItem(CUSTOMER_OAUTH_INTENT) as OAuthIntent | null;
-      void routeAuthenticatedUser(user.id, oauthIntent).catch(() => {
+      void routeAuthenticatedUser(user.id, oauthIntent).catch((error) => {
         if (cancelled) return;
         sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
         setPreparingCustomerLogin(false);
-        toast.error("Sua conta foi autenticada, mas não foi possível abrir o painel. Tente novamente.");
+        toast.error(error instanceof Error ? error.message : "Sua conta foi autenticada, mas não foi possível abrir o painel. Tente novamente.");
       });
       return () => {
         cancelled = true;
@@ -220,6 +263,7 @@ function AuthPage() {
           toast.error("É necessário aceitar os Termos de Uso e a Política de Privacidade.");
           return;
         }
+        const reservationToken = await reserveRegistration(email);
         const referral = ref?.trim().toUpperCase() || undefined;
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -229,8 +273,18 @@ function AuthPage() {
             emailRedirectTo: `${window.location.origin}/onboarding`,
           },
         });
-        if (error) throw error;
-        if (!data.session || !data.user) {
+        if (error) {
+          sessionStorage.removeItem(REGISTRATION_RESERVATION);
+          throw error;
+        }
+        if (!data.user) {
+          sessionStorage.removeItem(REGISTRATION_RESERVATION);
+          throw new Error("A conta não retornou um identificador válido.");
+        }
+        const guard = await confirmRegistration({ data: { reservationToken, userId: data.user.id } });
+        if (!guard.ok) throw new Error("A conta foi criada, mas a proteção do cadastro não pôde ser concluída. Fale com o suporte antes de criar outra conta.");
+        sessionStorage.removeItem(REGISTRATION_RESERVATION);
+        if (!data.session) {
           toast.success(referral ? "Conta criada com indicação registrada. Confira seu e-mail para confirmar." : "Conta criada. Confira seu e-mail para confirmar e continuar.");
           setIsSignup(false);
           return;
@@ -261,8 +315,8 @@ function AuthPage() {
     const oauthIntent: OAuthIntent = isSignup ? "signup" : "login";
 
     try {
-      await supabase.auth.signOut({ scope: "local" });
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+      sessionStorage.removeItem(REGISTRATION_RESERVATION);
       sessionStorage.setItem(CUSTOMER_OAUTH_INTENT, oauthIntent);
       if (ref) sessionStorage.setItem("anuncioml_referral", ref.toUpperCase());
 
@@ -278,9 +332,7 @@ function AuthPage() {
       const googleUser = data.session?.user;
       if (!googleUser) throw new Error("O Google autorizou, mas a sessão não foi criada.");
 
-      const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(googleUser.id);
-      sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
-      void navigate({ to: destination, replace: true });
+      await routeGoogleUser(googleUser.id, googleUser.email ?? null, oauthIntent);
     } catch (error) {
       sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
       const message = error instanceof Error ? error.message : "Não foi possível entrar com o Google.";
@@ -293,6 +345,20 @@ function AuthPage() {
     } finally {
       setGoogleLoading(false);
     }
+  }
+
+  async function routeGoogleUser(userId: string, googleEmail: string | null, oauthIntent: OAuthIntent) {
+    if (oauthIntent === "signup") {
+      try {
+        await confirmReservedRegistration(userId, googleEmail);
+      } catch (error) {
+        await supabase.auth.signOut({ scope: "local" });
+        throw error;
+      }
+    }
+    const destination = oauthIntent === "signup" ? "/onboarding" : await customerDestination(userId);
+    sessionStorage.removeItem(CUSTOMER_OAUTH_INTENT);
+    void navigate({ to: destination, replace: true });
   }
 
   async function handleReset() {
