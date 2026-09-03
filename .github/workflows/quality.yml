@@ -38,6 +38,8 @@ jobs:
         run: bun test tests/growth-intelligence.test.ts
       - name: Suite comercial integrada
         run: bun test tests/commercial-suite.test.ts
+      - name: Centro de controle administrativo
+        run: bun test tests/admin-control-center.test.ts
       - name: Regressões críticas de publicação e pagamento
         run: bun test tests/critical-publish-payment-contract.test.ts
       - name: Proteção antiabuso de cadastro

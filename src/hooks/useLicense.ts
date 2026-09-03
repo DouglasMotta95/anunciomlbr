@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
+export type PlanFeatureFlags = Record<string, boolean>;
+
 export type ActiveLicense = {
   id: string;
   code: string;
@@ -10,8 +12,13 @@ export type ActiveLicense = {
   period: string;
   starts_at: string | null;
   expires_at: string | null;
-  plan: { id: string; code: string; name: string; listing_limit: number | null; ai_credits: number | null } | null;
+  plan: { id: string; code: string; name: string; listing_limit: number | null; ai_credits: number | null; feature_flags: PlanFeatureFlags | null } | null;
 };
+
+export function isPlanFeatureAllowed(flags: PlanFeatureFlags | null | undefined, key: string | null | undefined) {
+  if (!key) return true;
+  return flags?.[key] !== false;
+}
 
 export function useLicense() {
   const { user } = useAuth();
@@ -19,10 +26,13 @@ export function useLicense() {
     queryKey: ["license", user?.id],
     enabled: !!user,
     queryFn: async (): Promise<ActiveLicense | null> => {
-      const { data, error } = await supabase
+      // feature_flags foi adicionado por migration recente; o cast pode ser removido
+      // quando os tipos gerados do Supabase forem regenerados.
+      const db = supabase as any;
+      const { data, error } = await db
         .from("licenses")
         .select(
-          "id, code, status, period, starts_at, expires_at, plans!inner(id, code, name, listing_limit, ai_credits, kind)",
+          "id, code, status, period, starts_at, expires_at, plans!inner(id, code, name, listing_limit, ai_credits, kind, feature_flags)",
         )
         .eq("user_id", user!.id)
         .eq("status", "active")
@@ -32,7 +42,7 @@ export function useLicense() {
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
-      const { plans, ...rest } = data as typeof data & { plans: ActiveLicense["plan"] };
+      const { plans, ...rest } = data as any;
       return { ...rest, plan: plans ?? null } as ActiveLicense;
     },
   });

@@ -1,7 +1,7 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { BadgeDollarSign, BarChart3, Bot, CheckCircle2, Coins, CreditCard, FileText, HeartPulse, KeyRound, LayoutDashboard, LifeBuoy, LogOut, Package, Radar, RefreshCcw, ScrollText, Settings, Store, Ticket, TriangleAlert, UserMinus, Users, XCircle } from "lucide-react";
+import { BadgeDollarSign, BarChart3, Bot, CheckCircle2, Coins, CreditCard, FileText, HeartPulse, KeyRound, LayoutDashboard, LifeBuoy, LogOut, Package, Radar, RefreshCcw, ScrollText, Settings, SlidersHorizontal, Store, Ticket, TriangleAlert, UserMinus, Users, XCircle } from "lucide-react";
 import { type ReactNode, useEffect } from "react";
 import { Logo } from "@/components/brand";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ const ADMIN_NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Dashboard", icon: LayoutDashboard, section: "dashboard" },
       { label: "Saúde da plataforma", icon: HeartPulse, section: "saude" },
+      { label: "Centro de controle", icon: SlidersHorizontal, section: "controle" },
     ],
   },
   {
@@ -134,6 +135,7 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
   };
 
   const chooseSection = (section: string) => {
+    if (section === "controle") { navigate({ to: "/admin-controle" as any }); return; }
     if (section === "revendedores") { navigate({ to: "/admin-revendedores" }); return; }
     if (section === "assistente") { navigate({ to: "/admin-comercial" as any }); return; }
     if (section === "creditos") { navigate({ to: "/admin-creditos" as any }); return; }
@@ -166,19 +168,8 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
                   const Icon = item.icon;
                   const active = activeSection === item.section;
                   return (
-                    <button
-                      key={item.section}
-                      type="button"
-                      onClick={() => chooseSection(item.section)}
-                      className={cn(
-                        "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all",
-                        active
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
+                    <button key={item.section} type="button" onClick={() => chooseSection(item.section)} className={cn("flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all",active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                      <Icon className="h-4 w-4 shrink-0" /><span className="truncate">{item.label}</span>
                     </button>
                   );
                 })}
@@ -186,45 +177,20 @@ export function AdminLayout({ activeSection, onSectionChange, children }: { acti
             ))}
           </nav>
 
-          <div className="border-t p-3">
-            <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" onClick={signOut}>
-              <LogOut className="mr-2 h-4 w-4" />Sair do painel
-            </Button>
-          </div>
+          <div className="border-t p-3"><Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" onClick={signOut}><LogOut className="mr-2 h-4 w-4" />Sair do painel</Button></div>
         </aside>
 
         <main className="min-w-0 flex-1">
           <header className="sticky top-0 z-20 border-b bg-background/95 px-4 py-4 backdrop-blur-xl sm:px-6">
             <div className="mx-auto max-w-[1260px]">
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>Administração</span>
-                    <span>›</span>
-                    <span className="font-medium text-foreground">{currentGroup?.title ?? "Painel"}</span>
-                  </div>
-                  <h1 className="truncate font-display text-xl font-extrabold tracking-tight sm:text-2xl">{current?.label ?? "Painel administrativo"}</h1>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button size="sm" variant="outline" onClick={() => chooseSection("clientes")}><Users className="mr-2 h-4 w-4" />Clientes</Button>
-                  <Button size="sm" variant="outline" onClick={() => chooseSection("creditos")}><Coins className="mr-2 h-4 w-4" />Créditos</Button>
-                  <Button size="sm" onClick={() => chooseSection("licencas")}><KeyRound className="mr-2 h-4 w-4" />Licenças</Button>
-                  <Button variant="ghost" size="icon" onClick={signOut} aria-label="Sair do painel administrativo"><LogOut className="h-4 w-4" /></Button>
-                </div>
+                <div className="min-w-0"><div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground"><span>Administração</span><span>›</span><span className="font-medium text-foreground">{currentGroup?.title ?? "Painel"}</span></div><h1 className="truncate font-display text-xl font-extrabold tracking-tight sm:text-2xl">{current?.label ?? "Painel administrativo"}</h1></div>
+                <div className="flex flex-wrap items-center gap-2"><Button size="sm" variant="outline" onClick={() => chooseSection("clientes")}><Users className="mr-2 h-4 w-4" />Clientes</Button><Button size="sm" variant="outline" onClick={() => chooseSection("controle")}><SlidersHorizontal className="mr-2 h-4 w-4" />Controle</Button><Button size="sm" onClick={() => chooseSection("licencas")}><KeyRound className="mr-2 h-4 w-4" />Licenças</Button><Button variant="ghost" size="icon" onClick={signOut} aria-label="Sair do painel administrativo"><LogOut className="h-4 w-4" /></Button></div>
               </div>
-
-              <div className="mt-3 lg:hidden">
-                <Select value={activeSection} onValueChange={chooseSection}>
-                  <SelectTrigger className="bg-background"><SelectValue placeholder="Selecione a seção" /></SelectTrigger>
-                  <SelectContent>{ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => <SelectItem key={item.section} value={item.section}>{group.title} · {item.label}</SelectItem>))}</SelectContent>
-                </Select>
-              </div>
+              <div className="mt-3 lg:hidden"><Select value={activeSection} onValueChange={chooseSection}><SelectTrigger className="bg-background"><SelectValue placeholder="Selecione a seção" /></SelectTrigger><SelectContent>{ADMIN_NAV_GROUPS.flatMap((group) => group.items.map((item) => <SelectItem key={item.section} value={item.section}>{group.title} · {item.label}</SelectItem>))}</SelectContent></Select></div>
             </div>
           </header>
-
-          <div data-admin-content className="mx-auto max-w-[1260px] p-4 pb-10 sm:p-6">
-            {activeSection === "saude" ? <HealthCenter /> : children}
-          </div>
+          <div data-admin-content className="mx-auto max-w-[1260px] p-4 pb-10 sm:p-6">{activeSection === "saude" ? <HealthCenter /> : children}</div>
         </main>
       </div>
     </div>
