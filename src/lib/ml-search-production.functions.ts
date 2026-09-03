@@ -52,7 +52,24 @@ type CatalogOfferRow = {
 const sellerCache = new Map<string, { value: string | null; expires: number }>();
 const tokenKinds = new Map<string, TokenKind>();
 
+async function hasConnectedMlAccount(userId: string) {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("ml_connections")
+      .select("user_id")
+      .eq("user_id", userId)
+      .eq("connected", true)
+      .limit(1)
+      .maybeSingle();
+    return !error && !!data;
+  } catch {
+    return false;
+  }
+}
+
 async function getTokens(userId: string): Promise<string[]> {
+  if (!(await hasConnectedMlAccount(userId))) return [];
   const { getAppAccessToken, getValidMlAccessToken } = await import("@/lib/ml.server");
   const tokens: string[] = [];
   try {
@@ -62,6 +79,7 @@ async function getTokens(userId: string): Promise<string[]> {
       tokenKinds.set(user.accessToken, "user");
     }
   } catch {}
+  if (!tokens.length) return [];
   try {
     const app = await getAppAccessToken();
     if (app && !tokens.includes(app)) {
@@ -78,7 +96,7 @@ function headers(token?: string) {
   return out;
 }
 
-function logMlAttempt(scope: MlLogScope | undefined, url: string | URL, status: number | "network_error", tokenType: TokenKind | "anonymous") {
+function logMlAttempt(scope: MlLogScope | undefined, url: string | URL, status: number | "network_error", tokenType: TokenKind) {
   if (!scope) return;
   console.info("[ML search diagnostic]", {
     scope,
@@ -104,16 +122,7 @@ async function mlFetch(url: string | URL, tokens: string[], logScope?: MlLogScop
       logMlAttempt(logScope, url, "network_error", tokenType);
     }
   }
-  try {
-    const response = await fetch(url, { headers: headers(), signal: AbortSignal.timeout(15_000) });
-    statuses.push(response.status);
-    last = response;
-    logMlAttempt(logScope, url, response.status, "anonymous");
-    return { response, statuses };
-  } catch {
-    logMlAttempt(logScope, url, "network_error", "anonymous");
-    return { response: last, statuses };
-  }
+  return { response: last, statuses };
 }
 
 function safeUrl(value: unknown): string | null {
@@ -121,12 +130,22 @@ function safeUrl(value: unknown): string | null {
   return value.startsWith("http://") ? `https://${value.slice(7)}` : value;
 }
 
+function isBrazilMlPermalink(value: string | null | undefined) {
+  if (!value) return false;
+  try {
+    const hostname = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+    return hostname === "mercadolivre.com.br" || hostname.endsWith(".mercadolivre.com.br");
+  } catch {
+    return false;
+  }
+}
+
 function normalizedItemId(value: string) {
   return normalizeItemId(value) ?? value.toUpperCase().replace("MLB-", "MLB");
 }
 
 export function isConfirmedRealMlItem(item: Pick<SearchMlItem, "id" | "permalink" | "verified_item">) {
-  if (item.verified_item !== true || !item.permalink) return false;
+  if (item.verified_item !== true || !item.permalink || !isBrazilMlPermalink(item.permalink)) return false;
   const id = normalizedItemId(item.id);
   return /^MLB\d+$/.test(id) && itemIdFromRealMlUrl(item.permalink) === id;
 }
@@ -166,7 +185,7 @@ function isRelevant(query: string, item: Pick<SearchMlItem, "title">) {
   const tokens = queryTokens(query);
   const score = relevanceScore(query, item);
   if (tokens.length <= 1) return score === 100;
-  return score >= 50;
+  return score === 100;
 }
 
 function productImages(raw: ProductDetail): string[] {
@@ -198,7 +217,12 @@ async function mapItemRaw(raw: Record<string, unknown>, tokens: string[], source
   const seller = typeof sellerObj?.nickname === "string" ? sellerObj.nickname : await sellerNickname(resolvedSellerId, tokens);
   const id = normalizedItemId(String(raw["id"] ?? raw["item_id"] ?? ""));
   const permalink = safeUrl(raw["permalink"]);
-  const verifiedItem = /^MLB\d+$/.test(id) && !!permalink && itemIdFromRealMlUrl(permalink) === id;
+  const siteId = typeof raw["site_id"] === "string" ? raw["site_id"] : null;
+  const verifiedItem = /^MLB\d+$/.test(id)
+    && (!siteId || siteId === "MLB")
+    && !!permalink
+    && isBrazilMlPermalink(permalink)
+    && itemIdFromRealMlUrl(permalink) === id;
   return {
     id,
     title: String(raw["title"] ?? "Anúncio Mercado Livre"),
@@ -224,13 +248,15 @@ async function fetchItemsBatch(ids: string[], tokens: string[]): Promise<SearchM
   const output: SearchMlItem[] = [];
   for (let index = 0; index < unique.length; index += 20) {
     const chunk = unique.slice(index, index + 20);
-    const url = new URL(`${ML_API}/items`);
+    const url = new URL(`${ML_API}/items/bulk`);
     url.searchParams.set("ids", chunk.join(","));
-    url.searchParams.set("include_attributes", "all");
+    url.searchParams.set("attributes", "body.id,body.site_id,body.title,body.price,body.permalink,body.thumbnail,body.category_id,body.seller_id,body.condition,body.available_quantity,body.sold_quantity,body.status,body.pictures,body.attributes");
     const attempt = await mlFetch(url, tokens, "fetchItemsBatch");
     if (!attempt.response?.ok) continue;
-    const rows = (await attempt.response.json().catch(() => [])) as Array<{ code?: number; body?: Record<string, unknown> }>;
-    const mapped = await Promise.all(rows.filter((row) => row?.code === 200 && row.body).map((row) => mapItemRaw(row.body!, tokens)));
+    const rows = (await attempt.response.json().catch(() => [])) as Array<{ status_code?: number; code?: number; body?: Record<string, unknown> }>;
+    const mapped = await Promise.all(rows
+      .filter((row) => (row?.status_code === 200 || row?.code === 200) && row.body)
+      .map((row) => mapItemRaw(row.body!, tokens)));
     output.push(...mapped.filter(isConfirmedRealMlItem));
   }
   return output;
@@ -483,7 +509,7 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const limit = data.limit ?? 20;
     const tokens = await getTokens(context.userId);
-    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para usar a busca.", items: [] };
+    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte uma conta ativa do Mercado Livre para usar a busca.", items: [] };
     const [marketplace, catalog] = await Promise.all([
       legacyMarketplaceSearch(data.query, tokens, Math.min(limit, 50)),
       officialCatalogSearch(data.query, tokens, limit),
@@ -494,7 +520,7 @@ export const searchMercadoLivre = createServerFn({ method: "POST" })
     if (merged.length) return {
       ok: true,
       configured: true,
-      reason: marketplace.length ? null : "Resultados oficiais e verificáveis do Mercado Livre. Itens sem correspondência real com sua busca foram removidos.",
+      reason: marketplace.length ? null : "Resultados oficiais e verificáveis do Mercado Livre Brasil. Itens sem correspondência real com sua busca foram removidos.",
       items: merged,
     };
     return { ok: false, configured: true, reason: userMessage(catalog.statuses, true), items: [] };
@@ -505,10 +531,10 @@ export const searchMercadoLivreProducts = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
-    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para usar a busca.", items: [] };
+    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte uma conta ativa do Mercado Livre para usar a busca.", items: [] };
     const result = await officialCatalogSearch(data.query, tokens, data.limit ?? 20);
     const verified = result.items.filter((item) => isConfirmedActiveMlItem(item) && isRelevant(data.query, item));
-    return verified.length ? { ok: true, configured: true, reason: "Resultados oficiais e verificáveis do Mercado Livre.", items: verified } : { ok: false, configured: true, reason: userMessage(result.statuses, true), items: [] };
+    return verified.length ? { ok: true, configured: true, reason: "Resultados oficiais e verificáveis do Mercado Livre Brasil.", items: verified } : { ok: false, configured: true, reason: userMessage(result.statuses, true), items: [] };
   });
 
 export const searchMercadoLivreSeller = createServerFn({ method: "POST" })
@@ -516,7 +542,7 @@ export const searchMercadoLivreSeller = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ query: z.string().trim().min(1).max(120), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
-    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para usar a busca.", items: [] };
+    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte uma conta ativa do Mercado Livre para usar a busca.", items: [] };
     const result = await sellerSearch(data.query, tokens, data.limit ?? 20);
     const items = result.items.filter(isConfirmedActiveMlItem);
     return items.length ? { ok: true, configured: true, reason: null, items } : { ok: false, configured: true, reason: userMessage(result.statuses, true), items: [] };
@@ -527,7 +553,7 @@ export const getMercadoLivreItem = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ id: z.string().trim().regex(/^MLB-?\d+$/i, "ID inválido. Use MLB1234567890.") }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
-    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para consultar o anúncio.", items: [] };
+    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte uma conta ativa do Mercado Livre para consultar o anúncio.", items: [] };
     const result = await fetchItem(data.id, tokens);
     return result.item && isConfirmedRealMlItem(result.item) ? { ok: true, configured: true, reason: null, items: [result.item] } : { ok: false, configured: true, reason: userMessage(result.statuses, false), items: [] };
   });
@@ -537,7 +563,7 @@ export const getMercadoLivreItemDescription = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ id: z.string().trim().regex(/^MLB-?\d+$/i) }).parse(data))
   .handler(async ({ data, context }) => {
     const tokens = await getTokens(context.userId);
-    if (!tokens.length) return { ok: false as const, description: null, reason: "Conecte sua conta do Mercado Livre." };
+    if (!tokens.length) return { ok: false as const, description: null, reason: "Conecte uma conta ativa do Mercado Livre." };
     const result = await descriptionResult(data.id.toUpperCase().replace("MLB-", "MLB"), tokens);
     return { ok: !!result.description, description: result.description, reason: result.reason };
   });
@@ -547,7 +573,7 @@ export const getMercadoLivreItemFromLink = createServerFn({ method: "POST" })
   .validator((data: unknown) => z.object({ link: z.string().trim().min(4).max(1000), limit: z.number().int().min(1).max(200).optional() }).parse(data))
   .handler(async ({ data, context }): Promise<SearchResult> => {
     const tokens = await getTokens(context.userId);
-    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte sua conta do Mercado Livre para consultar o link.", items: [] };
+    if (!tokens.length) return { ok: false, configured: true, reason: "Conecte uma conta ativa do Mercado Livre para consultar o link.", items: [] };
     const limit = data.limit ?? 20;
     const resolved = await resolveLink(data.link);
 
