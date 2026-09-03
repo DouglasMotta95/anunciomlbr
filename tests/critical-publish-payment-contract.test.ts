@@ -75,8 +75,10 @@ describe("contrato da tela Buscar e copiar", () => {
   });
 
   test("Firecrawl completa dados faltantes visitando o permalink real", () => {
-    expect(search).toContain("const incomplete = publicCandidates.filter");
+    expect(search).toContain("[...officialItems, ...publicCandidates]");
     expect(search).toContain("firecrawlEnrichMercadoLivreAds");
+    expect(search).toContain("mergeEnrichment(officialItems, enriched)");
+    expect(search).toContain("mergeEnrichment(verifiedPublic, enriched)");
     expect(enrich).toContain("url: candidate.permalink");
     expect(enrich).toContain("itemIdFromRealMlUrl(candidate.permalink) !== candidate.id");
   });
