@@ -14,18 +14,21 @@ export const adminGetControlCenter = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // As tabelas/colunas abaixo foram adicionadas por migrations recentes e ainda não
+    // constam no arquivo gerado de tipos do Supabase. O cast fica isolado no servidor.
+    const db = supabaseAdmin as any;
     const [profiles, connections, rules, keywordCount, pricingCount, abuse, activity, plans, creations, published, competitors] = await Promise.all([
-      supabaseAdmin.from("profiles").select("id,email,full_name,last_seen_at"),
-      supabaseAdmin.from("ml_connections").select("user_id,ml_user_id,nickname,connected,listings_count,last_sync_at,created_at,updated_at").order("updated_at",{ascending:false}).limit(200),
-      supabaseAdmin.from("automation_rules").select("id,user_id,name,signal,threshold,action,enabled,created_at,updated_at").order("updated_at",{ascending:false}).limit(200),
-      supabaseAdmin.from("keyword_tracks").select("id",{count:"exact",head:true}),
-      supabaseAdmin.from("pricing_audit_log").select("id",{count:"exact",head:true}),
-      supabaseAdmin.from("registration_abuse_events").select("id,created_at,status,user_id,email_hash,ip_hash,device_hash,user_agent_hash").order("created_at",{ascending:false}).limit(100),
-      supabaseAdmin.from("activity_events").select("id,user_id,kind,message,created_at").order("created_at",{ascending:false}).limit(400),
-      supabaseAdmin.from("plans").select("id,code,name,kind,active,listing_limit,ai_credits,feature_flags").order("sort_order",{ascending:true}),
-      supabaseAdmin.from("listing_quota_claims").select("listing_id",{count:"exact",head:true}),
-      supabaseAdmin.from("listings").select("id",{count:"exact",head:true}).not("published_at","is",null),
-      supabaseAdmin.from("competitor_watch").select("id",{count:"exact",head:true}),
+      db.from("profiles").select("id,email,full_name,last_seen_at"),
+      db.from("ml_connections").select("user_id,ml_user_id,nickname,connected,listings_count,last_sync_at,created_at,updated_at").order("updated_at",{ascending:false}).limit(200),
+      db.from("automation_rules").select("id,user_id,name,signal,threshold,action,enabled,created_at,updated_at").order("updated_at",{ascending:false}).limit(200),
+      db.from("keyword_tracks").select("id",{count:"exact",head:true}),
+      db.from("pricing_audit_log").select("id",{count:"exact",head:true}),
+      db.from("registration_abuse_events").select("id,created_at,status,user_id,email_hash,ip_hash,device_hash,user_agent_hash").order("created_at",{ascending:false}).limit(100),
+      db.from("activity_events").select("id,user_id,kind,message,created_at").order("created_at",{ascending:false}).limit(400),
+      db.from("plans").select("id,code,name,kind,active,listing_limit,ai_credits,feature_flags").order("sort_order",{ascending:true}),
+      db.from("listing_quota_claims").select("listing_id",{count:"exact",head:true}),
+      db.from("listings").select("id",{count:"exact",head:true}).not("published_at","is",null),
+      db.from("competitor_watch").select("id",{count:"exact",head:true}),
     ]);
     const errors=[profiles.error,connections.error,rules.error,keywordCount.error,pricingCount.error,abuse.error,activity.error,plans.error,creations.error,published.error,competitors.error].filter(Boolean);
     if(errors.length) throw new Error(`Falha ao carregar centro de controle: ${errors[0]?.message ?? "erro desconhecido"}`);
@@ -51,10 +54,11 @@ export const adminUpdatePlanFeatureFlags = createServerFn({ method: "POST" })
   .handler(async ({ data, context })=>{
     await assertAdmin(context);
     const { supabaseAdmin }=await import("@/integrations/supabase/client.server");
+    const db=supabaseAdmin as any;
     const clean:Record<string,boolean>={};
     for(const key of FEATURE_KEYS) if(Object.prototype.hasOwnProperty.call(data.flags,key)) clean[key]=data.flags[key] as boolean;
-    const {data:plan,error}=await supabaseAdmin.from("plans").update({feature_flags:clean}).eq("id",data.plan_id).select("id,code,name,feature_flags").single();
+    const {data:plan,error}=await db.from("plans").update({feature_flags:clean}).eq("id",data.plan_id).select("id,code,name,feature_flags").single();
     if(error) throw new Error(`Falha ao atualizar recursos do plano: ${error.message}`);
-    await supabaseAdmin.from("activity_events").insert({user_id:context.userId,kind:"admin_plan_features_updated",message:`Recursos do plano ${plan.code} atualizados.`,meta:{plan_id:plan.id,feature_flags:clean}});
+    await db.from("activity_events").insert({user_id:context.userId,kind:"admin_plan_features_updated",message:`Recursos do plano ${plan.code} atualizados.`,meta:{plan_id:plan.id,feature_flags:clean}});
     return plan;
   });
