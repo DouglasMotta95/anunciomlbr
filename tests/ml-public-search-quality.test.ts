@@ -4,17 +4,21 @@ import fs from "node:fs";
 import { strictSearchRelevanceScore } from "../src/lib/ml-public-search.functions";
 
 describe("qualidade da busca pública", () => {
-  test("consulta de uma palavra só exige que o produto comece pelo termo", () => {
-    expect(strictSearchRelevanceScore("Lovable", "Lovable AI Pro 1 ano")).toBeGreaterThanOrEqual(120);
-    expect(strictSearchRelevanceScore("Lovable", "Livro: Ia Lovable (adorable): La Revolución Tecnológica")).toBe(0);
-    expect(strictSearchRelevanceScore("Lovable", "Extensão Chrome Lovable 600 + Licença Pro")).toBe(0);
-    expect(strictSearchRelevanceScore("Netflix", "Netflix Gift Card Oficial")).toBeGreaterThanOrEqual(120);
-    expect(strictSearchRelevanceScore("Netflix", "TV Box Android com Netflix 4K")).toBe(0);
+  test("consulta de uma palavra funciona para qualquer produto sem exigir posição fixa", () => {
+    expect(strictSearchRelevanceScore("iphone", "Apple iPhone 16 128GB Preto")).toBeGreaterThanOrEqual(100);
+    expect(strictSearchRelevanceScore("geladeira", "Refrigerador Geladeira Frost Free 400L")).toBeGreaterThanOrEqual(100);
+    expect(strictSearchRelevanceScore("furadeira", "Furadeira Impacto 750W Profissional")).toBeGreaterThanOrEqual(100);
+    expect(strictSearchRelevanceScore("iphone", "Capa para iPhone 16 Transparente")).toBe(0);
+    expect(strictSearchRelevanceScore("geladeira", "Livro Manual Geladeira Antiga")).toBe(0);
+    expect(strictSearchRelevanceScore("furadeira", "Suporte para Furadeira de Bancada")).toBe(0);
   });
 
-  test("consulta composta exige todos os termos relevantes", () => {
-    expect(strictSearchRelevanceScore("iphone 16", "iPhone 16 128GB Preto")).toBeGreaterThanOrEqual(120);
+  test("consulta composta exige todos os termos relevantes, sem depender de exemplos fixos", () => {
+    expect(strictSearchRelevanceScore("iphone 16", "Apple iPhone 16 128GB Preto")).toBeGreaterThanOrEqual(100);
+    expect(strictSearchRelevanceScore("mesa escritorio", "Mesa Para Escritório 2 Gavetas Branca")).toBeGreaterThanOrEqual(100);
+    expect(strictSearchRelevanceScore("tenis corrida", "Tênis Masculino Para Corrida Leve")).toBeGreaterThanOrEqual(100);
     expect(strictSearchRelevanceScore("iphone 16", "iPhone 15 128GB Preto")).toBe(0);
+    expect(strictSearchRelevanceScore("mesa escritorio", "Mesa de Jantar 6 Lugares")).toBe(0);
   });
 
   test("contrato final só admite anúncio confirmado e valida grounding antes de exibir", () => {
@@ -25,6 +29,14 @@ describe("qualidade da busca pública", () => {
     expect(source).toContain('searchAdsWithGeminiGrounding');
     expect(source).toContain('verifyCandidates(query, groundedCandidates');
     expect(source).not.toContain('addItems(byId, groundedCandidates)');
+  });
+
+  test("busca coleta mais candidatos e ranqueia relevância, completude e vendas", () => {
+    const source = fs.readFileSync("src/lib/ml-public-search.functions.ts", "utf8");
+    expect(source).toContain('Math.min(Math.max(desired * 2, 20), 50)');
+    expect(source).toContain('resultQualityScore');
+    expect(source).toContain('(b.sold_quantity ?? -1) - (a.sold_quantity ?? -1)');
+    expect(source).toContain('public-mercado-livre-like-search-verify-and-rank');
   });
 
   test("anúncio real confirmado não é descartado só porque o preço ainda está ausente", () => {
