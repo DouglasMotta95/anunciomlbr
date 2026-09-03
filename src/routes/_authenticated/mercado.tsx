@@ -39,7 +39,11 @@ function median(values: number[]) {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
+  const current = sorted[middle];
+  if (current === undefined) return null;
+  if (sorted.length % 2) return current;
+  const previous = sorted[middle - 1];
+  return previous === undefined ? current : Math.round((previous + current) / 2);
 }
 
 function MarketResearchPage() {
