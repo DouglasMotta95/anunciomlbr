@@ -33,7 +33,7 @@ import { getProductImage } from "@/lib/product-image";
 import { listingStatusLabel } from "@/lib/status-labels";
 
 const title = "Buscar e copiar anúncios — ANÚNCIO ML";
-const description = "Encontre anúncios do Mercado Livre, confira dados confirmados e crie sua própria cópia editável.";
+const description = "Encontre anúncios reais do Mercado Livre, confira dados confirmados e crie sua própria cópia editável.";
 
 export const Route = createFileRoute("/_authenticated/buscar")({
   head: () => ({ meta: [{ title }, { name: "description", content: description }, { name: "robots", content: "noindex" }] }),
@@ -48,7 +48,7 @@ type DuplicatedDraft = { id: string; title: string };
 function conditionLabel(condition: string | null) {
   if (!condition) return "Não informado";
   const map: Record<string, string> = { new: "Novo", used: "Usado", refurbished: "Recondicionado" };
-  return map[condition] ?? condition;
+  return map[condition] ?? "Não informado";
 }
 
 function getItemImages(item: MlItem): string[] {
@@ -230,30 +230,30 @@ function SearchPage() {
   const marketplaceSearchUrl = query.trim() ? `https://lista.mercadolivre.com.br/${normalizeSearchTerm(query.trim())}` : null;
 
   return (
-    <AppShell title="Buscar e copiar" description="Pesquise anúncios do marketplace, confira dados confirmados e crie uma cópia editável.">
+    <AppShell title="Buscar e copiar" description="Pesquise anúncios reais do Mercado Livre, confira os dados e crie uma cópia editável.">
       <section className="overflow-hidden rounded-3xl border border-yellow-400/30 bg-gradient-to-br from-yellow-400/15 via-card to-card shadow-sm">
         <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1.35fr_.65fr] lg:items-center">
           <div>
-            <div className="flex flex-wrap items-center gap-2"><Badge className="bg-yellow-400 text-black hover:bg-yellow-400">ANÚNCIOS DO MERCADO LIVRE</Badge><Badge variant="outline">BUSCA POR PALAVRA-CHAVE</Badge></div>
-            <h2 className="mt-3 max-w-2xl text-2xl font-extrabold tracking-tight sm:text-3xl">Pesquise como no marketplace e duplique o anúncio que interessa.</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Buscamos ofertas reais do Mercado Livre e priorizamos resultados com foto, preço e dados úteis para duplicação.</p>
+            <div className="flex flex-wrap items-center gap-2"><Badge className="bg-yellow-400 text-black hover:bg-yellow-400">ANÚNCIOS DO MERCADO LIVRE</Badge><Badge variant="outline">BUSCA PÚBLICA</Badge></div>
+            <h2 className="mt-3 max-w-2xl text-2xl font-extrabold tracking-tight sm:text-3xl">Pesquise como no Mercado Livre e duplique o anúncio que interessa.</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Digite qualquer produto, marca ou modelo. O sistema filtra anúncios reais, ativos e relacionados à sua pesquisa, priorizando os resultados mais completos.</p>
             <form className="mt-5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_auto]" onSubmit={(event) => { event.preventDefault(); if (query.trim().length > 1) runSearch.mutate({ raw: query.trim() }); }}>
-              <div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"/><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ex.: iPhone 16, Netflix, MLB123..., link ou @vendedor" className="h-14 rounded-2xl bg-background/95 pl-12 text-base shadow-sm"/></div>
+              <div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground"/><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Digite um produto, marca, modelo, código MLB, link ou vendedor" className="h-14 rounded-2xl bg-background/95 pl-12 text-base shadow-sm"/></div>
               <label className="sr-only" htmlFor="result-limit">Quantidade de resultados</label><select id="result-limit" value={resultLimit} onChange={e=>setResultLimit(Number(e.target.value))} className="h-14 rounded-2xl border bg-background px-3 text-sm font-semibold shadow-sm"><option value={20}>20 resultados</option><option value={50}>50 resultados</option></select>
               <Button type="submit" size="lg" className="h-14 rounded-2xl bg-yellow-400 px-6 text-black hover:bg-yellow-300" disabled={runSearch.isPending || query.trim().length < 2}>{runSearch.isPending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Search className="h-4 w-4"/>}{runSearch.isPending ? "Buscando..." : "Buscar"}</Button>
             </form>
-            <p className="mt-2 text-xs text-muted-foreground">Vendas só são exibidas quando o Mercado Livre confirma esse dado pela API.</p>
+            <p className="mt-2 text-xs text-muted-foreground">Preço, vendas, estoque e situação só aparecem quando há confirmação nas fontes do Mercado Livre.</p>
           </div>
-          <div className="grid gap-2 rounded-2xl border border-yellow-400/20 bg-background/75 p-4 backdrop-blur"><p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Encontre por</p><div className="grid gap-2 text-sm"><span className="rounded-xl bg-muted/60 px-3 py-2">Palavra-chave no marketplace</span><span className="rounded-xl bg-muted/60 px-3 py-2">ID do anúncio · MLB123...</span><span className="rounded-xl bg-muted/60 px-3 py-2">Link do Mercado Livre</span><span className="rounded-xl bg-muted/60 px-3 py-2">Vendedor · @NICKNAME ou ID</span></div></div>
+          <div className="grid gap-2 rounded-2xl border border-yellow-400/20 bg-background/75 p-4 backdrop-blur"><p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Você pode pesquisar por</p><div className="grid gap-2 text-sm"><span className="rounded-xl bg-muted/60 px-3 py-2">Produto, marca ou modelo</span><span className="rounded-xl bg-muted/60 px-3 py-2">Código do anúncio · MLB123...</span><span className="rounded-xl bg-muted/60 px-3 py-2">Link do Mercado Livre</span><span className="rounded-xl bg-muted/60 px-3 py-2">Nome ou código do vendedor</span></div></div>
         </div>
       </section>
 
       {notice && <div className="mt-4 rounded-2xl border border-yellow-400/30 bg-yellow-400/5 p-4 text-sm leading-6 text-muted-foreground">{notice}</div>}
       {runSearch.isPending && <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[450px] rounded-3xl"/>)}</div>}
-      {!runSearch.isPending && searched && !items.length && <div className="mt-6 flex flex-col items-center gap-3 rounded-3xl border border-dashed bg-muted/20 p-10 text-center text-muted-foreground"><SearchX className="h-9 w-9"/><p className="font-semibold text-foreground">Nenhum anúncio acessível encontrado</p><p className="max-w-lg text-sm">Tente outro termo, vendedor, link ou código MLB.</p>{marketplaceSearchUrl&&<Button variant="outline" asChild><a href={marketplaceSearchUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4"/>Abrir esta busca no Mercado Livre</a></Button>}</div>}
+      {!runSearch.isPending && searched && !items.length && <div className="mt-6 flex flex-col items-center gap-3 rounded-3xl border border-dashed bg-muted/20 p-10 text-center text-muted-foreground"><SearchX className="h-9 w-9"/><p className="font-semibold text-foreground">Nenhum anúncio ativo e confirmado encontrado</p><p className="max-w-lg text-sm">Tente outro produto, marca, modelo, vendedor, link ou código MLB.</p>{marketplaceSearchUrl&&<Button variant="outline" asChild><a href={marketplaceSearchUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4"/>Abrir esta busca no Mercado Livre</a></Button>}</div>}
 
       {!!items.length && <>
-        <div className="mt-6 flex flex-col gap-3 rounded-2xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><Checkbox checked={selectedIds.length === items.length} onCheckedChange={(checked) => setSelected(checked ? Object.fromEntries(items.map((item) => [item.id, true])) : {})} id="select-all"/><label htmlFor="select-all" className="cursor-pointer text-sm font-semibold">{items.length} anúncio(s) encontrado(s)</label></div><div className="flex items-center gap-2"><p className="text-xs text-muted-foreground">Resultados reais do Mercado Livre.</p>{marketplaceSearchUrl&&<Button size="sm" variant="outline" asChild><a href={marketplaceSearchUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5"/>Comparar no ML</a></Button>}</div></div>
+        <div className="mt-6 flex flex-col gap-3 rounded-2xl border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><Checkbox checked={selectedIds.length === items.length} onCheckedChange={(checked) => setSelected(checked ? Object.fromEntries(items.map((item) => [item.id, true])) : {})} id="select-all"/><label htmlFor="select-all" className="cursor-pointer text-sm font-semibold">{items.length} anúncio(s) encontrado(s)</label></div><div className="flex items-center gap-2"><p className="text-xs text-muted-foreground">Somente anúncios reais, ativos e confirmados.</p>{marketplaceSearchUrl&&<Button size="sm" variant="outline" asChild><a href={marketplaceSearchUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-1.5 h-3.5 w-3.5"/>Comparar no ML</a></Button>}</div></div>
         <div className="mt-3 grid gap-4 pb-28 sm:grid-cols-2 xl:grid-cols-3">{items.map((item, index) => {
           const image = getProductImage(item);
           const hasSales = item.verified_item === true && item.sold_quantity != null;
