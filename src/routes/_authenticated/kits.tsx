@@ -1,0 +1,8 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getPlatformFoundation } from "@/lib/platform-operations.functions";
+export const Route=createFileRoute("/_authenticated/kits")({component:KitsPage});
+function KitsPage(){const load=useServerFn(getPlatformFoundation);const[data,setData]=useState<any>(null);useEffect(()=>{void load().then(setData)},[load]);return <div className="space-y-6"><div><p className="text-sm font-medium text-primary">Operação</p><h1 className="text-3xl font-semibold tracking-tight">Kits de produtos</h1><p className="mt-2 text-muted-foreground">Agrupe anúncios internos e mantenha a composição registrada antes de publicar ou sincronizar estoque.</p></div><Card><CardHeader><CardTitle>Kits cadastrados</CardTitle><CardDescription>A composição é interna e auditável; não cria anúncio externo automaticamente.</CardDescription></CardHeader><CardContent className="space-y-2">{data?.kits?.length?data.kits.map((k:any)=><div key={k.id} className="rounded-lg border p-3"><div className="font-medium">{k.name}</div><div className="text-xs text-muted-foreground">{k.component_listing_ids?.length??0} componentes · {k.enabled?"ativo":"desativado"}</div></div>):<div className="space-y-3"><p className="text-sm text-muted-foreground">Nenhum kit cadastrado.</p><Button asChild><Link to="/anuncios">Escolher produtos</Link></Button></div>}</CardContent></Card></div>}
