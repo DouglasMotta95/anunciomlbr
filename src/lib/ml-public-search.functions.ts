@@ -265,7 +265,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       version: SEARCH_FLOW_VERSION,
       query,
       desired,
-      strategy: "public-mercado-livre-like-search-verify-and-rank",
+      strategy: "official-and-public-parallel-verify-every-result",
     });
 
     const { searchMercadoLivrePublicSiteFallback } = await import("@/lib/ml-public-site-fallback.server");
