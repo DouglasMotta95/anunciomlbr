@@ -82,6 +82,7 @@ export async function searchMercadoLivrePublicSiteFallback(query: string, limit 
     const response = await fetch(url, { redirect: "follow", headers: { Accept: "text/html,application/xhtml+xml", "Accept-Language": "pt-BR,pt;q=0.9", "User-Agent": WEB_UA }, signal: AbortSignal.timeout(15_000) });
     if (!response.ok) return { items: [] as SearchMlItem[], status: response.status, url };
     const html = await response.text();
+    console.info("[ML public fallback html]", JSON.stringify({ url, final_url: response.url, status: response.status, html_length: html.length, html_preview: html.slice(0, 500) }));
     return { items: extractPublicSiteSearchItems(html, query, limit), status: response.status, url };
   } catch { return { items: [] as SearchMlItem[], status: "network_error" as const, url }; }
 }
