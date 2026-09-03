@@ -36,7 +36,7 @@ describe("qualidade da busca pública", () => {
     expect(source).toContain('Math.min(Math.max(desired * 2, 20), 50)');
     expect(source).toContain('resultQualityScore');
     expect(source).toContain('(b.sold_quantity ?? -1) - (a.sold_quantity ?? -1)');
-    expect(source).toContain('public-mercado-livre-like-search-verify-and-rank');
+    expect(source).toContain('public-ml-like-search-verified-v13-2026-09-03');
   });
 
   test("anúncio real confirmado não é descartado só porque o preço ainda está ausente", () => {
