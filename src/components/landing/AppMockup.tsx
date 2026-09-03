@@ -13,20 +13,20 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 
-function MiniStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function MiniStat({ label, value, hint, delay = 0 }: { label: string; value: string; hint?: string; delay?: number }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-background/70 p-3 shadow-sm">
+    <div
+      className="group rounded-2xl border border-border/70 bg-background/70 p-3 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:bg-background hover:shadow-lg"
+      style={{ transitionDelay: `${delay}ms` }}
+    >
       <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className="mt-1 font-display text-xl font-extrabold leading-tight tracking-tight">{value}</p>
+      <p className="mt-1 font-display text-xl font-extrabold leading-tight tracking-tight transition-colors group-hover:text-primary">{value}</p>
       {hint && <p className="mt-1 text-[9px] leading-snug text-muted-foreground">{hint}</p>}
     </div>
   );
 }
 
-/**
- * Demonstração visual da estrutura do painel.
- * Todos os números abaixo são explicitamente ilustrativos e nunca são apresentados como resultado real de clientes.
- */
+/** Demonstração visual da estrutura do painel. Números são ilustrativos. */
 export function AppMockup({ className }: { className?: string }) {
   return (
     <div className={cn("glass-panel overflow-hidden rounded-[28px] p-2 shadow-2xl sm:p-3", className)}>
@@ -43,7 +43,7 @@ export function AppMockup({ className }: { className?: string }) {
             <span
               key={i}
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition",
+                "flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary/10 hover:text-primary",
                 i === 0 && "bg-primary/15 text-primary shadow-sm",
               )}
             >
@@ -59,19 +59,23 @@ export function AppMockup({ className }: { className?: string }) {
               <p className="text-[9px] text-muted-foreground">Visão geral da operação em um só lugar</p>
             </div>
             <Badge className="gap-1 border-success/40 bg-success/10 text-success" variant="outline">
-              <span className="inline-block size-1.5 rounded-full bg-emerald-400" /> ML conectado
+              <span className="relative inline-flex size-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-50 motion-reduce:animate-none" />
+                <span className="relative inline-flex size-2 rounded-full bg-success" />
+              </span>
+              ML conectado
             </Badge>
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <MiniStat label="Anúncios criados" value="128" hint="exemplo ilustrativo" />
-            <MiniStat label="Anúncios ativos" value="94" hint="exemplo ilustrativo" />
-            <MiniStat label="Otimizados por IA" value="37" hint="exemplo ilustrativo" />
-            <MiniStat label="Valor em catálogo" value="R$ 18,4 mil" hint="exemplo ilustrativo" />
+            <MiniStat label="Anúncios criados" value="128" hint="exemplo ilustrativo" delay={0} />
+            <MiniStat label="Anúncios ativos" value="94" hint="exemplo ilustrativo" delay={40} />
+            <MiniStat label="Otimizados por IA" value="37" hint="exemplo ilustrativo" delay={80} />
+            <MiniStat label="Valor em catálogo" value="R$ 18,4 mil" hint="exemplo ilustrativo" delay={120} />
           </div>
 
           <div className="grid gap-2 sm:grid-cols-[1.35fr_1fr]">
-            <div className="rounded-2xl border border-border/70 bg-surface/60 p-3">
+            <div className="rounded-2xl border border-border/70 bg-surface/60 p-3 transition-all duration-300 hover:border-primary/25 hover:bg-surface/80">
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Ações rápidas</p>
@@ -88,8 +92,8 @@ export function AppMockup({ className }: { className?: string }) {
                 ].map(([Icon, label]) => {
                   const ItemIcon = Icon as typeof Search;
                   return (
-                    <div key={String(label)} className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/70 p-2.5">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+                    <div key={String(label)} className="group flex items-center gap-2 rounded-xl border border-border/60 bg-background/70 p-2.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-background">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 transition-transform duration-300 group-hover:scale-110">
                         <ItemIcon className="h-3.5 w-3.5 text-primary" />
                       </span>
                       <span className="text-[10px] font-semibold leading-tight">{String(label)}</span>
@@ -99,10 +103,10 @@ export function AppMockup({ className }: { className?: string }) {
               </div>
             </div>
 
-            <div className="space-y-2 rounded-2xl border border-primary/25 bg-primary/[0.05] p-3">
+            <div className="space-y-2 rounded-2xl border border-primary/25 bg-primary/[0.05] p-3 transition-all duration-300 hover:border-primary/40 hover:bg-primary/[0.08]">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
-                  <Sparkles className="h-3.5 w-3.5" /> ANÚNCIO AI
+                  <Sparkles className="h-3.5 w-3.5 motion-safe:animate-pulse" /> ANÚNCIO AI
                 </div>
                 <span className="text-[9px] text-muted-foreground">37 / 100</span>
               </div>
@@ -115,7 +119,7 @@ export function AppMockup({ className }: { className?: string }) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/70 bg-surface/60 p-2.5">
+          <div className="rounded-2xl border border-border/70 bg-surface/60 p-2.5 transition-all duration-300 hover:border-primary/25">
             <div className="mb-1.5 flex items-center justify-between px-1">
               <div>
                 <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Anúncios recentes</p>
@@ -127,9 +131,9 @@ export function AppMockup({ className }: { className?: string }) {
               { t: "Fone Bluetooth TWS 5.3", s: "Ativo", meta: "MLB · sincronizado" },
               { t: "Suporte Articulado para Monitor", s: "Rascunho", meta: "cópia pronta para editar" },
               { t: "Mini Projetor Portátil", s: "Otimizado", meta: "revisado pela ANÚNCIO AI" },
-            ].map((row) => (
-              <div key={row.t} className="flex items-center gap-2 rounded-xl px-2 py-2 transition hover:bg-background/50">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            ].map((row, index) => (
+              <div key={row.t} className="group flex items-center gap-2 rounded-xl px-2 py-2 transition-all duration-300 hover:translate-x-1 hover:bg-background/60" style={{ transitionDelay: `${index * 20}ms` }}>
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-transform duration-300 group-hover:scale-105">
                   <Package className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1">
