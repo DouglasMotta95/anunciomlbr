@@ -34,6 +34,8 @@ jobs:
         run: bun run test:gemini
       - name: Testes da coleta Firecrawl Mercado Livre
         run: bun run test:firecrawl
+      - name: Inteligência comercial e radar de concorrentes
+        run: bun test tests/growth-intelligence.test.ts
       - name: Regressões críticas de publicação e pagamento
         run: bun test tests/critical-publish-payment-contract.test.ts
       - name: Proteção antiabuso de cadastro
