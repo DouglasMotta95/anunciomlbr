@@ -27,17 +27,23 @@ type SearchResult = {
  *
  * Nenhum ID, URL ou anúncio pode ser criado pela IA.
  */
-const SEARCH_FLOW_VERSION = "ml-auth-public-page-fallback-firecrawl-diagnostics-v9-2026-09-03";
+const SEARCH_FLOW_VERSION = "ml-auth-public-page-firecrawl-quality-v10-2026-09-03";
 
 function relevance(query: string, title: string) {
   const q = normalizeSearchText(query);
   const t = normalizeSearchText(title);
   if (!q || !t) return 0;
-  if (t === q) return 120;
-  if (t.includes(q)) return 100;
+  if (t === q) return 140;
+  if (t.startsWith(q)) return 120;
+  if (t.includes(q)) return 110;
   const words = q.split(" ").filter((word) => word.length >= 2);
   if (!words.length) return 0;
-  return Math.round((words.filter((word) => t.includes(word)).length / words.length) * 100);
+  const matched = words.filter((word) => t.includes(word)).length;
+  return Math.round((matched / words.length) * 100);
+}
+
+function completeness(item: SearchMlItem) {
+  return Number(!!item.thumbnail) * 3 + Number(item.price_cents != null) * 3 + Number(!!item.seller) + Number(!!item.condition);
 }
 
 function toItem(ad: { id: string; title: string; permalink: string; price_cents: number | null; thumbnail: string | null }): SearchMlItem {
@@ -83,7 +89,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       version: SEARCH_FLOW_VERSION,
       query,
       desired,
-      strategy: "official-api-first-public-page-only-on-zero",
+      strategy: "official-api-first-public-page-then-firecrawl",
     });
 
     const byId = new Map<string, SearchMlItem>();
@@ -97,7 +103,6 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     let firecrawlStatuses: number[] = [];
     let firecrawlItems = 0;
 
-    // Caminho principal: somente itens que a descoberta oficial conseguiu confirmar.
     try {
       const { discoverPublicAds } = await import("@/lib/ml-discovery.server");
       const official = await discoverPublicAds(context.userId, query, desired);
@@ -108,9 +113,6 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       console.error("[ML authenticated discovery failed]", error instanceof Error ? error.message : String(error));
     }
 
-    // Fallback solicitado: a página pública só entra quando a API não produziu
-    // nenhum resultado confirmado. Os MLBs continuam obrigatoriamente vindo do
-    // pathname de URLs reais do Mercado Livre.
     if (byId.size === 0) {
       const { searchMercadoLivrePublicSiteFallback } = await import("@/lib/ml-public-site-fallback.server");
       const fallback = await searchMercadoLivrePublicSiteFallback(query, desired);
@@ -119,7 +121,6 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       addItems(byId, fallback.items);
     }
 
-    // Firecrawl só entra quando API + página pública retornarem zero.
     if (byId.size === 0) {
       const { firecrawlSearchMercadoLivre, firecrawlConfigured } = await import("@/lib/ml-firecrawl.server");
       firecrawlConfiguredFlag = firecrawlConfigured();
@@ -139,13 +140,18 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       addItems(byId, complement);
     }
 
-    const items = Array.from(byId.values())
+    const relevantItems = Array.from(byId.values())
       .filter((item) => relevance(query, item.title) > 0 || /^Anúncio MLB/i.test(item.title))
       .sort((a, b) => {
         if (a.verified_item !== b.verified_item) return a.verified_item ? -1 : 1;
-        return relevance(query, b.title) - relevance(query, a.title);
-      })
-      .slice(0, desired);
+        const relevanceDiff = relevance(query, b.title) - relevance(query, a.title);
+        if (relevanceDiff) return relevanceDiff;
+        return completeness(b) - completeness(a);
+      });
+
+    const richItems = relevantItems.filter((item) => item.thumbnail || item.price_cents != null);
+    const itemPool = richItems.length >= Math.min(5, desired) ? richItems : relevantItems;
+    const items = itemPool.slice(0, desired);
 
     console.info("[ML public search result]", {
       version: SEARCH_FLOW_VERSION,
@@ -158,14 +164,18 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       firecrawl_statuses: firecrawlStatuses,
       firecrawl_items: firecrawlItems,
       final_items: items.length,
+      final_with_images: items.filter((item) => !!item.thumbnail).length,
+      final_with_price: items.filter((item) => item.price_cents != null).length,
     });
 
     const usedPublicFallback = officialCount === 0 && publicFallbackCount > 0;
-    const diagnostic = `Firecrawl: configured=${firecrawlConfiguredFlag}; called=${firecrawlCalled}; statuses=[${firecrawlStatuses.join(",")}]; items=${firecrawlItems}.`;
-    const baseReason = items.length
+    const usedFirecrawl = officialCount === 0 && publicFallbackCount === 0 && firecrawlItems > 0;
+    const reason = items.length
       ? usedPublicFallback
-        ? `${items.length} anúncio(s) encontrado(s) na busca pública do Mercado Livre porque a API oficial não devolveu ofertas confirmadas. Esses resultados preservam título, preço, vendedor quando disponível e link real do anúncio.`
-        : `${items.length} anúncio(s) real(is) do Mercado Livre encontrado(s) para “${query}”.`
+        ? `${items.length} anúncio(s) encontrado(s) no Mercado Livre.`
+        : usedFirecrawl
+          ? `${items.length} anúncio(s) encontrado(s) no Mercado Livre.`
+          : `${items.length} anúncio(s) real(is) do Mercado Livre encontrado(s) para “${query}”.`
       : officialReason
         ? `${officialReason} A busca pública do Mercado Livre também não retornou anúncios utilizáveis agora.`
         : firecrawlError
@@ -175,7 +185,7 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     return {
       ok: items.length > 0,
       configured: true,
-      reason: `${baseReason} ${diagnostic}`,
+      reason,
       items,
       firecrawl_configured: firecrawlConfiguredFlag,
       firecrawl_called: firecrawlCalled,
