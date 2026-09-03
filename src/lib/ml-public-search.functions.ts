@@ -10,6 +10,10 @@ type SearchResult = {
   configured: true;
   reason: string | null;
   items: SearchMlItem[];
+  firecrawl_configured: boolean;
+  firecrawl_called: boolean;
+  firecrawl_statuses: number[];
+  firecrawl_items: number;
 };
 
 /**
@@ -23,7 +27,7 @@ type SearchResult = {
  *
  * Nenhum ID, URL ou anúncio pode ser criado pela IA.
  */
-const SEARCH_FLOW_VERSION = "ml-auth-public-page-fallback-rerank-v8-2026-09-02";
+const SEARCH_FLOW_VERSION = "ml-auth-public-page-fallback-firecrawl-diagnostics-v9-2026-09-03";
 
 function relevance(query: string, title: string) {
   const q = normalizeSearchText(query);
@@ -88,6 +92,10 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
     let officialCount = 0;
     let publicFallbackCount = 0;
     let publicFallbackStatus: number | "network_error" | null = null;
+    let firecrawlConfiguredFlag = false;
+    let firecrawlCalled = false;
+    let firecrawlStatuses: number[] = [];
+    let firecrawlItems = 0;
 
     // Caminho principal: somente itens que a descoberta oficial conseguiu confirmar.
     try {
@@ -111,12 +119,16 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       addItems(byId, fallback.items);
     }
 
-    // Redundâncias antigas só entram se API + página pública retornarem zero.
+    // Firecrawl só entra quando API + página pública retornarem zero.
     if (byId.size === 0) {
       const { firecrawlSearchMercadoLivre, firecrawlConfigured } = await import("@/lib/ml-firecrawl.server");
-      if (firecrawlConfigured()) {
+      firecrawlConfiguredFlag = firecrawlConfigured();
+      if (firecrawlConfiguredFlag) {
+        firecrawlCalled = true;
         const outcome = await firecrawlSearchMercadoLivre(query, desired);
         firecrawlError = outcome.error;
+        firecrawlStatuses = outcome.statuses;
+        firecrawlItems = outcome.ads.length;
         for (const ad of outcome.ads) if (!byId.has(ad.id)) byId.set(ad.id, toItem(ad));
       }
     }
@@ -141,23 +153,33 @@ export const searchMercadoLivrePublicAds = createServerFn({ method: "POST" })
       official_items: officialCount,
       public_fallback_status: publicFallbackStatus,
       public_fallback_items: publicFallbackCount,
+      firecrawl_configured: firecrawlConfiguredFlag,
+      firecrawl_called: firecrawlCalled,
+      firecrawl_statuses: firecrawlStatuses,
+      firecrawl_items: firecrawlItems,
       final_items: items.length,
     });
 
     const usedPublicFallback = officialCount === 0 && publicFallbackCount > 0;
+    const diagnostic = `Firecrawl: configured=${firecrawlConfiguredFlag}; called=${firecrawlCalled}; statuses=[${firecrawlStatuses.join(",")}]; items=${firecrawlItems}.`;
+    const baseReason = items.length
+      ? usedPublicFallback
+        ? `${items.length} anúncio(s) encontrado(s) na busca pública do Mercado Livre porque a API oficial não devolveu ofertas confirmadas. Esses resultados preservam título, preço, vendedor quando disponível e link real do anúncio.`
+        : `${items.length} anúncio(s) real(is) do Mercado Livre encontrado(s) para “${query}”.`
+      : officialReason
+        ? `${officialReason} A busca pública do Mercado Livre também não retornou anúncios utilizáveis agora.`
+        : firecrawlError
+          ? `Nenhuma oferta real pôde ser carregada para “${query}” agora.`
+          : `Nenhuma oferta real pôde ser carregada para “${query}” agora.`;
 
     return {
       ok: items.length > 0,
       configured: true,
-      reason: items.length
-        ? usedPublicFallback
-          ? `${items.length} anúncio(s) encontrado(s) na busca pública do Mercado Livre porque a API oficial não devolveu ofertas confirmadas. Esses resultados preservam título, preço, vendedor quando disponível e link real do anúncio.`
-          : `${items.length} anúncio(s) real(is) do Mercado Livre encontrado(s) para “${query}”.`
-        : officialReason
-          ? `${officialReason} A busca pública do Mercado Livre também não retornou anúncios utilizáveis agora.`
-          : firecrawlError
-            ? `Nenhuma oferta real pôde ser carregada para “${query}” agora.`
-            : `Nenhuma oferta real pôde ser carregada para “${query}” agora.`,
+      reason: `${baseReason} ${diagnostic}`,
       items,
+      firecrawl_configured: firecrawlConfiguredFlag,
+      firecrawl_called: firecrawlCalled,
+      firecrawl_statuses: firecrawlStatuses,
+      firecrawl_items: firecrawlItems,
     };
   });
