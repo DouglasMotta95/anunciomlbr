@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 const PUBLIC_APP_ORIGIN = "https://anunciomlbr.lovable.app";
 const PUBLIC_CALLBACK = `${PUBLIC_APP_ORIGIN}/api/public/ml/callback`;
+const ML_API = "https://api.mercadolibre.com";
 
 function safeMlError(payload: unknown) {
   if (!payload || typeof payload !== "object") return null;
@@ -12,6 +13,123 @@ function safeMlError(payload: unknown) {
     error_description:
       typeof row["error_description"] === "string" ? row["error_description"] : undefined,
   };
+}
+
+type ExistingBindingState = "active" | "stale" | "unknown";
+
+async function inspectExistingBinding(
+  supabaseAdmin: any,
+  ownerUserId: string,
+  expectedMlUserId: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<ExistingBindingState> {
+  const { data: oldToken, error: tokenLookupError } = await supabaseAdmin
+    .from("ml_tokens")
+    .select("access_token,refresh_token,expires_at")
+    .eq("user_id", ownerUserId)
+    .maybeSingle();
+
+  if (tokenLookupError) {
+    console.error("ML stale binding token lookup failed", tokenLookupError.message);
+    return "unknown";
+  }
+  if (!oldToken?.access_token) return "stale";
+
+  const verifyToken = async (accessToken: string): Promise<ExistingBindingState> => {
+    try {
+      const response = await fetch(`${ML_API}/users/me`, {
+        headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      });
+      if (response.status === 401 || response.status === 403) return "stale";
+      if (!response.ok) return "unknown";
+      const profile = (await response.json().catch(() => null)) as { id?: number | string } | null;
+      if (profile?.id == null) return "unknown";
+      return String(profile.id) === expectedMlUserId ? "active" : "stale";
+    } catch (error) {
+      console.error("ML stale binding verification failed", { ownerUserId, error });
+      return "unknown";
+    }
+  };
+
+  const expiresAt = oldToken.expires_at ? new Date(oldToken.expires_at).getTime() : 0;
+  if (expiresAt - Date.now() > 5 * 60 * 1000) {
+    return verifyToken(oldToken.access_token);
+  }
+
+  if (!oldToken.refresh_token) return "stale";
+
+  try {
+    const refreshResponse = await fetch(`${ML_API}/oauth/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: oldToken.refresh_token,
+      }),
+    });
+
+    if ([400, 401, 403].includes(refreshResponse.status)) return "stale";
+    if (!refreshResponse.ok) return "unknown";
+
+    const refreshed = (await refreshResponse.json().catch(() => null)) as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+    } | null;
+    if (!refreshed?.access_token) return "unknown";
+
+    const state = await verifyToken(refreshed.access_token);
+    if (state === "active") {
+      const { error: refreshPersistError } = await supabaseAdmin.from("ml_tokens").upsert(
+        {
+          user_id: ownerUserId,
+          access_token: refreshed.access_token,
+          refresh_token: refreshed.refresh_token ?? oldToken.refresh_token,
+          expires_at: new Date(Date.now() + (refreshed.expires_in ?? 21600) * 1000).toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
+      if (refreshPersistError) {
+        console.warn("ML refreshed old binding token could not be persisted", refreshPersistError.message);
+      }
+    }
+    return state;
+  } catch (error) {
+    console.error("ML stale binding refresh failed", { ownerUserId, error });
+    return "unknown";
+  }
+}
+
+async function releaseStaleBinding(supabaseAdmin: any, ownerUserId: string, mlUserId: string) {
+  const now = new Date().toISOString();
+  const { error: disconnectError } = await supabaseAdmin
+    .from("ml_connections")
+    .update({ connected: false, updated_at: now })
+    .eq("user_id", ownerUserId)
+    .eq("ml_user_id", mlUserId)
+    .eq("connected", true);
+  if (disconnectError) throw disconnectError;
+
+  const { error: tokenDeleteError } = await supabaseAdmin.from("ml_tokens").delete().eq("user_id", ownerUserId);
+  if (tokenDeleteError) {
+    await supabaseAdmin
+      .from("ml_connections")
+      .update({ connected: true, updated_at: new Date().toISOString() })
+      .eq("user_id", ownerUserId)
+      .eq("ml_user_id", mlUserId);
+    throw tokenDeleteError;
+  }
+
+  await supabaseAdmin.from("ml_oauth_states").delete().eq("user_id", ownerUserId);
+  await supabaseAdmin.from("activity_events").insert({
+    user_id: ownerUserId,
+    kind: "ml_stale_binding_released",
+    message: "Vínculo antigo do Mercado Livre liberado após confirmação de credencial inválida.",
+    meta: { ml_user_id: mlUserId },
+  });
 }
 
 /** Callback OAuth oficial do Mercado Livre com PKCE S256. */
@@ -56,7 +174,7 @@ export const Route = createFileRoute("/api/public/ml/callback")({
         const userId = oauthState.user_id;
         const { verifier } = await deriveMlPkce(state, clientSecret);
 
-        const tokenResponse = await fetch("https://api.mercadolibre.com/oauth/token", {
+        const tokenResponse = await fetch(`${ML_API}/oauth/token`, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -99,7 +217,7 @@ export const Route = createFileRoute("/api/public/ml/callback")({
         let nickname: string | null = null;
 
         try {
-          const meResponse = await fetch("https://api.mercadolibre.com/users/me", {
+          const meResponse = await fetch(`${ML_API}/users/me`, {
             headers: {
               Authorization: `Bearer ${token.access_token}`,
               Accept: "application/json",
@@ -123,9 +241,11 @@ export const Route = createFileRoute("/api/public/ml/callback")({
 
         if (!mlUserId) return fail("identity_error");
 
-        // A checagem abaixo dá uma resposta amigável na maioria dos casos.
-        // A garantia contra duas conexões simultâneas fica no índice único parcial
-        // de ml_connections(ml_user_id) para registros connected=true.
+        // A garantia final contra duas conexões simultâneas continua no índice único
+        // parcial. Antes de bloquear, porém, validamos se o vínculo antigo ainda possui
+        // credencial utilizável. Somente 401/403, refresh 400/401/403, ausência de token
+        // ou identidade divergente são considerados prova suficiente de vínculo obsoleto.
+        // Erro de rede, 429 ou 5xx nunca provoca takeover automático.
         const { data: existingOwner, error: ownerLookupError } = await supabaseAdmin
           .from("ml_connections")
           .select("user_id")
@@ -138,7 +258,22 @@ export const Route = createFileRoute("/api/public/ml/callback")({
           console.error("ML existing owner lookup failed", ownerLookupError.message);
           return fail("persist_error");
         }
-        if (existingOwner?.user_id) return fail("already_connected");
+        if (existingOwner?.user_id) {
+          const bindingState = await inspectExistingBinding(
+            supabaseAdmin,
+            existingOwner.user_id,
+            mlUserId,
+            clientId,
+            clientSecret,
+          );
+          if (bindingState === "active" || bindingState === "unknown") return fail("already_connected");
+          try {
+            await releaseStaleBinding(supabaseAdmin, existingOwner.user_id, mlUserId);
+          } catch (error) {
+            console.error("ML stale binding release failed", { existingOwner: existingOwner.user_id, mlUserId, error });
+            return fail("persist_error");
+          }
+        }
 
         const { error: tokenSaveError } = await supabaseAdmin.from("ml_tokens").upsert(
           {
