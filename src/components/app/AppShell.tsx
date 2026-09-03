@@ -46,6 +46,7 @@ const NAV_GROUPS = [
     items: [
       { to: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
       { to: "/buscar", label: "Buscar e copiar", icon: Search },
+      { to: "/mercado", label: "Pesquisa de mercado", icon: BarChart3 },
       { to: "/anuncios", label: "Meus anúncios", icon: Tag },
       { to: "/saude-anuncios", label: "Saúde dos anúncios", icon: HeartPulse },
     ],
