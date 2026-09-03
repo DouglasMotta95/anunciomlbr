@@ -4,7 +4,7 @@ import { Logo } from "@/components/brand";
 import { Button } from "@/components/ui/button";
 
 const links = [
-  ["#demo", "Demonstração"],
+  ["#demo-interativa", "Demonstração"],
   ["#como-funciona", "Como funciona"],
   ["#ia", "IA"],
   ["#recursos", "Recursos"],
