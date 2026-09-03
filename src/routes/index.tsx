@@ -8,16 +8,13 @@ import { LaunchFaqSection } from "@/components/landing/LaunchFaqSection";
 import { PlanPurchaseSection } from "@/components/landing/PlanPurchaseSection";
 import { PremiumCapabilities, PremiumHero, ProductTrustBar } from "@/components/landing/PremiumLanding";
 import { PreSaleSupport } from "@/components/landing/PreSaleSupport";
+import { ProductInsideShowcase } from "@/components/landing/ProductInsideShowcase";
 import { PublicLandingNav } from "@/components/landing/PublicLandingNav";
 import { RealSocialProof } from "@/components/landing/RealSocialProof";
 import { Reveal } from "@/components/landing/Reveal";
 import { SalesShowcase } from "@/components/landing/SalesShowcase";
 import { VerifiedFeaturesSection } from "@/components/landing/VerifiedFeaturesSection";
-import {
-  ComparisonSection,
-  FinalCta,
-  LandingFooter,
-} from "@/components/landing/sections";
+import { ComparisonSection, FinalCta, LandingFooter } from "@/components/landing/sections";
 
 const title = "ANÚNCIO ML — Encontre, copie, otimize e publique anúncios";
 const description =
@@ -44,6 +41,7 @@ function Landing() {
         <PremiumHero />
         <ProductTrustBar />
         <Reveal><InteractiveProductDemo /></Reveal>
+        <Reveal><ProductInsideShowcase /></Reveal>
         <Reveal><SalesShowcase /></Reveal>
         <Reveal><PremiumCapabilities /></Reveal>
         <Reveal><VerifiedFeaturesSection /></Reveal>
