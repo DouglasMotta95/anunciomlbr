@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   PackageSearch,
+  Play,
   Rocket,
   ShieldCheck,
   ShoppingBag,
@@ -67,10 +68,11 @@ export function PremiumHero() {
                 Testar com 10 anúncios <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="transition-transform duration-200 hover:-translate-y-0.5">
-              <a href="#planos">Ver planos</a>
+            <Button asChild size="lg" variant="outline" className="gap-2 transition-transform duration-200 hover:-translate-y-0.5">
+              <a href="#demo-interativa"><Play className="h-4 w-4" /> Ver demo interativa</a>
             </Button>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">Quer comparar antes? <a href="#planos" className="font-semibold text-foreground underline-offset-4 hover:underline">Ver planos e recursos</a></p>
 
           <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-success" /> OAuth oficial</span>
