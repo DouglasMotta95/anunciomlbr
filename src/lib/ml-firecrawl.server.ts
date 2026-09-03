@@ -13,7 +13,7 @@ import { normalizeItemId, normalizeSearchTerm } from "@/lib/ml-search-input";
 
 const GATEWAY_V2 = "https://connector-gateway.lovable.dev/firecrawl/v2";
 const DIRECT_V2 = "https://api.firecrawl.dev/v2";
-const TIMEOUT_MS = 45_000;
+const TIMEOUT_MS = 20_000;
 
 export type FirecrawlAd = {
   id: string;
@@ -218,7 +218,10 @@ export function extractAdsFromHtml(html: string): FirecrawlAd[] {
       ?? block.match(/R\$\s*([\d.\s]{1,15})/i)?.[1];
     const cents = block.match(/class=["'][^"']*andes-money-amount__cents[^"']*["'][^>]*>([\s\S]*?)<\//i)?.[1];
     const image = httpsUrl(
-      block.match(/<img\b[^>]*\bdata-src=["']([^"']+)["']/i)?.[1] ?? block.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1] ?? null,
+      block.match(/<img\b[^>]*\bdata-src=["']([^"']+)["']/i)?.[1]
+      ?? block.match(/<img\b[^>]*\bdata-lazy-src=["']([^"']+)["']/i)?.[1]
+      ?? block.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1]
+      ?? null,
     );
     pushAd(found, buildAd(href, title, toCents(fraction ? stripHtml(fraction) : null, cents ? stripHtml(cents) : null), image));
   }
@@ -261,10 +264,27 @@ function scrapeDocuments(payload: unknown): Array<{ html: string; markdown: stri
   return docs;
 }
 
-function searchUrls(query: string) {
+function searchUrls(query: string, desired: number) {
   const slug = normalizeSearchTerm(query);
   if (!slug) return [] as string[];
-  return [`https://lista.mercadolivre.com.br/${slug}`, `https://lista.mercadolivre.com.br/${slug}_Desde_49`];
+  const primary = `https://lista.mercadolivre.com.br/${slug}`;
+  return desired > 20 ? [primary, `${primary}_Desde_49`] : [primary];
+}
+
+function rowImage(row: Record<string, unknown>) {
+  for (const key of ["image", "thumbnail", "ogImage", "og_image"]) {
+    const value = row[key];
+    if (typeof value === "string" && isImage(httpsUrl(value))) return httpsUrl(value);
+  }
+  const metadata = row["metadata"];
+  if (metadata && typeof metadata === "object") {
+    const nested = metadata as Record<string, unknown>;
+    for (const key of ["ogImage", "og:image", "image"]) {
+      const value = nested[key];
+      if (typeof value === "string" && isImage(httpsUrl(value))) return httpsUrl(value);
+    }
+  }
+  return null;
 }
 
 export async function firecrawlSearchMercadoLivre(query: string, desired = 20): Promise<FirecrawlOutcome> {
@@ -274,19 +294,24 @@ export async function firecrawlSearchMercadoLivre(query: string, desired = 20): 
   }
 
   const found = new Map<string, FirecrawlAd>();
-  for (const url of searchUrls(query)) {
+  const { extractPublicSiteSearchItems } = await import("@/lib/ml-public-site-fallback.server");
+
+  for (const url of searchUrls(query, desired)) {
     const payload = await firecrawl(
       "/scrape",
       {
         url,
         formats: ["markdown", "rawHtml"],
         onlyMainContent: false,
-        waitFor: 2500,
+        waitFor: 900,
         location: { country: "BR", languages: ["pt-BR"] },
       },
       statuses,
     );
     for (const doc of scrapeDocuments(payload)) {
+      for (const item of extractPublicSiteSearchItems(doc.html, query, desired)) {
+        pushAd(found, buildAd(item.permalink, item.title, item.price_cents, item.thumbnail));
+      }
       for (const ad of [...extractAdsFromHtml(doc.html), ...extractAdsFromMarkdown(doc.markdown)]) pushAd(found, ad);
     }
     if (found.size >= desired) break;
@@ -297,7 +322,7 @@ export async function firecrawlSearchMercadoLivre(query: string, desired = 20): 
       "/search",
       {
         query: `${query} site:produto.mercadolivre.com.br`,
-        limit: Math.min(20, Math.max(desired, 10)),
+        limit: Math.min(12, Math.max(desired, 8)),
         lang: "pt",
         country: "br",
       },
@@ -314,13 +339,15 @@ export async function firecrawlSearchMercadoLivre(query: string, desired = 20): 
           typeof row["url"] === "string" ? row["url"] : null,
           typeof row["title"] === "string" ? row["title"] : null,
           null,
-          null,
+          rowImage(row),
         ),
       );
     }
   }
 
-  const ads = Array.from(found.values()).slice(0, Math.max(desired, 1));
-  console.info("[Firecrawl ML search]", { query, desired, statuses, ads: ads.length });
+  const ads = Array.from(found.values())
+    .sort((a, b) => Number(b.thumbnail != null) - Number(a.thumbnail != null) || Number(b.price_cents != null) - Number(a.price_cents != null))
+    .slice(0, Math.max(desired, 1));
+  console.info("[Firecrawl ML search]", { query, desired, statuses, ads: ads.length, with_images: ads.filter((ad) => !!ad.thumbnail).length, with_price: ads.filter((ad) => ad.price_cents != null).length });
   return { configured: true, ads, statuses, error: ads.length ? null : "Firecrawl respondeu, mas nenhum anúncio pôde ser extraído da página." };
 }
