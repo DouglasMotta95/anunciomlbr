@@ -11,7 +11,7 @@ const SEARCH_FLOW_VERSION = "connected-mlb-search-real-permalink-v15-2026-09-03"
 const MIN_RELEVANCE = 100;
 
 type SearchSource = "official_api" | "public_site" | "firecrawl" | "gemini_grounding";
-type SourcedSearchItem = SearchMlItem & { search_source?: SearchSource };
+type SourcedSearchItem = SearchMlItem & { search_source?: SearchSource | undefined };
 
 type SearchResult = {
   ok: boolean;
