@@ -122,10 +122,22 @@ describe("contrato de vínculo Mercado Livre", () => {
     expect(migration).toContain("where connected = true and ml_user_id is not null");
   });
 
-  test("dedupe preserva anúncios locais e revoga somente o token da conexão secundária", () => {
+  test("vínculo antigo só é liberado com evidência de credencial obsoleta", () => {
+    expect(callback).toContain('type ExistingBindingState = "active" | "stale" | "unknown"');
+    expect(callback).toContain('response.status === 401 || response.status === 403');
+    expect(callback).toContain('[400, 401, 403].includes(refreshResponse.status)');
+    expect(callback).toContain('if (!refreshResponse.ok) return "unknown"');
+    expect(callback).toContain('if (bindingState === "active" || bindingState === "unknown") return fail("already_connected")');
+    expect(callback).toContain("releaseStaleBinding");
+    expect(callback).toContain('kind: "ml_stale_binding_released"');
+  });
+
+  test("dedupe e recuperação preservam anúncios locais e revogam somente credenciais antigas", () => {
     expect(migration).toContain("set connected = false");
     expect(migration).toContain("delete from public.ml_tokens");
     expect(migration).not.toContain("delete from public.listings");
+    expect(callback).toContain('from("ml_tokens").delete()');
+    expect(callback).not.toContain('from("listings").delete()');
   });
 });
 
