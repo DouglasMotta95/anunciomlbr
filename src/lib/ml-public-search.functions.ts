@@ -57,9 +57,6 @@ export function strictSearchRelevanceScore(query: string, title: string) {
   const q = normalizeSearchText(query);
   const t = normalizeSearchText(title);
   if (!q || !t) return 0;
-  if (t === q) return 240;
-  if (t.startsWith(`${q} `)) return 220;
-  if (t.includes(` ${q} `) || t.endsWith(` ${q}`)) return 190;
 
   const queryWords = words(query);
   const titleWords = words(title);
@@ -70,8 +67,14 @@ export function strictSearchRelevanceScore(query: string, title: string) {
     const position = titleWords.indexOf(needle);
     if (position < 0) return 0;
     if (position > 0 && ACCESSORY_LEADS.has(titleWords[0]!) && titleWords[0] !== needle) return 0;
+    if (t === q) return 240;
+    if (t.startsWith(`${q} `)) return 220;
     return Math.max(110, 170 - position * 8);
   }
+
+  if (t === q) return 240;
+  if (t.startsWith(`${q} `)) return 220;
+  if (t.includes(` ${q} `) || t.endsWith(` ${q}`)) return 190;
 
   const positions = queryWords.map((word) => titleWords.indexOf(word));
   if (positions.some((position) => position < 0)) return 0;
