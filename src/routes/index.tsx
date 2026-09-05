@@ -28,6 +28,8 @@ export const Route = createFileRoute("/")({
       { name: "description", content: description },
       { property: "og:title", content: title },
       { property: "og:description", content: description },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: Landing,
@@ -35,7 +37,7 @@ export const Route = createFileRoute("/")({
 
 function Landing() {
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-0">
+    <div className="landing-premium min-h-screen bg-background pb-20 md:pb-0">
       <VisitTracker path="/" />
       <PublicLandingNav />
       <main>

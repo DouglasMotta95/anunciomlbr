@@ -58,30 +58,30 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --shadow-glow: 0 0 0 1px oklch(0.86 0.17 92 / 0.18), 0 14px 42px -24px oklch(0.86 0.17 92 / 0.3);
-  --shadow-panel: 0 18px 52px -38px oklch(0.05 0.03 265 / 0.8);
+  --shadow-glow: 0 0 0 1px oklch(0.84 0.16 88 / 0.18), 0 18px 48px -24px oklch(0.84 0.16 88 / 0.38);
+  --shadow-panel: 0 28px 70px -38px oklch(0.05 0.03 255 / 0.92);
 }
 
 :root {
-  --radius: 0.72rem;
+  --radius: 0.5rem;
 
-  --background: oklch(0.16 0.03 264);
-  --foreground: oklch(0.97 0.005 250);
-  --surface: oklch(0.205 0.033 264);
+  --background: oklch(0.17 0.032 255);
+  --foreground: oklch(0.98 0.004 250);
+  --surface: oklch(0.245 0.038 255);
   --surface-foreground: oklch(0.97 0.005 250);
-  --card: oklch(0.215 0.034 264);
+  --card: oklch(0.225 0.035 255);
   --card-foreground: oklch(0.97 0.005 250);
-  --popover: oklch(0.2 0.034 264);
+  --popover: oklch(0.21 0.034 255);
   --popover-foreground: oklch(0.97 0.005 250);
 
-  --primary: oklch(0.86 0.17 92);
-  --primary-foreground: oklch(0.19 0.04 264);
-  --secondary: oklch(0.6 0.19 258);
+  --primary: oklch(0.84 0.16 88);
+  --primary-foreground: oklch(0.17 0.032 255);
+  --secondary: oklch(0.61 0.17 250);
   --secondary-foreground: oklch(0.98 0.005 250);
 
-  --muted: oklch(0.265 0.032 264);
-  --muted-foreground: oklch(0.72 0.025 258);
-  --accent: oklch(0.285 0.04 264);
+  --muted: oklch(0.275 0.033 255);
+  --muted-foreground: oklch(0.75 0.02 250);
+  --accent: oklch(0.3 0.04 255);
   --accent-foreground: oklch(0.97 0.005 250);
 
   --destructive: oklch(0.62 0.22 22);
@@ -91,9 +91,9 @@
   --warning: oklch(0.8 0.16 70);
   --warning-foreground: oklch(0.19 0.04 264);
 
-  --border: oklch(0.305 0.032 264);
-  --input: oklch(0.31 0.032 264);
-  --ring: oklch(0.86 0.17 92);
+  --border: oklch(0.33 0.035 255);
+  --input: oklch(0.34 0.035 255);
+  --ring: oklch(0.84 0.16 88);
 
   --chart-1: oklch(0.86 0.17 92);
   --chart-2: oklch(0.6 0.19 258);
@@ -155,7 +155,7 @@
   h3,
   h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.025em;
+    letter-spacing: 0;
   }
 
   h1,
@@ -165,6 +165,59 @@
 
   p {
     text-wrap: pretty;
+  }
+}
+
+/* Landing Night Gold Premium */
+.landing-premium {
+  background:
+    linear-gradient(180deg, color-mix(in oklab, var(--surface) 20%, transparent), transparent 24rem),
+    var(--background);
+}
+
+.landing-premium > main > section {
+  position: relative;
+  scroll-margin-top: 72px;
+}
+
+.landing-premium > main > section:nth-child(even):not(.hero-command) {
+  background-color: color-mix(in oklab, var(--surface) 24%, var(--background));
+}
+
+.landing-premium [data-slot="card"] {
+  border-radius: var(--radius);
+  border-color: color-mix(in oklab, var(--border) 78%, transparent);
+  box-shadow: 0 16px 44px -34px oklch(0.04 0.02 255 / 0.9);
+}
+
+.landing-premium [data-slot="card"]:hover {
+  border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
+}
+
+.hero-command::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--border) 18%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--border) 18%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, transparent, black 20%, transparent 82%);
+}
+
+.product-stage::before {
+  content: "";
+  position: absolute;
+  inset: 0 10% auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  z-index: 2;
+}
+
+@media (max-width: 640px) {
+  .landing-premium > main > section {
+    overflow-x: clip;
   }
 }
 
