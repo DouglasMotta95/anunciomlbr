@@ -28,64 +28,49 @@ const flow = [
 
 export function PremiumHero() {
   return (
-    <section className="relative overflow-hidden border-b border-border/60">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/.12),transparent_34%),radial-gradient(circle_at_85%_15%,hsl(var(--warning)/.09),transparent_28%)]" />
-      <div className="pointer-events-none absolute left-[8%] top-24 h-40 w-40 rounded-full bg-primary/10 blur-3xl motion-safe:animate-pulse" />
-      <div className="pointer-events-none absolute right-[8%] top-40 h-52 w-52 rounded-full bg-secondary/10 blur-3xl motion-safe:animate-pulse" />
-
-      <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-14 lg:grid-cols-[.88fr_1.12fr] lg:items-center lg:py-20">
-        <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-3 motion-safe:duration-700">
-          <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
-            <Zap className="mr-1.5 h-3.5 w-3.5" /> CENTRAL PARA VENDEDORES DO MERCADO LIVRE
+    <section className="hero-command relative overflow-hidden border-b border-border/60">
+      <div className="relative mx-auto flex max-w-7xl flex-col items-center px-4 pb-14 pt-16 text-center sm:px-6 lg:pb-20 lg:pt-24">
+        <div className="max-w-4xl motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-3 motion-safe:duration-700">
+          <Badge variant="outline" className="border-primary/30 bg-surface text-primary shadow-glow">
+            <Zap className="mr-1.5 h-3.5 w-3.5" /> LÍDER EM GESTÃO DE ANÚNCIOS ML
           </Badge>
-          <h1 className="mt-5 text-balance text-4xl font-black leading-[1.02] tracking-tight sm:text-5xl lg:text-6xl">
-            Seu Mercado Livre, <span className="text-gradient">mais rápido e inteligente.</span>
+          <h1 className="mt-7 text-balance text-[2.7rem] font-extrabold leading-[1.08] sm:text-6xl lg:text-7xl">
+            Transforme seu <span className="text-primary">Mercado Livre</span> em uma máquina de vendas.
           </h1>
-          <p className="mt-5 max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg">
-            Da pesquisa à publicação, organize a operação em um painel visual feito para quem vende de verdade.
+          <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-7 text-muted-foreground sm:text-xl sm:leading-8">
+            Encontre oportunidades, prepare anúncios com IA e acompanhe sua operação em uma central feita para quem quer vender com mais controle.
           </p>
 
-          <div className="mt-7 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {flow.map((item, index) => (
-              <div
-                key={item.label}
-                className="group relative overflow-hidden rounded-2xl border border-border/60 bg-background/55 p-3 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:bg-surface/70 hover:shadow-lg"
-                style={{ animationDelay: `${index * 90}ms` }}
-              >
-                <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105">
-                  <item.icon className="h-4 w-4" />
-                </span>
-                <p className="text-sm font-extrabold">{item.label}</p>
-                <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{item.hint}</p>
-                {index < flow.length - 1 && <ArrowRight className="absolute right-2 top-2 hidden h-3.5 w-3.5 text-muted-foreground/40 sm:block" />}
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Button asChild size="lg" className="gap-2 font-bold shadow-glow transition-transform duration-200 hover:-translate-y-0.5">
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button asChild size="lg" className="gap-2 px-7 font-bold shadow-glow transition-transform duration-200 hover:-translate-y-0.5">
               <Link to="/auth" search={{ mode: "signup" }}>
                 Testar com 10 anúncios <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="gap-2 transition-transform duration-200 hover:-translate-y-0.5">
+            <Button asChild size="lg" variant="outline" className="gap-2 px-7 transition-transform duration-200 hover:-translate-y-0.5">
               <a href="#demo-interativa"><Play className="h-4 w-4" /> Ver demo interativa</a>
             </Button>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">Quer comparar antes? <a href="#planos" className="font-semibold text-foreground underline-offset-4 hover:underline">Ver planos e recursos</a></p>
-
-          <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
+          <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-success" /> OAuth oficial</span>
             <span className="inline-flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" /> IA sob demanda</span>
             <span className="inline-flex items-center gap-1.5"><ShoppingBag className="h-4 w-4 text-primary" /> Sem cartão no teste</span>
           </div>
         </div>
 
-        <div className="relative motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-700 lg:delay-150">
-          <div className="absolute -inset-8 rounded-[40px] bg-primary/5 blur-3xl" />
-          <div className="float-soft relative">
+        <div className="relative mt-14 w-full max-w-6xl motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95 motion-safe:duration-700 lg:mt-16 lg:delay-150">
+          <div className="product-stage relative overflow-hidden rounded-lg border border-border bg-surface p-2 shadow-panel sm:p-3">
             <AppMockup />
           </div>
+        </div>
+
+        <div className="mt-7 grid w-full max-w-6xl grid-cols-2 gap-2 sm:grid-cols-4">
+          {flow.map((item) => (
+            <div key={item.label} className="group flex min-w-0 items-center gap-3 rounded-lg border border-border/70 bg-surface/50 p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/30">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><item.icon className="h-4 w-4" /></span>
+              <span className="min-w-0"><span className="block text-sm font-bold">{item.label}</span><span className="block truncate text-[11px] text-muted-foreground">{item.hint}</span></span>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -100,12 +85,12 @@ export function ProductTrustBar() {
     { icon: BarChart3, text: "Painel com dados da conta conectada" },
   ];
   return (
-    <section className="border-b border-border/60 bg-surface/30 py-5">
-      <div className="mx-auto grid max-w-6xl gap-3 px-4 sm:grid-cols-2 lg:grid-cols-4">
+    <section className="border-b border-border/60 bg-surface/35 py-5">
+      <div className="mx-auto grid max-w-7xl gap-2 px-4 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         {items.map((item, index) => (
           <div
             key={item.text}
-            className="group flex items-center gap-2.5 rounded-xl border border-border/50 bg-background/40 px-3 py-2.5 text-xs font-medium text-muted-foreground transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-background/70 hover:text-foreground"
+            className="group flex items-center justify-center gap-2.5 border-r border-border/60 px-3 py-2.5 text-center text-xs font-semibold text-muted-foreground transition-colors duration-300 last:border-r-0 hover:text-foreground"
             style={{ transitionDelay: `${index * 20}ms` }}
           >
             <item.icon className="h-4 w-4 shrink-0 text-primary transition-transform duration-300 group-hover:scale-110" />
