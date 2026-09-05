@@ -155,6 +155,98 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_rule_runs: {
+        Row: {
+          created_at: string
+          executed_external_action: boolean
+          id: string
+          matched_count: number
+          result: Json
+          rule_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          executed_external_action?: boolean
+          id?: string
+          matched_count?: number
+          result?: Json
+          rule_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          executed_external_action?: boolean
+          id?: string
+          matched_count?: number
+          result?: Json
+          rule_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_rule_runs_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_rules: {
+        Row: {
+          action: string
+          created_at: string
+          dry_run: boolean
+          enabled: boolean
+          id: string
+          last_evaluated_at: string | null
+          last_result: Json | null
+          maximum_price_cents: number | null
+          minimum_margin_percent: number | null
+          minimum_price_cents: number | null
+          name: string
+          signal: string
+          threshold: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          dry_run?: boolean
+          enabled?: boolean
+          id?: string
+          last_evaluated_at?: string | null
+          last_result?: Json | null
+          maximum_price_cents?: number | null
+          minimum_margin_percent?: number | null
+          minimum_price_cents?: number | null
+          name: string
+          signal: string
+          threshold?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          dry_run?: boolean
+          enabled?: boolean
+          id?: string
+          last_evaluated_at?: string | null
+          last_result?: Json | null
+          maximum_price_cents?: number | null
+          minimum_margin_percent?: number | null
+          minimum_price_cents?: number | null
+          name?: string
+          signal?: string
+          threshold?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bulk_jobs: {
         Row: {
           created_at: string
@@ -201,8 +293,10 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          last_available_quantity: number | null
           last_checked_at: string | null
           last_price_cents: number | null
+          last_sold_quantity: number | null
           last_status: string | null
           ml_item_id: string
           permalink: string | null
@@ -212,8 +306,10 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          last_available_quantity?: number | null
           last_checked_at?: string | null
           last_price_cents?: number | null
+          last_sold_quantity?: number | null
           last_status?: string | null
           ml_item_id: string
           permalink?: string | null
@@ -223,8 +319,10 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          last_available_quantity?: number | null
           last_checked_at?: string | null
           last_price_cents?: number | null
+          last_sold_quantity?: number | null
           last_status?: string | null
           ml_item_id?: string
           permalink?: string | null
@@ -232,6 +330,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      competitor_watch_snapshots: {
+        Row: {
+          available_quantity: number | null
+          captured_at: string
+          id: string
+          permalink: string | null
+          price_cents: number | null
+          sold_quantity: number | null
+          status: string | null
+          title: string | null
+          user_id: string
+          watch_id: string
+        }
+        Insert: {
+          available_quantity?: number | null
+          captured_at?: string
+          id?: string
+          permalink?: string | null
+          price_cents?: number | null
+          sold_quantity?: number | null
+          status?: string | null
+          title?: string | null
+          user_id: string
+          watch_id: string
+        }
+        Update: {
+          available_quantity?: number | null
+          captured_at?: string
+          id?: string
+          permalink?: string | null
+          price_cents?: number | null
+          sold_quantity?: number | null
+          status?: string | null
+          title?: string | null
+          user_id?: string
+          watch_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_watch_snapshots_watch_id_fkey"
+            columns: ["watch_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_watch"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       coupons: {
         Row: {
@@ -268,6 +413,82 @@ export type Database = {
           uses?: number
         }
         Relationships: []
+      }
+      keyword_track_snapshots: {
+        Row: {
+          captured_at: string
+          found: boolean
+          id: string
+          position: number | null
+          result_window: number
+          track_id: string
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string
+          found?: boolean
+          id?: string
+          position?: number | null
+          result_window?: number
+          track_id: string
+          user_id: string
+        }
+        Update: {
+          captured_at?: string
+          found?: boolean
+          id?: string
+          position?: number | null
+          result_window?: number
+          track_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_track_snapshots_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "keyword_tracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      keyword_tracks: {
+        Row: {
+          created_at: string
+          id: string
+          keyword: string
+          last_checked_at: string | null
+          last_position: number | null
+          listing_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          keyword: string
+          last_checked_at?: string | null
+          last_position?: number | null
+          listing_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          keyword?: string
+          last_checked_at?: string | null
+          last_position?: number | null
+          listing_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_tracks_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       license_alert_log: {
         Row: {
@@ -777,6 +998,7 @@ export type Database = {
           badge: string | null
           code: string
           created_at: string
+          feature_flags: Json
           features: Json
           highlighted: boolean
           id: string
@@ -796,6 +1018,7 @@ export type Database = {
           badge?: string | null
           code: string
           created_at?: string
+          feature_flags?: Json
           features?: Json
           highlighted?: boolean
           id?: string
@@ -815,6 +1038,7 @@ export type Database = {
           badge?: string | null
           code?: string
           created_at?: string
+          feature_flags?: Json
           features?: Json
           highlighted?: boolean
           id?: string
@@ -828,6 +1052,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      pricing_audit_log: {
+        Row: {
+          applied: boolean
+          created_at: string
+          id: string
+          listing_id: string | null
+          minimum_price_cents: number | null
+          previous_price_cents: number | null
+          strategy: string
+          suggested_price_cents: number
+          target_margin_percent: number | null
+          user_id: string
+        }
+        Insert: {
+          applied?: boolean
+          created_at?: string
+          id?: string
+          listing_id?: string | null
+          minimum_price_cents?: number | null
+          previous_price_cents?: number | null
+          strategy?: string
+          suggested_price_cents: number
+          target_margin_percent?: number | null
+          user_id: string
+        }
+        Update: {
+          applied?: boolean
+          created_at?: string
+          id?: string
+          listing_id?: string | null
+          minimum_price_cents?: number | null
+          previous_price_cents?: number | null
+          strategy?: string
+          suggested_price_cents?: number
+          target_margin_percent?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_audit_log_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -922,6 +1193,45 @@ export type Database = {
           referrer_user_id?: string
           reward_ads?: number
           status?: string
+        }
+        Relationships: []
+      }
+      registration_abuse_events: {
+        Row: {
+          created_at: string
+          device_hash: string
+          email_hash: string
+          id: string
+          ip_hash: string
+          reservation_token_hash: string
+          status: string
+          updated_at: string
+          user_agent_hash: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_hash: string
+          email_hash: string
+          id?: string
+          ip_hash: string
+          reservation_token_hash: string
+          status?: string
+          updated_at?: string
+          user_agent_hash?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_hash?: string
+          email_hash?: string
+          id?: string
+          ip_hash?: string
+          reservation_token_hash?: string
+          status?: string
+          updated_at?: string
+          user_agent_hash?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

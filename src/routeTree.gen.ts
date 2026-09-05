@@ -17,10 +17,12 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as TermosRouteImport } from './routes/termos'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminComercialRouteImport } from './routes/_authenticated/admin-comercial'
+import { Route as AuthenticatedAdminControleRouteImport } from './routes/_authenticated/admin-controle'
 import { Route as AuthenticatedAdminCreditosRouteImport } from './routes/_authenticated/admin-creditos'
 import { Route as AuthenticatedAdminRevendedoresRouteImport } from './routes/_authenticated/admin-revendedores'
 import { Route as AuthenticatedAnunciosRouteImport } from './routes/_authenticated/anuncios'
 import { Route as AuthenticatedAssinaturaRouteImport } from './routes/_authenticated/assinatura'
+import { Route as AuthenticatedAutomacoesRouteImport } from './routes/_authenticated/automacoes'
 import { Route as AuthenticatedBuscarRouteImport } from './routes/_authenticated/buscar'
 import { Route as AuthenticatedCancelamentoRouteImport } from './routes/_authenticated/cancelamento'
 import { Route as AuthenticatedContaRouteImport } from './routes/_authenticated/conta'
@@ -28,14 +30,20 @@ import { Route as AuthenticatedCreditosRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedCreditosIaRouteImport } from './routes/_authenticated/creditos-ia'
 import { Route as AuthenticatedCrescimentoRouteImport } from './routes/_authenticated/crescimento'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedEncalhadosRouteImport } from './routes/_authenticated/encalhados'
 import { Route as AuthenticatedEstoqueRouteImport } from './routes/_authenticated/estoque'
 import { Route as AuthenticatedIndicacoesRouteImport } from './routes/_authenticated/indicacoes'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
+import { Route as AuthenticatedInteligenciaRouteImport } from './routes/_authenticated/inteligencia'
 import { Route as AuthenticatedLicencaRouteImport } from './routes/_authenticated/licenca'
+import { Route as AuthenticatedMercadoRouteImport } from './routes/_authenticated/mercado'
 import { Route as AuthenticatedMlStartRouteImport } from './routes/_authenticated/ml-start'
 import { Route as AuthenticatedNotificacoesRouteImport } from './routes/_authenticated/notificacoes'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedOportunidadesRouteImport } from './routes/_authenticated/oportunidades'
+import { Route as AuthenticatedPalavrasChaveRouteImport } from './routes/_authenticated/palavras-chave'
 import { Route as AuthenticatedPerguntasRouteImport } from './routes/_authenticated/perguntas'
+import { Route as AuthenticatedPrecificacaoRouteImport } from './routes/_authenticated/precificacao'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedResultadosRouteImport } from './routes/_authenticated/resultados'
 import { Route as AuthenticatedRevendedorRouteImport } from './routes/_authenticated/revendedor'
@@ -90,6 +98,12 @@ const AuthenticatedAdminComercialRoute =
     path: '/admin-comercial',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminControleRoute =
+  AuthenticatedAdminControleRouteImport.update({
+    id: '/admin-controle',
+    path: '/admin-controle',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAdminCreditosRoute =
   AuthenticatedAdminCreditosRouteImport.update({
     id: '/admin-creditos',
@@ -110,6 +124,11 @@ const AuthenticatedAnunciosRoute = AuthenticatedAnunciosRouteImport.update({
 const AuthenticatedAssinaturaRoute = AuthenticatedAssinaturaRouteImport.update({
   id: '/assinatura',
   path: '/assinatura',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAutomacoesRoute = AuthenticatedAutomacoesRouteImport.update({
+  id: '/automacoes',
+  path: '/automacoes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedBuscarRoute = AuthenticatedBuscarRouteImport.update({
@@ -149,6 +168,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEncalhadosRoute = AuthenticatedEncalhadosRouteImport.update({
+  id: '/encalhados',
+  path: '/encalhados',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedEstoqueRoute = AuthenticatedEstoqueRouteImport.update({
   id: '/estoque',
   path: '/estoque',
@@ -165,9 +189,20 @@ const AuthenticatedIntegracoesRoute =
     path: '/integracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedInteligenciaRoute =
+  AuthenticatedInteligenciaRouteImport.update({
+    id: '/inteligencia',
+    path: '/inteligencia',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedLicencaRoute = AuthenticatedLicencaRouteImport.update({
   id: '/licenca',
   path: '/licenca',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMercadoRoute = AuthenticatedMercadoRouteImport.update({
+  id: '/mercado',
+  path: '/mercado',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedMlStartRoute = AuthenticatedMlStartRouteImport.update({
@@ -186,11 +221,29 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedOportunidadesRoute =
+  AuthenticatedOportunidadesRouteImport.update({
+    id: '/oportunidades',
+    path: '/oportunidades',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPalavrasChaveRoute =
+  AuthenticatedPalavrasChaveRouteImport.update({
+    id: '/palavras-chave',
+    path: '/palavras-chave',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPerguntasRoute = AuthenticatedPerguntasRouteImport.update({
   id: '/perguntas',
   path: '/perguntas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPrecificacaoRoute =
+  AuthenticatedPrecificacaoRouteImport.update({
+    id: '/precificacao',
+    path: '/precificacao',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
@@ -268,10 +321,12 @@ export interface FileRoutesByFullPath {
   '/termos': typeof TermosRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/admin-controle': typeof AuthenticatedAdminControleRoute
   '/admin-creditos': typeof AuthenticatedAdminCreditosRoute
   '/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
   '/assinatura': typeof AuthenticatedAssinaturaRoute
+  '/automacoes': typeof AuthenticatedAutomacoesRoute
   '/buscar': typeof AuthenticatedBuscarRoute
   '/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/conta': typeof AuthenticatedContaRoute
@@ -279,14 +334,20 @@ export interface FileRoutesByFullPath {
   '/creditos-ia': typeof AuthenticatedCreditosIaRoute
   '/crescimento': typeof AuthenticatedCrescimentoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/encalhados': typeof AuthenticatedEncalhadosRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
   '/indicacoes': typeof AuthenticatedIndicacoesRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
+  '/inteligencia': typeof AuthenticatedInteligenciaRoute
   '/licenca': typeof AuthenticatedLicencaRoute
+  '/mercado': typeof AuthenticatedMercadoRoute
   '/ml-start': typeof AuthenticatedMlStartRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/oportunidades': typeof AuthenticatedOportunidadesRoute
+  '/palavras-chave': typeof AuthenticatedPalavrasChaveRoute
   '/perguntas': typeof AuthenticatedPerguntasRoute
+  '/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/resultados': typeof AuthenticatedResultadosRoute
   '/revendedor': typeof AuthenticatedRevendedorRoute
@@ -309,10 +370,12 @@ export interface FileRoutesByTo {
   '/termos': typeof TermosRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/admin-controle': typeof AuthenticatedAdminControleRoute
   '/admin-creditos': typeof AuthenticatedAdminCreditosRoute
   '/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/anuncios': typeof AuthenticatedAnunciosRoute
   '/assinatura': typeof AuthenticatedAssinaturaRoute
+  '/automacoes': typeof AuthenticatedAutomacoesRoute
   '/buscar': typeof AuthenticatedBuscarRoute
   '/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/conta': typeof AuthenticatedContaRoute
@@ -320,14 +383,20 @@ export interface FileRoutesByTo {
   '/creditos-ia': typeof AuthenticatedCreditosIaRoute
   '/crescimento': typeof AuthenticatedCrescimentoRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/encalhados': typeof AuthenticatedEncalhadosRoute
   '/estoque': typeof AuthenticatedEstoqueRoute
   '/indicacoes': typeof AuthenticatedIndicacoesRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
+  '/inteligencia': typeof AuthenticatedInteligenciaRoute
   '/licenca': typeof AuthenticatedLicencaRoute
+  '/mercado': typeof AuthenticatedMercadoRoute
   '/ml-start': typeof AuthenticatedMlStartRoute
   '/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/oportunidades': typeof AuthenticatedOportunidadesRoute
+  '/palavras-chave': typeof AuthenticatedPalavrasChaveRoute
   '/perguntas': typeof AuthenticatedPerguntasRoute
+  '/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/resultados': typeof AuthenticatedResultadosRoute
   '/revendedor': typeof AuthenticatedRevendedorRoute
@@ -352,10 +421,12 @@ export interface FileRoutesById {
   '/termos': typeof TermosRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/admin-comercial': typeof AuthenticatedAdminComercialRoute
+  '/_authenticated/admin-controle': typeof AuthenticatedAdminControleRoute
   '/_authenticated/admin-creditos': typeof AuthenticatedAdminCreditosRoute
   '/_authenticated/admin-revendedores': typeof AuthenticatedAdminRevendedoresRoute
   '/_authenticated/anuncios': typeof AuthenticatedAnunciosRoute
   '/_authenticated/assinatura': typeof AuthenticatedAssinaturaRoute
+  '/_authenticated/automacoes': typeof AuthenticatedAutomacoesRoute
   '/_authenticated/buscar': typeof AuthenticatedBuscarRoute
   '/_authenticated/cancelamento': typeof AuthenticatedCancelamentoRoute
   '/_authenticated/conta': typeof AuthenticatedContaRoute
@@ -363,14 +434,20 @@ export interface FileRoutesById {
   '/_authenticated/creditos-ia': typeof AuthenticatedCreditosIaRoute
   '/_authenticated/crescimento': typeof AuthenticatedCrescimentoRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/encalhados': typeof AuthenticatedEncalhadosRoute
   '/_authenticated/estoque': typeof AuthenticatedEstoqueRoute
   '/_authenticated/indicacoes': typeof AuthenticatedIndicacoesRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
+  '/_authenticated/inteligencia': typeof AuthenticatedInteligenciaRoute
   '/_authenticated/licenca': typeof AuthenticatedLicencaRoute
+  '/_authenticated/mercado': typeof AuthenticatedMercadoRoute
   '/_authenticated/ml-start': typeof AuthenticatedMlStartRoute
   '/_authenticated/notificacoes': typeof AuthenticatedNotificacoesRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/oportunidades': typeof AuthenticatedOportunidadesRoute
+  '/_authenticated/palavras-chave': typeof AuthenticatedPalavrasChaveRoute
   '/_authenticated/perguntas': typeof AuthenticatedPerguntasRoute
+  '/_authenticated/precificacao': typeof AuthenticatedPrecificacaoRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/resultados': typeof AuthenticatedResultadosRoute
   '/_authenticated/revendedor': typeof AuthenticatedRevendedorRoute
@@ -395,10 +472,12 @@ export interface FileRouteTypes {
     | '/termos'
     | '/admin'
     | '/admin-comercial'
+    | '/admin-controle'
     | '/admin-creditos'
     | '/admin-revendedores'
     | '/anuncios'
     | '/assinatura'
+    | '/automacoes'
     | '/buscar'
     | '/cancelamento'
     | '/conta'
@@ -406,14 +485,20 @@ export interface FileRouteTypes {
     | '/creditos-ia'
     | '/crescimento'
     | '/dashboard'
+    | '/encalhados'
     | '/estoque'
     | '/indicacoes'
     | '/integracoes'
+    | '/inteligencia'
     | '/licenca'
+    | '/mercado'
     | '/ml-start'
     | '/notificacoes'
     | '/onboarding'
+    | '/oportunidades'
+    | '/palavras-chave'
     | '/perguntas'
+    | '/precificacao'
     | '/relatorios'
     | '/resultados'
     | '/revendedor'
@@ -436,10 +521,12 @@ export interface FileRouteTypes {
     | '/termos'
     | '/admin'
     | '/admin-comercial'
+    | '/admin-controle'
     | '/admin-creditos'
     | '/admin-revendedores'
     | '/anuncios'
     | '/assinatura'
+    | '/automacoes'
     | '/buscar'
     | '/cancelamento'
     | '/conta'
@@ -447,14 +534,20 @@ export interface FileRouteTypes {
     | '/creditos-ia'
     | '/crescimento'
     | '/dashboard'
+    | '/encalhados'
     | '/estoque'
     | '/indicacoes'
     | '/integracoes'
+    | '/inteligencia'
     | '/licenca'
+    | '/mercado'
     | '/ml-start'
     | '/notificacoes'
     | '/onboarding'
+    | '/oportunidades'
+    | '/palavras-chave'
     | '/perguntas'
+    | '/precificacao'
     | '/relatorios'
     | '/resultados'
     | '/revendedor'
@@ -478,10 +571,12 @@ export interface FileRouteTypes {
     | '/termos'
     | '/_authenticated/admin'
     | '/_authenticated/admin-comercial'
+    | '/_authenticated/admin-controle'
     | '/_authenticated/admin-creditos'
     | '/_authenticated/admin-revendedores'
     | '/_authenticated/anuncios'
     | '/_authenticated/assinatura'
+    | '/_authenticated/automacoes'
     | '/_authenticated/buscar'
     | '/_authenticated/cancelamento'
     | '/_authenticated/conta'
@@ -489,14 +584,20 @@ export interface FileRouteTypes {
     | '/_authenticated/creditos-ia'
     | '/_authenticated/crescimento'
     | '/_authenticated/dashboard'
+    | '/_authenticated/encalhados'
     | '/_authenticated/estoque'
     | '/_authenticated/indicacoes'
     | '/_authenticated/integracoes'
+    | '/_authenticated/inteligencia'
     | '/_authenticated/licenca'
+    | '/_authenticated/mercado'
     | '/_authenticated/ml-start'
     | '/_authenticated/notificacoes'
     | '/_authenticated/onboarding'
+    | '/_authenticated/oportunidades'
+    | '/_authenticated/palavras-chave'
     | '/_authenticated/perguntas'
+    | '/_authenticated/precificacao'
     | '/_authenticated/relatorios'
     | '/_authenticated/resultados'
     | '/_authenticated/revendedor'
@@ -585,6 +686,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminComercialRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin-controle': {
+      id: '/_authenticated/admin-controle'
+      path: '/admin-controle'
+      fullPath: '/admin-controle'
+      preLoaderRoute: typeof AuthenticatedAdminControleRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin-creditos': {
       id: '/_authenticated/admin-creditos'
       path: '/admin-creditos'
@@ -611,6 +719,13 @@ declare module '@tanstack/react-router' {
       path: '/assinatura'
       fullPath: '/assinatura'
       preLoaderRoute: typeof AuthenticatedAssinaturaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/automacoes': {
+      id: '/_authenticated/automacoes'
+      path: '/automacoes'
+      fullPath: '/automacoes'
+      preLoaderRoute: typeof AuthenticatedAutomacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/buscar': {
@@ -662,6 +777,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/encalhados': {
+      id: '/_authenticated/encalhados'
+      path: '/encalhados'
+      fullPath: '/encalhados'
+      preLoaderRoute: typeof AuthenticatedEncalhadosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/estoque': {
       id: '/_authenticated/estoque'
       path: '/estoque'
@@ -683,11 +805,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIntegracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/inteligencia': {
+      id: '/_authenticated/inteligencia'
+      path: '/inteligencia'
+      fullPath: '/inteligencia'
+      preLoaderRoute: typeof AuthenticatedInteligenciaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/licenca': {
       id: '/_authenticated/licenca'
       path: '/licenca'
       fullPath: '/licenca'
       preLoaderRoute: typeof AuthenticatedLicencaRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/mercado': {
+      id: '/_authenticated/mercado'
+      path: '/mercado'
+      fullPath: '/mercado'
+      preLoaderRoute: typeof AuthenticatedMercadoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ml-start': {
@@ -711,11 +847,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/oportunidades': {
+      id: '/_authenticated/oportunidades'
+      path: '/oportunidades'
+      fullPath: '/oportunidades'
+      preLoaderRoute: typeof AuthenticatedOportunidadesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/palavras-chave': {
+      id: '/_authenticated/palavras-chave'
+      path: '/palavras-chave'
+      fullPath: '/palavras-chave'
+      preLoaderRoute: typeof AuthenticatedPalavrasChaveRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/perguntas': {
       id: '/_authenticated/perguntas'
       path: '/perguntas'
       fullPath: '/perguntas'
       preLoaderRoute: typeof AuthenticatedPerguntasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/precificacao': {
+      id: '/_authenticated/precificacao'
+      path: '/precificacao'
+      fullPath: '/precificacao'
+      preLoaderRoute: typeof AuthenticatedPrecificacaoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/relatorios': {
@@ -815,10 +972,12 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedAdminComercialRoute: typeof AuthenticatedAdminComercialRoute
+  AuthenticatedAdminControleRoute: typeof AuthenticatedAdminControleRoute
   AuthenticatedAdminCreditosRoute: typeof AuthenticatedAdminCreditosRoute
   AuthenticatedAdminRevendedoresRoute: typeof AuthenticatedAdminRevendedoresRoute
   AuthenticatedAnunciosRoute: typeof AuthenticatedAnunciosRoute
   AuthenticatedAssinaturaRoute: typeof AuthenticatedAssinaturaRoute
+  AuthenticatedAutomacoesRoute: typeof AuthenticatedAutomacoesRoute
   AuthenticatedBuscarRoute: typeof AuthenticatedBuscarRoute
   AuthenticatedCancelamentoRoute: typeof AuthenticatedCancelamentoRoute
   AuthenticatedContaRoute: typeof AuthenticatedContaRoute
@@ -826,14 +985,20 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCreditosIaRoute: typeof AuthenticatedCreditosIaRoute
   AuthenticatedCrescimentoRoute: typeof AuthenticatedCrescimentoRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedEncalhadosRoute: typeof AuthenticatedEncalhadosRoute
   AuthenticatedEstoqueRoute: typeof AuthenticatedEstoqueRoute
   AuthenticatedIndicacoesRoute: typeof AuthenticatedIndicacoesRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
+  AuthenticatedInteligenciaRoute: typeof AuthenticatedInteligenciaRoute
   AuthenticatedLicencaRoute: typeof AuthenticatedLicencaRoute
+  AuthenticatedMercadoRoute: typeof AuthenticatedMercadoRoute
   AuthenticatedMlStartRoute: typeof AuthenticatedMlStartRoute
   AuthenticatedNotificacoesRoute: typeof AuthenticatedNotificacoesRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedOportunidadesRoute: typeof AuthenticatedOportunidadesRoute
+  AuthenticatedPalavrasChaveRoute: typeof AuthenticatedPalavrasChaveRoute
   AuthenticatedPerguntasRoute: typeof AuthenticatedPerguntasRoute
+  AuthenticatedPrecificacaoRoute: typeof AuthenticatedPrecificacaoRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedResultadosRoute: typeof AuthenticatedResultadosRoute
   AuthenticatedRevendedorRoute: typeof AuthenticatedRevendedorRoute
@@ -845,10 +1010,12 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedAdminComercialRoute: AuthenticatedAdminComercialRoute,
+  AuthenticatedAdminControleRoute: AuthenticatedAdminControleRoute,
   AuthenticatedAdminCreditosRoute: AuthenticatedAdminCreditosRoute,
   AuthenticatedAdminRevendedoresRoute: AuthenticatedAdminRevendedoresRoute,
   AuthenticatedAnunciosRoute: AuthenticatedAnunciosRoute,
   AuthenticatedAssinaturaRoute: AuthenticatedAssinaturaRoute,
+  AuthenticatedAutomacoesRoute: AuthenticatedAutomacoesRoute,
   AuthenticatedBuscarRoute: AuthenticatedBuscarRoute,
   AuthenticatedCancelamentoRoute: AuthenticatedCancelamentoRoute,
   AuthenticatedContaRoute: AuthenticatedContaRoute,
@@ -856,14 +1023,20 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCreditosIaRoute: AuthenticatedCreditosIaRoute,
   AuthenticatedCrescimentoRoute: AuthenticatedCrescimentoRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedEncalhadosRoute: AuthenticatedEncalhadosRoute,
   AuthenticatedEstoqueRoute: AuthenticatedEstoqueRoute,
   AuthenticatedIndicacoesRoute: AuthenticatedIndicacoesRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
+  AuthenticatedInteligenciaRoute: AuthenticatedInteligenciaRoute,
   AuthenticatedLicencaRoute: AuthenticatedLicencaRoute,
+  AuthenticatedMercadoRoute: AuthenticatedMercadoRoute,
   AuthenticatedMlStartRoute: AuthenticatedMlStartRoute,
   AuthenticatedNotificacoesRoute: AuthenticatedNotificacoesRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedOportunidadesRoute: AuthenticatedOportunidadesRoute,
+  AuthenticatedPalavrasChaveRoute: AuthenticatedPalavrasChaveRoute,
   AuthenticatedPerguntasRoute: AuthenticatedPerguntasRoute,
+  AuthenticatedPrecificacaoRoute: AuthenticatedPrecificacaoRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedResultadosRoute: AuthenticatedResultadosRoute,
   AuthenticatedRevendedorRoute: AuthenticatedRevendedorRoute,
