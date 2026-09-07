@@ -36,6 +36,8 @@ jobs:
         run: bun test tests/commercial-suite.test.ts
       - name: Inteligência e automações v2
         run: bun test tests/intelligence-operations-v2.test.ts
+      - name: Fundação completa da plataforma
+        run: bun test tests/full-platform-foundation.test.ts
       - name: Centro de controle administrativo
         run: bun test tests/admin-control-center.test.ts
       - name: Regressões críticas de publicação e pagamento
