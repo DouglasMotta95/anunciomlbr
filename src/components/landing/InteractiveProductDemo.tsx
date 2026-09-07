@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, BarChart3, Check, Copy, Lightbulb, PackageCheck, Search, Sparkles, Wand2 } from "lucide-react";
+import { ArrowRight, BarChart3, Check, Copy, ExternalLink, Lightbulb, PackageCheck, Search, Sparkles, Wand2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { normalizeSearchTerm } from "@/lib/ml-search-input";
 
 const demoProducts = [
   { title: "Fone Bluetooth Pro com Estojo de Carga", price: "R$ 129,90", seller: "Loja demonstrativa", score: "Boa referência" },
