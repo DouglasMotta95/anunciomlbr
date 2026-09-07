@@ -518,7 +518,7 @@ export function SearchSection() {
             className="flex flex-col gap-3 border-b border-border/60 p-4 sm:flex-row sm:items-center"
             onSubmit={(event) => {
               event.preventDefault();
-              trackEvent("landing_search_ml", { term: trimmed });
+              
               window.open(searchUrl, "_blank", "noopener,noreferrer");
             }}
           >
