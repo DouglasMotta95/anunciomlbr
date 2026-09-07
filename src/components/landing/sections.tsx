@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Copy,
   Database,
+  ExternalLink,
   Filter,
   Flame,
   Gauge,
@@ -491,7 +492,16 @@ const searchResults = [
   { t: "Câmera de Segurança Wi-Fi 360°", p: "R$ 179,90", c: "Segurança", sales: "890 vendas", img: demoImages.camera },
 ];
 
+function mercadoLivreSearchUrl(term: string) {
+  const slug = normalizeSearchTerm(term);
+  return slug ? `https://lista.mercadolivre.com.br/${slug}` : "https://www.mercadolivre.com.br";
+}
+
 export function SearchSection() {
+  const [term, setTerm] = useState("fone bluetooth");
+  const trimmed = term.trim();
+  const searchUrl = mercadoLivreSearchUrl(trimmed || "fone bluetooth");
+
   return (
     <section id="buscar" className="border-b border-border/60 py-16 sm:py-24">
       <div className="mx-auto max-w-6xl px-4">
@@ -502,20 +512,37 @@ export function SearchSection() {
         />
 
         <Card className="mt-10 overflow-hidden border-border/60 bg-surface/60 p-0">
-          <div className="flex flex-col gap-3 border-b border-border/60 p-4 sm:flex-row sm:items-center">
-            <div className="flex flex-1 items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-3 py-2 text-sm text-muted-foreground">
-              <Search className="h-4 w-4 shrink-0" /> fone bluetooth
+          <form
+            className="flex flex-col gap-3 border-b border-border/60 p-4 sm:flex-row sm:items-center"
+            onSubmit={(event) => {
+              event.preventDefault();
+              trackEvent("landing_search_ml", { term: trimmed });
+              window.open(searchUrl, "_blank", "noopener,noreferrer");
+            }}
+          >
+            <div className="flex flex-1 items-center gap-2 rounded-xl border border-border/60 bg-background/60 px-3">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <Input
+                value={term}
+                onChange={(event) => setTerm(event.target.value)}
+                placeholder="Ex.: fone bluetooth"
+                aria-label="Buscar produto no Mercado Livre"
+                className="h-10 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+              />
             </div>
-            <div className="flex flex-wrap gap-2">
-              {["Eletrônicos", "Frete grátis", "Mais vendidos", "Novo"].map((f) => (
-                <span
-                  key={f}
-                  className="flex items-center gap-1 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground"
-                >
-                  <Filter className="h-3 w-3" /> {f}
-                </span>
-              ))}
-            </div>
+            <Button type="submit" size="sm" className="h-10 shrink-0 gap-1.5 font-bold">
+              Buscar no Mercado Livre <ExternalLink className="h-3.5 w-3.5" />
+            </Button>
+          </form>
+          <div className="flex flex-wrap gap-2 border-b border-border/60 px-4 py-3">
+            {["Eletrônicos", "Frete grátis", "Mais vendidos", "Novo"].map((f) => (
+              <span
+                key={f}
+                className="flex items-center gap-1 rounded-full border border-border/60 bg-background/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground"
+              >
+                <Filter className="h-3 w-3" /> {f}
+              </span>
+            ))}
           </div>
           <div className="divide-y divide-border/60">
             {searchResults.map((r, i) => (
@@ -532,14 +559,19 @@ export function SearchSection() {
                   </p>
                 </div>
                 <span className="hidden text-sm font-bold text-primary sm:block">{r.p}</span>
-                <Button size="sm" variant="secondary" className="h-8 shrink-0 text-xs font-bold">
-                  COPIAR
+                <Button size="sm" variant="outline" className="h-8 shrink-0 gap-1 text-xs font-bold" asChild>
+                  <a href={mercadoLivreSearchUrl(r.t)} target="_blank" rel="noopener noreferrer">
+                    VER NO ML <ExternalLink className="h-3 w-3" />
+                  </a>
+                </Button>
+                <Button size="sm" variant="secondary" className="hidden h-8 shrink-0 text-xs font-bold sm:inline-flex" asChild>
+                  <Link to="/auth" search={{ mode: "signup" }}>COPIAR</Link>
                 </Button>
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-between border-t border-border/60 p-3 text-xs text-muted-foreground">
-            <span>Mostrando 4 de 47 resultados</span>
+          <div className="flex items-center justify-between gap-2 border-t border-border/60 p-3 text-xs text-muted-foreground">
+            <span>Exemplos de vitrine · a busca abre o Mercado Livre real</span>
             <IllustrativeTag />
           </div>
         </Card>
