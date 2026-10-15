@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Inicializar CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
       - uses: oven-sh/setup-bun@v2
@@ -32,4 +32,4 @@ jobs:
       - name: Build
         run: bun run build
       - name: Analisar
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
