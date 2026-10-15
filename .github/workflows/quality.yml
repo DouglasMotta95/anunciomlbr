@@ -80,13 +80,13 @@ jobs:
           fi
       - name: Salvar log da auditoria de ações
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quality-ui-audit-log
           path: audit-ui.log
       - name: Salvar log do build
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quality-build-log
           path: build.log
